@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Chat Windows — Dashboard Hybrid</title>
+<style>
+:root {
+  --app-bg: #0d1117;
+  --sidebar-bg: #161b22;
+  --surface: #1c2128;
+  --surface-raised: #21262d;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --text-faint: #6e7681;
+  --accent: #9589f7;
+  --accent-soft: rgba(149,137,247,.12);
+  --success: #56d364;
+  --warning: #e3b341;
+  --info: #58a6ff;
+  --stack-cache: #56d364;
+  --stack-input: #58a6ff;
+  --stack-output: #f78166;
+  --line: #30363d;
+  --radius: 12px;
+  --font: -apple-system, 'Segoe UI', sans-serif;
+  --fs-page-title: 28px;
+  --fs-section-title: 15px;
+  --fs-body: 13px;
+  --fs-secondary: 11px;
+  --fs-data: 26px;
+  --fs-table: 12px;
+  --fs-control: 12px;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+body {
+  font-family: var(--font);
+  background: var(--app-bg);
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--line); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--text-faint); }
+
+/* ── Top Nav ── */
+.topnav {
+  display:flex; align-items:center; gap:16px;
+  height:48px; padding:0 20px;
+  background:var(--sidebar-bg); border-bottom:1px solid var(--line);
+  position:relative; z-index:100;
+}
+.topnav-brand { font-size:16px; font-weight:700; color:var(--accent); letter-spacing:-.3px; white-space:nowrap; }
+.topnav-tabs { display:flex; gap:4px; margin-left:24px; }
+.topnav-tab {
+  padding:6px 16px; border-radius:8px; font-size:var(--fs-control);
+  color:var(--text-muted); cursor:pointer; transition:.2s; border:none; background:none;
+  font-family:var(--font);
+}
+.topnav-tab:hover { color:var(--text); background:var(--surface); }
+.topnav-tab.active { color:var(--accent); background:var(--accent-soft); font-weight:600; }
+.topnav-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+.topnav-stat { font-size:var(--fs-secondary); color:var(--text-muted); }
+.topnav-stat span { color:var(--text); font-weight:600; }
+
+/* ── Pages ── */
+.page { display:none; height:calc(100vh - 48px); }
+.page.active { display:flex; }
+
+/* ── Page 1: Chat ── */
+#page-chat { flex-direction:row; overflow:hidden; }
+
+/* Left panel */
+.chat-left {
+  width:380px; min-width:0; background:var(--sidebar-bg);
+  border-right:1px solid var(--line);
+  display:flex; flex-direction:column;
+  transition:width .3s, min-width .3s, opacity .2s;
+  overflow:hidden;
+}
+.chat-left.collapsed { width:0; min-width:0; opacity:0; pointer-events:none; }
+.chat-left-header {
+  padding:16px; border-bottom:1px solid var(--line);
+  display:flex; flex-direction:column; gap:10px;
+}
+.chat-left-header h3 { font-size:var(--fs-section-title); font-weight:600; }
+.chat-search {
+  width:100%; padding:8px 12px; border-radius:8px;
+  background:var(--surface); border:1px solid var(--line);
+  color:var(--text); font-size:var(--fs-control); outline:none;
+  font-family:var(--font);
+}
+.chat-search:focus { border-color:var(--accent); }
+.chat-new-btn {
+  padding:8px; border-radius:8px; border:1px dashed var(--line);
+  background:transparent; color:var(--text-muted); cursor:pointer;
+  font-size:var(--fs-control); font-family:var(--font); transition:.2s;
+}
+.chat-new-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+.chat-list { flex:1; overflow-y:auto; padding:8px; }
+.chat-item {
+  padding:12px; border-radius:10px; cursor:pointer; transition:.15s;
+  margin-bottom:2px; position:relative;
+}
+.chat-item:hover { background:var(--surface); }
+.chat-item.active { background:var(--accent-soft); }
+.chat-item-title { font-size:var(--fs-body); font-weight:500; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.chat-item-meta { display:flex; gap:8px; font-size:var(--fs-secondary); color:var(--text-faint); }
+.chat-item-model { color:var(--accent); }
+
+/* Center chat area */
+.chat-center { flex:1; display:flex; flex-direction:column; min-width:0; }
+.chat-center-header {
+  padding:12px 20px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; gap:12px; background:var(--app-bg);
+}
+.toggle-btn {
+  width:32px; height:32px; border-radius:8px; border:1px solid var(--line);
+  background:var(--surface); color:var(--text-muted); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; transition:.15s;
+  font-size:14px; font-family:var(--font);
+}
+.toggle-btn:hover { border-color:var(--accent); color:var(--accent); }
+.chat-center-title { font-size:var(--fs-section-title); font-weight:600; }
+.chat-center-model {
+  font-size:var(--fs-secondary); color:var(--accent);
+  background:var(--accent-soft); padding:2px 8px; border-radius:6px;
+}
+.chat-center-tools { margin-left:auto; display:flex; gap:6px; }
+.tool-btn {
+  padding:6px 10px; border-radius:6px; border:none;
+  background:var(--surface); color:var(--text-muted); cursor:pointer;
+  font-size:var(--fs-secondary); font-family:var(--font); transition:.15s;
+}
+.tool-btn:hover { color:var(--text); background:var(--surface-raised); }
+
+/* Messages */
+.chat-messages {
+  flex:1; overflow-y:auto; padding:20px;
+  display:flex; flex-direction:column; gap:16px;
+}
+.msg { display:flex; flex-direction:column; max-width:85%; }
+.msg.user { align-self:flex-end; }
+.msg.assistant { align-self:flex-start; }
+.msg-bubble {
+  padding:12px 16px; border-radius:12px;
+  font-size:var(--fs-body); line-height:1.6;
+  word-break:break-word;
+}
+.msg.user .msg-bubble {
+  background:var(--accent); color:#fff;
+  border-bottom-right-radius:4px;
+}
+.msg.assistant .msg-bubble {
+  background:var(--surface); color:var(--text);
+  border-bottom-left-radius:4px;
+}
+.msg-meta {
+  display:flex; gap:8px; margin-top:4px;
+  font-size:var(--fs-secondary); color:var(--text-faint);
+  padding:0 4px;
+}
+.msg.user .msg-meta { justify-content:flex-end; }
+.msg-metric { display:flex; align-items:center; gap:3px; }
+.msg-metric-dot { width:6px; height:6px; border-radius:50%; }
+.msg-code-block {
+  background:var(--app-bg); border:1px solid var(--line);
+  border-radius:8px; padding:12px; margin-top:8px;
+  font-family:'Cascadia Code','Fira Code',monospace; font-size:12px;
+  overflow-x:auto; line-height:1.7;
+}
+.msg-thinking {
+  background:var(--accent-soft); border-left:3px solid var(--accent);
+  border-radius:0 8px 8px 0; padding:10px 14px; margin-top:8px;
+  font-size:var(--fs-secondary); color:var(--text-muted);
+  font-style:italic;
+}
+.msg-thinking-label { color:var(--accent); font-style:normal; font-weight:600; font-size:10px; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+
+/* Input */
+.chat-input-area {
+  padding:16px 20px; border-top:1px solid var(--line);
+  background:var(--app-bg);
+}
+.chat-input-wrap {
+  display:flex; align-items:flex-end; gap:10px;
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:12px; padding:8px 12px; transition:border-color .2s;
+}
+.chat-input-wrap:focus-within { border-color:var(--accent); }
+.chat-input {
+  flex:1; background:transparent; border:none; color:var(--text);
+  font-size:var(--fs-body); font-family:var(--font); outline:none;
+  resize:none; min-height:22px; max-height:120px; line-height:1.5;
+}
+.attach-btn {
+  width:32px; height:32px; border-radius:8px; border:none;
+  background:transparent; color:var(--text-faint); cursor:pointer;
+  font-size:16px; display:flex; align-items:center; justify-content:center;
+}
+.attach-btn:hover { color:var(--text-muted); }
+.send-btn {
+  width:32px; height:32px; border-radius:8px; border:none;
+  background:var(--accent); color:#fff; cursor:pointer;
+  font-size:14px; display:flex; align-items:center; justify-content:center;
+  transition:.15s;
+}
+.send-btn:hover { opacity:.85; }
+
+/* Right panel */
+.chat-right {
+  width:320px; min-width:0; background:var(--sidebar-bg);
+  border-left:1px solid var(--line);
+  display:flex; flex-direction:column;
+  transition:width .3s, min-width .3s, opacity .2s;
+  overflow:hidden;
+}
+.chat-right.collapsed { width:0; min-width:0; opacity:0; pointer-events:none; }
+.chat-right-header {
+  padding:16px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.chat-right-header h3 { font-size:var(--fs-section-title); font-weight:600; }
+.panel-body { flex:1; overflow-y:auto; padding:16px; }
+.metric-card {
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:10px; padding:14px; margin-bottom:12px;
+}
+.metric-card-label { font-size:var(--fs-secondary); color:var(--text-muted); margin-bottom:4px; }
+.metric-card-value { font-size:var(--fs-data); font-weight:700; }
+.metric-card-sub { font-size:var(--fs-secondary); color:var(--text-faint); margin-top:2px; }
+.metric-row { display:flex; gap:10px; }
+.metric-row .metric-card { flex:1; }
+.mini-chart {
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:10px; padding:14px; margin-bottom:12px;
+}
+.mini-chart-title { font-size:var(--fs-secondary); color:var(--text-muted); margin-bottom:10px; }
+.model-info-card {
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:10px; padding:14px; margin-bottom:12px;
+}
+.model-info-name { font-size:var(--fs-body); font-weight:600; color:var(--accent); }
+.model-info-provider { font-size:var(--fs-secondary); color:var(--text-faint); margin-bottom:8px; }
+.model-info-stats { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.model-info-stat-label { font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.3px; }
+.model-info-stat-value { font-size:var(--fs-body); font-weight:600; }
+
+/* ── Page 2: Provider Modal ── */
+#page-providers {
+  align-items:center; justify-content:center;
+  background:rgba(0,0,0,.6); backdrop-filter:blur(8px);
+}
+.modal-overlay {
+  width:920px; max-width:95vw; height:640px; max-height:90vh;
+  background:var(--sidebar-bg); border:1px solid var(--line);
+  border-radius:16px; display:flex; flex-direction:column;
+  overflow:hidden; box-shadow:0 24px 80px rgba(0,0,0,.5);
+}
+.modal-header {
+  padding:20px 24px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.modal-header h2 { font-size:var(--fs-page-title); font-weight:700; }
+.modal-close {
+  width:36px; height:36px; border-radius:10px; border:1px solid var(--line);
+  background:var(--surface); color:var(--text-muted); cursor:pointer;
+  font-size:18px; display:flex; align-items:center; justify-content:center;
+}
+.modal-close:hover { color:var(--text); border-color:var(--text-faint); }
+.modal-body { flex:1; display:flex; overflow:hidden; }
+.provider-list {
+  width:260px; border-right:1px solid var(--line);
+  display:flex; flex-direction:column;
+}
+.provider-list-header {
+  padding:16px; border-bottom:1px solid var(--line);
+  font-size:var(--fs-secondary); color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:.5px;
+}
+.provider-items { flex:1; overflow-y:auto; }
+.provider-item {
+  padding:14px 16px; cursor:pointer; transition:.15s;
+  border-bottom:1px solid var(--line);
+}
+.provider-item:hover { background:var(--surface); }
+.provider-item.active { background:var(--accent-soft); border-left:3px solid var(--accent); }
+.provider-item-name { font-weight:600; margin-bottom:2px; }
+.provider-item-status { font-size:var(--fs-secondary); display:flex; align-items:center; gap:4px; }
+.status-dot { width:8px; height:8px; border-radius:50%; }
+.status-dot.online { background:var(--success); }
+.status-dot.degraded { background:var(--warning); }
+.provider-detail { flex:1; overflow-y:auto; padding:24px; }
+.provider-detail-header { margin-bottom:20px; }
+.provider-detail-header h3 { font-size:22px; font-weight:700; margin-bottom:4px; }
+.provider-detail-header p { color:var(--text-muted); font-size:var(--fs-body); }
+.provider-models { margin-bottom:24px; }
+.provider-models h4 { font-size:var(--fs-section-title); font-weight:600; margin-bottom:12px; }
+.model-row {
+  display:flex; align-items:center; padding:10px 12px;
+  background:var(--surface); border-radius:8px; margin-bottom:6px;
+  gap:12px;
+}
+.model-row-name { font-weight:500; flex:1; }
+.model-row-price { font-size:var(--fs-secondary); color:var(--text-muted); }
+.model-row-status { font-size:var(--fs-secondary); color:var(--success); }
+.health-section { margin-bottom:20px; }
+.health-section h4 { font-size:var(--fs-section-title); font-weight:600; margin-bottom:12px; }
+.health-bar-wrap { margin-bottom:10px; }
+.health-bar-label { display:flex; justify-content:space-between; font-size:var(--fs-secondary); margin-bottom:4px; }
+.health-bar-label span:last-child { color:var(--success); }
+.health-bar { height:6px; background:var(--surface); border-radius:3px; overflow:hidden; }
+.health-bar-fill { height:100%; border-radius:3px; background:var(--success); transition:width .5s; }
+.test-btn {
+  padding:10px 20px; border-radius:8px; border:1px solid var(--accent);
+  background:var(--accent-soft); color:var(--accent); cursor:pointer;
+  font-size:var(--fs-body); font-weight:600; font-family:var(--font);
+  transition:.2s; display:inline-flex; align-items:center; gap:8px;
+}
+.test-btn:hover { background:var(--accent); color:#fff; }
+.test-btn.testing { opacity:.7; pointer-events:none; }
+.spinner {
+  width:14px; height:14px; border:2px solid transparent;
+  border-top-color:currentColor; border-radius:50%;
+  animation:spin .6s linear infinite; display:none;
+}
+.test-btn.testing .spinner { display:block; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.test-result { margin-top:10px; font-size:var(--fs-secondary); padding:8px 12px; border-radius:6px; display:none; }
+.test-result.show { display:block; }
+.test-result.ok { background:rgba(86,211,100,.1); color:var(--success); }
+.test-result.fail { background:rgba(248,81,73,.1); color:#f85149; }
+.modal-footer {
+  padding:16px 24px; border-top:1px solid var(--line);
+  display:flex; gap:10px;
+}
+.modal-footer-btn {
+  padding:8px 16px; border-radius:8px; border:1px solid var(--line);
+  background:var(--surface); color:var(--text-muted); cursor:pointer;
+  font-size:var(--fs-control); font-family:var(--font); transition:.15s;
+}
+.modal-footer-btn:hover { color:var(--text); border-color:var(--text-faint); }
+
+/* ── Page 3: Statistics ── */
+#page-stats { flex-direction:column; overflow-y:auto; }
+.stats-top {
+  padding:24px 28px 0; display:flex; align-items:center; gap:16px;
+  flex-wrap:wrap;
+}
+.stats-top h2 { font-size:var(--fs-page-title); font-weight:700; }
+.time-filters { display:flex; gap:4px; margin-left:auto; }
+.time-filter {
+  padding:6px 14px; border-radius:8px; border:1px solid var(--line);
+  background:transparent; color:var(--text-muted); cursor:pointer;
+  font-size:var(--fs-control); font-family:var(--font); transition:.15s;
+}
+.time-filter:hover { color:var(--text); border-color:var(--text-faint); }
+.time-filter.active { color:var(--accent); background:var(--accent-soft); border-color:var(--accent); }
+.stats-kpi {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
+  padding:20px 28px;
+}
+.kpi-card {
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:12px; padding:18px;
+}
+.kpi-card-label { font-size:var(--fs-secondary); color:var(--text-muted); margin-bottom:6px; }
+.kpi-card-value { font-size:var(--fs-data); font-weight:700; }
+.kpi-card-change { font-size:var(--fs-secondary); margin-top:4px; }
+.kpi-card-change.up { color:var(--warning); }
+.kpi-card-change.down { color:var(--success); }
+.stats-charts {
+  display:grid; grid-template-columns:1.4fr 1fr; gap:14px;
+  padding:0 28px 14px;
+}
+.chart-panel {
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:12px; padding:20px;
+}
+.chart-panel h3 { font-size:var(--fs-section-title); font-weight:600; margin-bottom:16px; }
+.donut-wrap { display:flex; align-items:center; gap:24px; }
+.donut { width:160px; height:160px; border-radius:50%; position:relative; }
+.donut-center {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  width:80px; height:80px; border-radius:50%; background:var(--surface);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+.donut-center-value { font-size:20px; font-weight:700; }
+.donut-center-label { font-size:10px; color:var(--text-muted); }
+.donut-legend { display:flex; flex-direction:column; gap:8px; }
+.donut-legend-item { display:flex; align-items:center; gap:8px; font-size:var(--fs-secondary); }
+.donut-legend-dot { width:10px; height:10px; border-radius:3px; }
+.stats-tables {
+  display:grid; grid-template-columns:1fr 1fr; gap:14px;
+  padding:0 28px 28px;
+}
+.table-panel {
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:12px; padding:20px; overflow-x:auto;
+}
+.table-panel h3 { font-size:var(--fs-section-title); font-weight:600; margin-bottom:14px; }
+.data-table { width:100%; border-collapse:collapse; }
+.data-table th {
+  text-align:left; font-size:var(--fs-secondary); color:var(--text-muted);
+  font-weight:500; padding:6px 10px; border-bottom:1px solid var(--line);
+  text-transform:uppercase; letter-spacing:.3px;
+}
+.data-table td {
+  padding:8px 10px; font-size:var(--fs-table); border-bottom:1px solid var(--line);
+}
+.data-table tr:last-child td { border-bottom:none; }
+.data-table tr:hover td { background:rgba(255,255,255,.02); }
+.tag {
+  display:inline-block; padding:2px 8px; border-radius:4px;
+  font-size:10px; font-weight:600;
+}
+.export-bar { padding:0 28px 28px; display:flex; justify-content:flex-end; }
+.export-btn {
+  padding:10px 24px; border-radius:10px; border:1px solid var(--accent);
+  background:var(--accent-soft); color:var(--accent); cursor:pointer;
+  font-size:var(--fs-body); font-weight:600; font-family:var(--font); transition:.2s;
+}
+.export-btn:hover { background:var(--accent); color:#fff; }
+
+/* Animations */
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.fade-in { animation:fadeIn .3s ease; }
+
+/* Responsive */
+@media (max-width:1100px) {
+  .chat-right { width:0; min-width:0; opacity:0; pointer-events:none; }
+  .stats-kpi { grid-template-columns:repeat(2,1fr); }
+  .stats-charts { grid-template-columns:1fr; }
+  .stats-tables { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Top Navigation ── -->
+<nav class="topnav">
+  <div class="topnav-brand">Token Chat</div>
+  <div class="topnav-tabs">
+    <button class="topnav-tab active" onclick="switchPage('chat')">Chat</button>
+    <button class="topnav-tab" onclick="switchPage('providers')">Providers</button>
+    <button class="topnav-tab" onclick="switchPage('stats')">Statistics</button>
+  </div>
+  <div class="topnav-right">
+    <div class="topnav-stat">Today: <span>$1.42</span></div>
+    <div class="topnav-stat">Tokens: <span>284K</span></div>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- Page 1: Chat                                        -->
+<!-- ════════════════════════════════════════════════════ -->
+<div id="page-chat" class="page active">
+
+  <!-- Left Panel -->
+  <aside class="chat-left" id="chatLeft">
+    <div class="chat-left-header">
+      <h3>Conversations</h3>
+      <input class="chat-search" type="text" placeholder="Search conversations...">
+      <button class="chat-new-btn" onclick="selectConv(-1)">+ New Conversation</button>
+    </div>
+    <div class="chat-list" id="chatList"></div>
+  </aside>
+
+  <!-- Center -->
+  <main class="chat-center">
+    <div class="chat-center-header">
+      <button class="toggle-btn" onclick="togglePanel('chatLeft')" title="Toggle conversations">☰</button>
+      <span class="chat-center-title" id="chatTitle">Python 优化问题</span>
+      <span class="chat-center-model" id="chatModel">deepseek-reasoner</span>
+      <div class="chat-center-tools">
+        <button class="tool-btn">Export</button>
+        <button class="tool-btn">Settings</button>
+      </div>
+      <button class="toggle-btn" onclick="togglePanel('chatRight')" title="Toggle sidebar" style="margin-left:4px">▦</button>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-area">
+      <div class="chat-input-wrap">
+        <button class="attach-btn" title="Attach">📎</button>
+        <textarea class="chat-input" rows="1" placeholder="Type a message..." id="chatInput" onkeydown="handleInputKey(event)"></textarea>
+        <button class="send-btn" onclick="sendMessage()" title="Send">▶</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Right Panel -->
+  <aside class="chat-right" id="chatRight">
+    <div class="chat-right-header">
+      <h3>Token Monitor</h3>
+      <button class="toggle-btn" onclick="togglePanel('chatRight')" style="width:24px;height:24px;font-size:12px">✕</button>
+    </div>
+    <div class="panel-body">
+      <div class="metric-row">
+        <div class="metric-card">
+          <div class="metric-card-label">Input</div>
+          <div class="metric-card-value" style="color:var(--stack-input)">4.2K</div>
+          <div class="metric-card-sub">tokens</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card-label">Output</div>
+          <div class="metric-card-value" style="color:var(--stack-output)">1.8K</div>
+          <div class="metric-card-sub">tokens</div>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Cache Hit</div>
+        <div class="metric-card-value" style="color:var(--stack-cache)">62%</div>
+        <div class="metric-card-sub">saved 2.6K tokens</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Session Cost</div>
+        <div class="metric-card-value">$0.087</div>
+        <div class="metric-card-sub">12 messages</div>
+      </div>
+      <div class="mini-chart">
+        <div class="mini-chart-title">Token Usage (last 10 msgs)</div>
+        <svg viewBox="0 0 260 60" style="width:100%;height:60px">
+          <defs>
+            <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#9589f7" stop-opacity=".3"/>
+              <stop offset="100%" stop-color="#9589f7" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <polyline points="0,45 26,38 52,42 78,28 104,32 130,18 156,24 182,12 208,20 234,8 260,15"
+            fill="none" stroke="#9589f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polygon points="0,45 26,38 52,42 78,28 104,32 130,18 156,24 182,12 208,20 234,8 260,15 260,60 0,60"
+            fill="url(#sparkGrad)"/>
+        </svg>
+      </div>
+      <div class="model-info-card">
+        <div class="model-info-name">deepseek-reasoner</div>
+        <div class="model-info-provider">DeepSeek</div>
+        <div class="model-info-stats">
+          <div><div class="model-info-stat-label">Input $/M</div><div class="model-info-stat-value">$0.55</div></div>
+          <div><div class="model-info-stat-label">Output $/M</div><div class="model-info-stat-value">$2.19</div></div>
+          <div><div class="model-info-stat-label">Max CTX</div><div class="model-info-stat-value">64K</div></div>
+          <div><div class="model-info-stat-label">Latency</div><div class="model-info-stat-value">~3.2s</div></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- Page 2: Providers                                   -->
+<!-- ════════════════════════════════════════════════════ -->
+<div id="page-providers" class="page">
+  <div class="modal-overlay">
+    <div class="modal-header">
+      <h2>Provider Management</h2>
+      <button class="modal-close" onclick="switchPage('chat')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="provider-list">
+        <div class="provider-list-header">Providers (3)</div>
+        <div class="provider-items" id="providerItems"></div>
+      </div>
+      <div class="provider-detail" id="providerDetail"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-footer-btn">+ Add Provider</button>
+      <button class="modal-footer-btn">Import Config</button>
+      <button class="modal-footer-btn">Export Config</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- Page 3: Statistics                                  -->
+<!-- ════════════════════════════════════════════════════ -->
+<div id="page-stats" class="page">
+  <div class="stats-top">
+    <h2>Usage Statistics</h2>
+    <div class="time-filters">
+      <button class="time-filter" onclick="setTimeFilter(this)">24h</button>
+      <button class="time-filter active" onclick="setTimeFilter(this)">7d</button>
+      <button class="time-filter" onclick="setTimeFilter(this)">30d</button>
+      <button class="time-filter" onclick="setTimeFilter(this)">All</button>
+    </div>
+  </div>
+
+  <div class="stats-kpi">
+    <div class="kpi-card">
+      <div class="kpi-card-label">Total Cost</div>
+      <div class="kpi-card-value">$9.84</div>
+      <div class="kpi-card-change up">↑ 12% vs last week</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">Total Tokens</div>
+      <div class="kpi-card-value">1.82M</div>
+      <div class="kpi-card-change up">↑ 8% vs last week</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">Conversations</div>
+      <div class="kpi-card-value">47</div>
+      <div class="kpi-card-change down">↓ 3% vs last week</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">Avg Cost/Conv</div>
+      <div class="kpi-card-value">$0.21</div>
+      <div class="kpi-card-change up">↑ 15% vs last week</div>
+    </div>
+  </div>
+
+  <div class="stats-charts">
+    <div class="chart-panel">
+      <h3>Cost Trend (7 days)</h3>
+      <svg viewBox="0 0 520 180" style="width:100%;height:180px" id="costChart"></svg>
+    </div>
+    <div class="chart-panel">
+      <h3>Token Composition</h3>
+      <div class="donut-wrap">
+        <div class="donut" style="background:conic-gradient(
+          var(--stack-input) 0deg 140deg,
+          var(--stack-output) 140deg 240deg,
+          var(--stack-cache) 240deg 360deg
+        )">
+          <div class="donut-center">
+            <div class="donut-center-value">1.82M</div>
+            <div class="donut-center-label">TOTAL</div>
+          </div>
+        </div>
+        <div class="donut-legend">
+          <div class="donut-legend-item">
+            <div class="donut-legend-dot" style="background:var(--stack-input)"></div>
+            <span>Input — 780K (43%)</span>
+          </div>
+          <div class="donut-legend-item">
+            <div class="donut-legend-dot" style="background:var(--stack-output)"></div>
+            <span>Output — 460K (25%)</span>
+          </div>
+          <div class="donut-legend-item">
+            <div class="donut-legend-dot" style="background:var(--stack-cache)"></div>
+            <span>Cache — 580K (32%)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats-tables">
+    <div class="table-panel">
+      <h3>By Model</h3>
+      <table class="data-table">
+        <thead><tr><th>Model</th><th>Tokens</th><th>Cost</th><th>Requests</th></tr></thead>
+        <tbody id="modelTableBody"></tbody>
+      </table>
+    </div>
+    <div class="table-panel">
+      <h3>By Conversation</h3>
+      <table class="data-table">
+        <thead><tr><th>Conversation</th><th>Model</th><th>Tokens</th><th>Cost</th></tr></thead>
+        <tbody id="convTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="export-bar">
+    <button class="export-btn">Export CSV</button>
+  </div>
+</div>
+
+<script>
+// ── Data ──
+const providers = [
+  {
+    name:'OpenAI', status:'online',
+    models:[
+      { name:'gpt-4.1', price:'$2.00 / $8.00 per M', status:'active' },
+      { name:'gpt-4.1-mini', price:'$0.40 / $1.60 per M', status:'active' }
+    ],
+    health:{ latency:'120ms', uptime:'99.97%', rate:'1.2K req/min' }
+  },
+  {
+    name:'DeepSeek', status:'online',
+    models:[
+      { name:'deepseek-chat', price:'$0.14 / $0.28 per M', status:'active' },
+      { name:'deepseek-reasoner', price:'$0.55 / $2.19 per M', status:'active' }
+    ],
+    health:{ latency:'280ms', uptime:'99.82%', rate:'340 req/min' }
+  },
+  {
+    name:'Claude Gateway', status:'degraded',
+    models:[
+      { name:'claude-sonnet-4', price:'$3.00 / $15.00 per M', status:'active' }
+    ],
+    health:{ latency:'450ms', uptime:'98.5%', rate:'85 req/min' }
+  }
+];
+
+const conversations = [
+  {
+    id:0, title:'Python 优化问题', model:'deepseek-reasoner', time:'2 min ago',
+    messages:[
+      { role:'user', text:'如何优化这个 Python 函数的性能？它处理一个大约 100 万行的 CSV 文件，目前需要 45 秒。' },
+      { role:'assistant', text:'我来分析一下瓶颈所在。对于大数据量 CSV 处理，有几个关键优化方向：',
+        thinking:'分析用户场景：100 万行 CSV，45 秒 → 需要 I/O 和计算双重优化。考虑 pandas 替代方案、chunk 处理、多线程 I/O...',
+        code:`import polars as pl
+import concurrent.futures as cf
+
+def process_csv_fast(path: str) -> dict:
+    """~3s for 1M rows vs 45s with csv.reader"""
+    df = pl.scan_csv(path)
+    return df.group_by("category").agg([
+        pl.col("value").mean().alias("avg"),
+        pl.col("value").std().alias("std"),
+        pl.len().alias("count"),
+    ]).collect().to_dict()`,
+        tokens:{ input:1240, output:890, cache:620 }, cost:'$0.023' },
+      { role:'user', text:'Polars 看起来不错，但项目目前用的是 pandas，能给个 pandas 版本的优化吗？' },
+      { role:'assistant', text:'当然。pandas 优化的关键是减少 Python 层循环，充分利用向量化操作和 chunk 读取：',
+        code:`import pandas as pd
+
+def process_csv_pandas(path: str) -> pd.DataFrame:
+    chunks = pd.read_csv(path, chunksize=50_000,
+                         engine="c", dtype_backend="numpy_nullable")
+    results = []
+    for chunk in chunks:
+        results.append(
+            chunk.groupby("category")["value"]
+                 .agg(["mean","std","count"])
+        )
+    return pd.concat(results).groupby(level=0).mean()`,
+        tokens:{ input:820, output:640, cache:410 }, cost:'$0.015' },
+      { role:'user', text:'完美，我先试试这个方案。如果还有问题再来请教。' }
+    ]
+  },
+  {
+    id:1, title:'React 组件设计', model:'claude-sonnet-4', time:'18 min ago',
+    messages:[
+      { role:'user', text:'设计一个可复用的 React 数据表格组件，需要支持排序、筛选、分页和虚拟滚动。' },
+      { role:'assistant', text:'这是一个经典的复杂组件设计问题。我建议采用 Headless UI 模式，将逻辑和视图分离：',
+        thinking:'用户需要一个功能完备的表格组件。关键设计决策：1) Headless vs 全包 2) 虚拟滚动策略 3) 状态管理模式...',
+        code:`interface TableProps<T> {
+  data: T[];
+  columns: ColumnDef<T>[];
+  sortable?: boolean;
+  filterable?: boolean;
+  pageSize?: number;
+  virtualScroll?: { rowHeight: number };
+}
+
+function DataTable<T>({ data, columns, ...opts }: TableProps<T>) {
+  const { sorted, filter, page } = useTableLogic(data, columns, opts);
+  const virtualRows = useVirtualScroll(sorted, opts.virtualScroll);
+  return <TableRenderer rows={virtualRows} columns={columns} />;
+}`,
+        tokens:{ input:980, output:1200, cache:0 }, cost:'$0.021' },
+      { role:'user', text:'虚拟滚动部分能展开讲讲吗？特别是如何处理动态行高。' },
+      { role:'assistant', text:'动态行高的虚拟滚动是表格组件中最棘手的部分。核心思路是「预估 + 缓存 + 补偿」：',
+        tokens:{ input:1560, output:980, cache:680 }, cost:'$0.032' }
+    ]
+  },
+  {
+    id:2, title:'API 架构讨论', model:'gpt-4.1', time:'1 hour ago',
+    messages:[
+      { role:'user', text:'我们团队在讨论 REST vs GraphQL 用于新的微服务项目，你有什么建议？' },
+      { role:'assistant', text:'这取决于几个关键因素。让我从三个维度来分析：',
+        tokens:{ input:560, output:780, cache:0 }, cost:'$0.012' },
+      { role:'user', text:'前端是 React Native，后端有 5 个微服务，团队 8 人。' },
+      { role:'assistant', text:'基于你的场景，我推荐 REST + BFF 模式。原因如下：',
+        tokens:{ input:1340, output:920, cache:340 }, cost:'$0.018' },
+      { role:'user', text:'BFF 层用什么框架比较好？' },
+      { role:'assistant', text:'考虑到你的 React Native 前端，推荐 Fastify 作为 BFF 框架：',
+        tokens:{ input:2100, output:640, cache:890 }, cost:'$0.016' }
+    ]
+  },
+  {
+    id:3, title:'数据分析脚本', model:'deepseek-chat', time:'3 hours ago',
+    messages:[
+      { role:'user', text:'写一个 Python 脚本，从 MySQL 数据库读取用户行为数据，生成每周报告。' },
+      { role:'assistant', text:'好的，我来写一个完整的数据分析脚本框架：',
+        code:`import pymysql
+import pandas as pd
+from datetime import datetime, timedelta
+
+def generate_weekly_report(db_config: dict) -> dict:
+    conn = pymysql.connect(**db_config)
+    end = datetime.now()
+    start = end - timedelta(days=7)
+    
+    query = """
+    SELECT user_id, action, created_at, metadata
+    FROM user_events
+    WHERE created_at BETWEEN %s AND %s
+    """
+    df = pd.read_sql(query, conn, params=[start, end])
+    # ... aggregation logic
+    conn.close()
+    return report`,
+        tokens:{ input:340, output:560, cache:0 }, cost:'$0.008' },
+      { role:'user', text:'能加上异常检测功能吗？比如发现异常流量峰值。' },
+      { role:'assistant', text:'可以。我用 Z-Score 方法做简单的异常检测：',
+        tokens:{ input:900, output:720, cache:280 }, cost:'$0.014' }
+    ]
+  },
+  {
+    id:4, title:'新对话', model:'gpt-4.1-mini', time:'just now',
+    messages:[
+      { role:'assistant', text:'Hello! How can I help you today?', tokens:{ input:20, output:12, cache:0 }, cost:'$0.001' }
+    ]
+  }
+];
+
+const costData = [1.42, 1.18, 1.65, 0.92, 1.87, 1.34, 1.42];
+const dayLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+const modelStats = [
+  { model:'deepseek-reasoner', tokens:'620K', cost:'$3.41', requests:'89' },
+  { model:'claude-sonnet-4', tokens:'480K', cost:'$2.88', requests:'52' },
+  { model:'gpt-4.1', tokens:'340K', cost:'$1.92', requests:'67' },
+  { model:'deepseek-chat', tokens:'260K', cost:'$1.12', requests:'45' },
+  { model:'gpt-4.1-mini', tokens:'120K', cost:'$0.51', requests:'38' },
+];
+
+const convStats = [
+  { title:'API 架构讨论', model:'gpt-4.1', tokens:'320K', cost:'$1.84' },
+  { title:'Python 优化问题', model:'deepseek-reasoner', tokens:'280K', cost:'$1.52' },
+  { title:'React 组件设计', model:'claude-sonnet-4', tokens:'240K', cost:'$1.28' },
+  { title:'数据分析脚本', model:'deepseek-chat', tokens:'180K', cost:'$0.76' },
+  { title:'新对话', model:'gpt-4.1-mini', tokens:'32K', cost:'$0.14' },
+];
+
+// ── Page Switch ──
+function switchPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.topnav-tab').forEach((t,i) => {
+    t.classList.toggle('active', ['chat','providers','stats'][i]===name);
+  });
+  if (name==='providers' && !providerInit) initProviders();
+  if (name==='stats' && !statsInit) initStats();
+}
+
+// ── Panel Toggle ──
+function togglePanel(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+}
+
+// ── Conversation List ──
+let currentConv = 0;
+function renderConvList() {
+  const el = document.getElementById('chatList');
+  el.innerHTML = conversations.map((c,i) => `
+    <div class="chat-item ${i===currentConv?'active':''}" onclick="selectConv(${i})">
+      <div class="chat-item-title">${c.title}</div>
+      <div class="chat-item-meta">
+        <span class="chat-item-model">${c.model}</span>
+        <span>${c.time}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectConv(i) {
+  if (i<0) { i = conversations.length-1; }
+  currentConv = i;
+  renderConvList();
+  renderMessages();
+  const c = conversations[i];
+  document.getElementById('chatTitle').textContent = c.title;
+  document.getElementById('chatModel').textContent = c.model;
+}
+
+function renderMessages() {
+  const el = document.getElementById('chatMessages');
+  const msgs = conversations[currentConv].messages;
+  el.innerHTML = msgs.map(m => {
+    let html = `<div class="msg ${m.role} fade-in"><div class="msg-bubble">`;
+    html += escHtml(m.text);
+    if (m.thinking) {
+      html += `<div class="msg-thinking"><div class="msg-thinking-label">Thinking</div>${escHtml(m.thinking)}</div>`;
+    }
+    if (m.code) {
+      html += `<div class="msg-code-block"><pre>${escHtml(m.code)}</pre></div>`;
+    }
+    html += '</div>';
+    if (m.tokens) {
+      html += `<div class="msg-meta">
+        <span class="msg-metric"><span class="msg-metric-dot" style="background:var(--stack-input)"></span>${m.tokens.input}</span>
+        <span class="msg-metric"><span class="msg-metric-dot" style="background:var(--stack-output)"></span>${m.tokens.output}</span>
+        ${m.tokens.cache?`<span class="msg-metric"><span class="msg-metric-dot" style="background:var(--stack-cache)"></span>${m.tokens.cache} cache</span>`:''}
+        <span>${m.cost}</span>
+      </div>`;
+    }
+    html += '</div>';
+    return html;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const c = conversations[currentConv];
+  c.messages.push({ role:'user', text });
+  c.messages.push({
+    role:'assistant', text:'This is a simulated response. In production, this would call the selected model API.',
+    tokens:{ input:text.length, output:48, cache:0 }, cost:'$0.001'
+  });
+  input.value = '';
+  renderMessages();
+}
+
+function handleInputKey(e) {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+// ── Providers ──
+let providerInit = false;
+let currentProvider = 0;
+function initProviders() {
+  providerInit = true;
+  renderProviderList();
+  renderProviderDetail(0);
+}
+function renderProviderList() {
+  document.getElementById('providerItems').innerHTML = providers.map((p,i) => `
+    <div class="provider-item ${i===currentProvider?'active':''}" onclick="selectProvider(${i})">
+      <div class="provider-item-name">${p.name}</div>
+      <div class="provider-item-status">
+        <span class="status-dot ${p.status}"></span>
+        <span>${p.status==='online'?'Operational':'Degraded'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+function selectProvider(i) {
+  currentProvider = i;
+  renderProviderList();
+  renderProviderDetail(i);
+}
+function renderProviderDetail(i) {
+  const p = providers[i];
+  document.getElementById('providerDetail').innerHTML = `
+    <div class="provider-detail-header">
+      <h3>${p.name}</h3>
+      <p>${p.models.length} models configured</p>
+    </div>
+    <div class="provider-models">
+      <h4>Models</h4>
+      ${p.models.map(m=>`
+        <div class="model-row">
+          <span class="model-row-name">${m.name}</span>
+          <span class="model-row-price">${m.price}</span>
+          <span class="model-row-status">${m.status}</span>
+        </div>
+      `).join('')}
+    </div>
+    <div class="health-section">
+      <h4>Health</h4>
+      <div class="health-bar-wrap">
+        <div class="health-bar-label"><span>Uptime</span><span>${p.health.uptime}</span></div>
+        <div class="health-bar"><div class="health-bar-fill" style="width:${parseFloat(p.health.uptime)}%"></div></div>
+      </div>
+      <div class="health-bar-wrap">
+        <div class="health-bar-label"><span>Latency</span><span>${p.health.latency}</span></div>
+        <div class="health-bar"><div class="health-bar-fill" style="width:${Math.min(100, 600/parseFloat(p.health.latency)*100)}%;background:var(--info)"></div></div>
+      </div>
+      <div class="health-bar-wrap">
+        <div class="health-bar-label"><span>Rate Limit</span><span>${p.health.rate}</span></div>
+        <div class="health-bar"><div class="health-bar-fill" style="width:65%;background:var(--warning)"></div></div>
+      </div>
+    </div>
+    <button class="test-btn" onclick="testConnection(this)">
+      <span class="spinner"></span>Test Connection
+    </button>
+    <div class="test-result" id="testResult"></div>
+  `;
+}
+function testConnection(btn) {
+  btn.classList.add('testing');
+  const result = document.getElementById('testResult');
+  result.className = 'test-result';
+  result.style.display = 'none';
+  setTimeout(()=>{
+    btn.classList.remove('testing');
+    const ok = Math.random()>.2;
+    result.className = 'test-result show '+(ok?'ok':'fail');
+    result.textContent = ok?'✓ Connection successful (142ms)':'✗ Connection failed — timeout after 5000ms';
+  }, 1500);
+}
+
+// ── Statistics ──
+let statsInit = false;
+function initStats() {
+  statsInit = true;
+  renderCostChart();
+  renderModelTable();
+  renderConvTable();
+}
+function renderCostChart() {
+  const svg = document.getElementById('costChart');
+  const w=520, h=180, pad=40;
+  const maxVal = Math.max(...costData)*1.2;
+  const points = costData.map((v,i)=>{
+    const x = pad + i*((w-pad*2)/(costData.length-1));
+    const y = h-pad - (v/maxVal)*(h-pad*2);
+    return `${x},${y}`;
+  });
+  const areaPoints = [...points, `${pad+(costData.length-1)*((w-pad*2)/(costData.length-1))},${h-pad}`, `${pad},${h-pad}`];
+  // hand-drawn effect: slight jitter
+  const jitter = (v,a) => v + (Math.random()-.5)*a;
+  const handPoints = costData.map((v,i)=>{
+    const x = pad + i*((w-pad*2)/(costData.length-1));
+    const y = h-pad - (v/maxVal)*(h-pad*2);
+    return `${jitter(x,1.5)},${jitter(y,2)}`;
+  });
+  const handArea = [...handPoints, `${pad+(costData.length-1)*((w-pad*2)/(costData.length-1))},${h-pad}`, `${pad},${h-pad}`];
+
+  let html = `
+    <defs>
+      <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#9589f7" stop-opacity=".25"/>
+        <stop offset="100%" stop-color="#9589f7" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="#30363d" stroke-width="1"/>
+    <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h-pad}" stroke="#30363d" stroke-width="1"/>`;
+
+  // grid lines
+  for(let i=0;i<5;i++){
+    const y = pad + i*((h-pad*2)/4);
+    const val = (maxVal*(1-i/4)).toFixed(1);
+    html += `<line x1="${pad}" y1="${y}" x2="${w-pad}" y2="${y}" stroke="#21262d" stroke-width="1" stroke-dasharray="4,4"/>`;
+    html += `<text x="${pad-6}" y="${y+4}" text-anchor="end" fill="#6e7681" font-size="10">$${val}</text>`;
+  }
+
+  // area
+  html += `<polygon points="${handArea.join(' ')}" fill="url(#areaGrad)"/>`;
+  // line
+  html += `<polyline points="${handPoints.join(' ')}" fill="none" stroke="#9589f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  // dots + labels
+  costData.forEach((v,i)=>{
+    const x = pad + i*((w-pad*2)/(costData.length-1));
+    const y = h-pad - (v/maxVal)*(h-pad*2);
+    html += `<circle cx="${x}" cy="${y}" r="4" fill="#9589f7" stroke="#0d1117" stroke-width="2"/>`;
+    html += `<text x="${x}" y="${h-pad+18}" text-anchor="middle" fill="#6e7681" font-size="10">${dayLabels[i]}</text>`;
+    html += `<text x="${x}" y="${y-10}" text-anchor="middle" fill="#8b949e" font-size="10">$${v.toFixed(2)}</text>`;
+  });
+
+  svg.innerHTML = html;
+}
+function renderModelTable() {
+  document.getElementById('modelTableBody').innerHTML = modelStats.map(m=>{
+    const colors = ['var(--accent)','var(--stack-output)','var(--stack-input)','var(--stack-cache)','var(--warning)'];
+    const c = colors[modelStats.indexOf(m)%colors.length];
+    return `<tr>
+      <td><span class="tag" style="background:${c}20;color:${c}">${m.model}</span></td>
+      <td>${m.tokens}</td>
+      <td>${m.cost}</td>
+      <td>${m.requests}</td>
+    </tr>`;
+  }).join('');
+}
+function renderConvTable() {
+  document.getElementById('convTableBody').innerHTML = convStats.map(c=>`
+    <tr>
+      <td>${c.title}</td>
+      <td><span style="color:var(--accent)">${c.model}</span></td>
+      <td>${c.tokens}</td>
+      <td>${c.cost}</td>
+    </tr>
+  `).join('');
+}
+function setTimeFilter(btn) {
+  document.querySelectorAll('.time-filter').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── Init ──
+renderConvList();
+renderMessages();
+</script>
+</body>
+</html>

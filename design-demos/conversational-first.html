@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Chat Windows — Conversational First</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --app-bg:#0d1117;--sidebar-bg:#161b22;--surface:#1c2128;--surface-raised:#21262d;
+  --text:#e6edf3;--text-muted:#8b949e;--text-faint:#6e7681;
+  --accent:#9589f7;--accent-soft:rgba(149,137,247,.12);
+  --success:#56d364;--warning:#e3b341;--info:#58a6ff;
+  --line:#30363d;--radius:12px;
+  --font:-apple-system,'Segoe UI',sans-serif;
+  --sidebar-width:280px;--sidebar-collapsed:64px;
+}
+html,body{height:100%;font-family:var(--font);background:var(--app-bg);color:var(--text);font-size:13px;overflow:hidden}
+
+/* ===== TAB SYSTEM ===== */
+.tab-bar{display:flex;background:var(--sidebar-bg);border-bottom:1px solid var(--line);padding:0 16px;height:40px;align-items:center;gap:4px;position:fixed;top:0;left:0;right:0;z-index:100}
+.tab-btn{background:none;border:none;color:var(--text-muted);font-size:12px;padding:8px 14px;cursor:pointer;border-radius:8px;font-family:var(--font);transition:all .15s}
+.tab-btn:hover{color:var(--text);background:var(--surface)}
+.tab-btn.active{color:var(--accent);background:var(--accent-soft)}
+.tab-page{display:none;position:fixed;top:40px;left:0;right:0;bottom:0}
+.tab-page.active{display:flex}
+
+/* ===== SIDEBAR ===== */
+.sidebar{width:var(--sidebar-width);min-width:var(--sidebar-collapsed);background:var(--sidebar-bg);border-right:1px solid var(--line);display:flex;flex-direction:column;transition:width .25s ease;overflow:hidden;position:relative;z-index:10}
+.sidebar.collapsed{width:var(--sidebar-collapsed)}
+.sidebar-brand{display:flex;align-items:center;gap:10px;padding:16px;border-bottom:1px solid var(--line);height:56px;white-space:nowrap;overflow:hidden}
+.brand-icon{width:28px;height:28px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.brand-text{font-size:15px;font-weight:600;opacity:1;transition:opacity .2s}
+.sidebar.collapsed .brand-text{opacity:0;width:0}
+
+.sidebar-toggle{position:absolute;right:-12px;top:60px;width:24px;height:24px;background:var(--surface-raised);border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;color:var(--text-muted);font-size:11px;transition:transform .25s}
+.sidebar.collapsed .sidebar-toggle{transform:rotate(180deg)}
+
+.sidebar-search{padding:12px 16px;overflow:hidden}
+.search-input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px 7px 32px;color:var(--text);font-size:12px;font-family:var(--font);outline:none;transition:border-color .15s}
+.search-input:focus{border-color:var(--accent)}
+.search-wrap{position:relative}
+.search-wrap::before{content:"🔍";position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11px;opacity:.5}
+.sidebar.collapsed .sidebar-search{opacity:0;height:0;padding:0}
+
+.conv-list{flex:1;overflow-y:auto;padding:4px 8px}
+.conv-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;transition:background .15s;white-space:nowrap;overflow:hidden}
+.conv-item:hover{background:var(--surface)}
+.conv-item.active{background:var(--accent-soft);border-left:3px solid var(--accent)}
+.conv-icon{width:28px;height:28px;border-radius:8px;background:var(--surface-raised);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.conv-info{overflow:hidden;min-width:0}
+.conv-info-title{font-size:13px;color:var(--text);text-overflow:ellipsis;overflow:hidden}
+.conv-info-meta{font-size:11px;color:var(--text-faint);margin-top:2px;text-overflow:ellipsis;overflow:hidden}
+.sidebar.collapsed .conv-info{opacity:0;width:0}
+
+.sidebar-bottom{padding:12px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.sidebar-btn{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--text-muted);font-size:12px;cursor:pointer;background:none;border:none;font-family:var(--font);transition:all .15s;white-space:nowrap;overflow:hidden}
+.sidebar-btn:hover{background:var(--surface);color:var(--text)}
+.sidebar-btn .ico{width:20px;text-align:center;flex-shrink:0;font-size:14px}
+.sidebar.collapsed .sidebar-btn span:not(.ico){opacity:0;width:0}
+
+.new-chat-btn{background:var(--accent);color:#fff;border:none;padding:9px 12px;border-radius:8px;font-size:12px;cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:8px;transition:opacity .15s;margin:8px}
+.new-chat-btn:hover{opacity:.9}
+.sidebar.collapsed .new-chat-btn span{opacity:0;width:0}
+
+/* ===== CHAT AREA ===== */
+.chat-area{flex:1;display:flex;flex-direction:column;background:var(--app-bg);min-width:0}
+.chat-header{display:flex;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);gap:12px;height:56px;background:var(--app-bg)}
+.chat-title{font-size:15px;font-weight:600}
+.model-badge{font-size:11px;background:var(--accent-soft);color:var(--accent);padding:3px 8px;border-radius:6px}
+.chat-tools{margin-left:auto;display:flex;gap:8px}
+.tool-btn{width:32px;height:32px;border-radius:8px;background:none;border:1px solid var(--line);color:var(--text-muted);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:all .15s}
+.tool-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+.messages{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px}
+
+.msg{display:flex;gap:10px;max-width:72%}
+.msg.user{align-self:flex-end;flex-direction:row-reverse}
+.msg-avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
+.msg.user .msg-avatar{background:var(--accent);color:#fff}
+.msg.assistant .msg-avatar{background:var(--surface-raised)}
+.msg-body{display:flex;flex-direction:column;gap:4px}
+.msg-bubble{padding:10px 14px;border-radius:var(--radius);font-size:13px;line-height:1.6;word-break:break-word}
+.msg.user .msg-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.msg.assistant .msg-bubble{background:var(--surface);border-bottom-left-radius:4px}
+.msg-time{font-size:11px;color:var(--text-faint);padding:0 4px}
+.msg.user .msg-time{text-align:right}
+
+.token-badges{display:flex;gap:6px;padding:2px 4px;flex-wrap:wrap}
+.token-badge{font-size:11px;color:var(--text-muted);background:var(--surface-raised);padding:2px 8px;border-radius:4px;display:flex;align-items:center;gap:3px}
+.token-badge .dot{width:3px;height:3px;border-radius:50%;background:var(--text-faint)}
+
+.code-block{background:#0d1117;border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.code-header{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:var(--surface-raised);font-size:11px;color:var(--text-muted)}
+.code-body{padding:12px;font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.6;overflow-x:auto;color:#e6edf3}
+.code-kw{color:#ff7b72}.code-fn{color:#d2a8ff}.code-str{color:#a5d6ff}.code-cm{color:#8b949e}.code-num{color:#79c0ff}
+
+.thinking-block{background:var(--surface-raised);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:4px 0}
+.thinking-header{padding:8px 12px;font-size:11px;color:var(--text-faint);cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none}
+.thinking-header:hover{color:var(--text-muted)}
+.thinking-content{padding:0 12px 10px;font-size:12px;color:var(--text-muted);line-height:1.6;display:none}
+.thinking-block.open .thinking-content{display:block}
+.thinking-block.open .thinking-header .arrow{transform:rotate(90deg)}
+.arrow{transition:transform .15s;font-size:10px}
+
+/* ===== INPUT AREA ===== */
+.input-area{padding:12px 24px 16px;border-top:1px solid var(--line);display:flex;align-items:flex-end;gap:10px;background:var(--app-bg)}
+.input-wrap{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);display:flex;align-items:flex-end;padding:4px;transition:border-color .15s}
+.input-wrap:focus-within{border-color:var(--accent)}
+.input-wrap textarea{flex:1;background:none;border:none;color:var(--text);font-size:13px;font-family:var(--font);padding:8px 10px;resize:none;outline:none;max-height:120px;line-height:1.5}
+.input-wrap textarea::placeholder{color:var(--text-faint)}
+.input-actions{display:flex;gap:4px;padding:4px}
+.input-ico{width:32px;height:32px;border-radius:8px;background:none;border:none;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .15s}
+.input-ico:hover{color:var(--text);background:var(--surface-raised)}
+.send-btn{width:36px;height:36px;border-radius:10px;background:var(--accent);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:opacity .15s}
+.send-btn:hover{opacity:.85}
+
+/* ===== PAGE 2: PROVIDER MODAL ===== */
+.provider-page{background:var(--app-bg);padding:24px;overflow-y:auto;flex-direction:column;gap:20px}
+.provider-header{display:flex;align-items:center;justify-content:space-between}
+.provider-header h2{font-size:20px;font-weight:600}
+.btn-primary{background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;font-family:var(--font);transition:opacity .15s}
+.btn-primary:hover{opacity:.85}
+.provider-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.provider-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;cursor:pointer;transition:border-color .15s}
+.provider-card:hover{border-color:var(--accent)}
+.provider-card-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.provider-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700}
+.provider-icon.openai{background:linear-gradient(135deg,#10a37f,#1a7f5a);color:#fff}
+.provider-icon.deepseek{background:linear-gradient(135deg,#4f6df5,#7b68ee);color:#fff}
+.provider-icon.claude{background:linear-gradient(135deg,#cc785c,#d4a574);color:#fff}
+.provider-name{font-size:15px;font-weight:600}
+.provider-url{font-size:11px;color:var(--text-faint)}
+.provider-status{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:12px}
+.status-dot{width:8px;height:8px;border-radius:50%}
+.status-dot.online{background:var(--success)}
+.status-dot.offline{background:#f85149}
+.provider-models{display:flex;flex-wrap:wrap;gap:6px}
+.model-tag{font-size:11px;background:var(--surface-raised);padding:4px 8px;border-radius:6px;color:var(--text-muted)}
+
+.provider-detail{display:none;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-top:4px}
+.provider-card.expanded+.provider-detail{display:block}
+.detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
+.detail-row:last-child{border:none}
+.detail-label{color:var(--text-muted)}
+
+.test-btn{background:var(--info);color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;margin-top:8px;font-family:var(--font)}
+.test-btn.testing{opacity:.6;pointer-events:none}
+
+/* ===== PAGE 3: STATS ===== */
+.stats-page{background:var(--app-bg);padding:24px;overflow-y:auto;flex-direction:column;gap:20px}
+.stats-header{display:flex;align-items:center;justify-content:space-between}
+.stats-header h2{font-size:20px;font-weight:600}
+.time-filters{display:flex;gap:4px}
+.time-btn{background:var(--surface);border:1px solid var(--line);color:var(--text-muted);padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:var(--font);transition:all .15s}
+.time-btn.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kpi-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.kpi-label{font-size:11px;color:var(--text-muted);margin-bottom:6px}
+.kpi-value{font-size:26px;font-weight:700;line-height:1}
+.kpi-value .unit{font-size:14px;font-weight:400;color:var(--text-muted);margin-left:2px}
+.kpi-trend{font-size:11px;margin-top:6px;display:flex;align-items:center;gap:4px}
+.kpi-trend.up{color:var(--success)}.kpi-trend.down{color:#f85149}
+
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.stats-col{display:flex;flex-direction:column;gap:12px}
+.stats-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.stats-card-title{font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.stats-card-title .count{font-size:11px;color:var(--text-faint)}
+
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bar-label{width:120px;font-size:12px;color:var(--text);text-overflow:ellipsis;overflow:hidden;white-space:nowrap;flex-shrink:0}
+.bar-track{flex:1;height:20px;background:var(--surface-raised);border-radius:4px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s ease}
+.bar-fill.c1{background:var(--accent)}.bar-fill.c2{background:var(--info)}.bar-fill.c3{background:var(--success)}.bar-fill.c4{background:var(--warning)}
+.bar-value{font-size:11px;color:var(--text-muted);width:60px;text-align:right;flex-shrink:0}
+
+.conv-stat{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.conv-stat:last-child{border:none}
+.conv-stat-icon{width:32px;height:32px;border-radius:8px;background:var(--surface-raised);display:flex;align-items:center;justify-content:center;font-size:14px}
+.conv-stat-info{flex:1;min-width:0}
+.conv-stat-title{font-size:12px;font-weight:500}
+.conv-stat-meta{font-size:11px;color:var(--text-faint);margin-top:2px}
+.conv-stat-cost{font-size:14px;font-weight:600;color:var(--accent)}
+
+.sparkline-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.sparkline-card svg{width:100%;height:80px}
+.sparkline-path{fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round}
+.sparkline-area{fill:url(#sparkGrad);opacity:.3}
+.spark-labels{display:flex;justify-content:space-between;margin-top:8px}
+.spark-labels span{font-size:10px;color:var(--text-faint)}
+
+.export-btn{background:var(--surface);border:1px solid var(--line);color:var(--text-muted);padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:6px;transition:all .15s}
+.export-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-faint)}
+
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.stats-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('chat')">💬 聊天</button>
+  <button class="tab-btn" onclick="switchTab('provider')">🔌 Provider</button>
+  <button class="tab-btn" onclick="switchTab('stats')">📊 统计</button>
+</div>
+
+<!-- ========== PAGE 1: CHAT ========== -->
+<div id="page-chat" class="tab-page active">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">⚡</div>
+      <span class="brand-text">TokenChat</span>
+    </div>
+    <div class="sidebar-toggle" onclick="toggleSidebar()">◀</div>
+
+    <div class="sidebar-search">
+      <div class="search-wrap">
+        <input type="text" class="search-input" placeholder="搜索对话…">
+      </div>
+    </div>
+
+    <div class="conv-list">
+      <div class="conv-item active" onclick="selectConv(this,'Python 优化问题','deepseek-reasoner')">
+        <div class="conv-icon">🐍</div>
+        <div class="conv-info">
+          <div class="conv-info-title">Python 优化问题</div>
+          <div class="conv-info-meta">deepseek-reasoner · 10分钟前</div>
+        </div>
+      </div>
+      <div class="conv-item" onclick="selectConv(this,'React 组件设计','gpt-4.1')">
+        <div class="conv-icon">⚛️</div>
+        <div class="conv-info">
+          <div class="conv-info-title">React 组件设计</div>
+          <div class="conv-info-meta">gpt-4.1 · 1小时前</div>
+        </div>
+      </div>
+      <div class="conv-item" onclick="selectConv(this,'API 架构讨论','claude-sonnet-4')">
+        <div class="conv-icon">🏗️</div>
+        <div class="conv-info">
+          <div class="conv-info-title">API 架构讨论</div>
+          <div class="conv-info-meta">claude-sonnet-4 · 3小时前</div>
+        </div>
+      </div>
+      <div class="conv-item" onclick="selectConv(this,'数据分析脚本','gpt-4.1-mini')">
+        <div class="conv-icon">📊</div>
+        <div class="conv-info">
+          <div class="conv-info-title">数据分析脚本</div>
+          <div class="conv-info-meta">gpt-4.1-mini · 昨天</div>
+        </div>
+      </div>
+      <div class="conv-item" onclick="selectConv(this,'新对话','gpt-4.1')">
+        <div class="conv-icon">✨</div>
+        <div class="conv-info">
+          <div class="conv-info-title">新对话</div>
+          <div class="conv-info-meta">gpt-4.1 · 刚刚</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="new-chat-btn"><span class="ico">＋</span> <span>新建对话</span></button>
+
+    <div class="sidebar-bottom">
+      <button class="sidebar-btn" onclick="switchTab('provider')"><span class="ico">🔌</span> <span>Provider 管理</span></button>
+      <button class="sidebar-btn"><span class="ico">⚙️</span> <span>设置</span></button>
+      <button class="sidebar-btn"><span class="ico">📦</span> <span>归档</span></button>
+    </div>
+  </div>
+
+  <div class="chat-area">
+    <div class="chat-header">
+      <span class="chat-title" id="chatTitle">Python 优化问题</span>
+      <span class="model-badge" id="modelBadge">deepseek-reasoner</span>
+      <div class="chat-tools">
+        <button class="tool-btn" title="导出">📤</button>
+        <button class="tool-btn" title="分享">🔗</button>
+        <button class="tool-btn" title="删除">🗑️</button>
+      </div>
+    </div>
+
+    <div class="messages" id="messages">
+      <!-- User message -->
+      <div class="msg user">
+        <div class="msg-avatar">U</div>
+        <div class="msg-body">
+          <div class="msg-bubble">我有一个处理 CSV 文件的 Python 脚本，读取 50 万行数据大约需要 12 秒，有没有办法优化到 3 秒以内？目前用的是 csv 模块逐行读取。</div>
+          <div class="msg-time">14:32</div>
+        </div>
+      </div>
+
+      <!-- Assistant message with thinking + code -->
+      <div class="msg assistant">
+        <div class="msg-avatar">🤖</div>
+        <div class="msg-body">
+          <div class="msg-bubble">
+            <div class="thinking-block open" onclick="this.classList.toggle('open')">
+              <div class="thinking-header"><span class="arrow">▶</span> 💭 思考过程（2.1s）</div>
+              <div class="thinking-content">用户需要优化 CSV 读取性能，从 12 秒降到 3 秒以内。当前使用 csv 模块逐行读取，主要瓶颈可能在：1) Python 解释器循环开销 2) 字符串解析 3) 未利用多核。可选方案：pandas read_csv（C 实现）、polars（Rust 实现）、多进程分块读取。推荐方案优先级：polars > pandas > 多进程。</div>
+            </div>
+            <p>有几种方案可以显著提速，按推荐顺序：</p>
+            <p style="margin-top:8px"><strong>方案 1：使用 Polars（推荐）</strong></p>
+            <p>比 pandas 快 5-10 倍，内存效率更高：</p>
+            <div class="code-block">
+              <div class="code-header"><span>Python</span><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px">复制</button></div>
+              <div class="code-body"><span class="code-kw">import</span> polars <span class="code-kw">as</span> pl
+
+<span class="code-cm"># 读取 50 万行，通常 < 1 秒</span>
+df = pl.<span class="code-fn">read_csv</span>(<span class="code-str">"data.csv"</span>)
+
+<span class="code-cm"># 如果需要过滤，惰性模式更快</span>
+df = pl.<span class="code-fn">scan_csv</span>(<span class="code-str">"data.csv"</span>).<span class="code-fn">filter</span>(
+    pl.<span class="code-fn">col</span>(<span class="code-str">"status"</span>) == <span class="code-str">"active"</span>
+).<span class="code-fn">collect</span>()</div>
+            </div>
+            <p style="margin-top:8px"><strong>方案 2：Pandas + pyarrow 后端</strong></p>
+            <div class="code-block">
+              <div class="code-header"><span>Python</span><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px">复制</button></div>
+              <div class="code-body"><span class="code-kw">import</span> pandas <span class="code-kw">as</span> pd
+
+df = pd.<span class="code-fn">read_csv</span>(<span class="code-str">"data.csv"</span>, engine=<span class="code-str">"pyarrow"</span>)</div>
+            </div>
+            <p style="margin-top:8px;font-size:12px;color:var(--text-muted)">💡 如果数据结构已知，指定 <code>dtype</code> 可以再快 30%。避免使用 <code>dtype=object</code>。</p>
+          </div>
+          <div class="token-badges">
+            <span class="token-badge">📥 <span class="dot"></span> 1.2k cached</span>
+            <span class="token-badge">📤 <span class="dot"></span> 486 output</span>
+            <span class="token-badge">💰 <span class="dot"></span> ¥0.03</span>
+            <span class="token-badge">⏱️ <span class="dot"></span> 3.2s</span>
+          </div>
+          <div class="msg-time">14:33</div>
+        </div>
+      </div>
+
+      <!-- User follow-up -->
+      <div class="msg user">
+        <div class="msg-avatar">U</div>
+        <div class="msg-body">
+          <div class="msg-bubble">Polers 方案不错，但如果数据里有混合编码（UTF-8 + GBK），它能处理吗？</div>
+          <div class="msg-time">14:34</div>
+        </div>
+      </div>
+
+      <!-- Assistant reply -->
+      <div class="msg assistant">
+        <div class="msg-avatar">🤖</div>
+        <div class="msg-body">
+          <div class="msg-bubble">
+            <p>Polars 对编码支持有限，主要处理 UTF-8。对于混合编码的场景，建议预处理：</p>
+            <div class="code-block">
+              <div class="code-header"><span>Python</span><button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px">复制</button></div>
+              <div class="code-body"><span class="code-kw">import</span> polars <span class="code-kw">as</span> pl
+
+<span class="code-cm"># 先用 Python 读取并统一编码</span>
+<span class="code-kw">with</span> <span class="code-fn">open</span>(<span class="code-str">"data.csv"</span>, <span class="code-str">"rb"</span>) <span class="code-kw">as</span> f:
+    raw = f.<span class="code-fn">read</span>()
+
+<span class="code-cm"># 尝试 UTF-8，失败则 GBK</span>
+<span class="code-kw">try</span>:
+    text = raw.<span class="code-fn">decode</span>(<span class="code-str">"utf-8"</span>)
+<span class="code-kw">except</span> UnicodeDecodeError:
+    text = raw.<span class="code-fn">decode</span>(<span class="code-str">"gbk"</span>)
+
+<span class="code-kw">from</span> io <span class="code-kw">import</span> StringIO
+df = pl.<span class="code-fn">read_csv</span>(StringIO(text))</div>
+            </div>
+            <p style="margin-top:8px;font-size:12px;color:var(--text-muted)">或者用 <code>chardet</code> 库自动检测编码，准确率更高但会增加约 0.5s 延迟。</p>
+          </div>
+          <div class="token-badges">
+            <span class="token-badge">📥 <span class="dot"></span> 820 cached</span>
+            <span class="token-badge">📤 <span class="dot"></span> 340 output</span>
+            <span class="token-badge">💰 <span class="dot"></span> ¥0.02</span>
+            <span class="token-badge">⏱️ <span class="dot"></span> 1.8s</span>
+          </div>
+          <div class="msg-time">14:34</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-wrap">
+        <div class="input-actions">
+          <button class="input-ico" title="附件">📎</button>
+        </div>
+        <textarea rows="1" placeholder="输入消息… (Enter 发送, Shift+Enter 换行)"></textarea>
+        <div class="input-actions">
+          <button class="input-ico" title="模型切换">🤖</button>
+        </div>
+      </div>
+      <button class="send-btn" title="发送">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== PAGE 2: PROVIDER ========== -->
+<div id="page-provider" class="tab-page">
+  <div class="provider-page" style="display:flex">
+    <div class="provider-header">
+      <h2>Provider 管理</h2>
+      <button class="btn-primary">＋ 添加 Provider</button>
+    </div>
+
+    <div class="provider-grid">
+      <!-- OpenAI -->
+      <div style="display:flex;flex-direction:column">
+        <div class="provider-card" onclick="this.classList.toggle('expanded')">
+          <div class="provider-card-header">
+            <div class="provider-icon openai">O</div>
+            <div>
+              <div class="provider-name">OpenAI</div>
+              <div class="provider-url">api.openai.com/v1</div>
+            </div>
+          </div>
+          <div class="provider-status">
+            <span class="status-dot online"></span> 在线 · 延迟 120ms
+          </div>
+          <div class="provider-models">
+            <span class="model-tag">gpt-4.1</span>
+            <span class="model-tag">gpt-4.1-mini</span>
+          </div>
+        </div>
+        <div class="provider-detail" style="display:none">
+          <div class="detail-row"><span class="detail-label">API 类型</span><span>OpenAI Compatible</span></div>
+          <div class="detail-row"><span class="detail-label">最大并发</span><span>5</span></div>
+          <div class="detail-row"><span class="detail-label">超时设置</span><span>60s</span></div>
+          <div class="detail-row"><span class="detail-label">本月请求</span><span>1,247</span></div>
+          <div class="detail-row"><span class="detail-label">本月费用</span><span>¥48.32</span></div>
+          <button class="test-btn" onclick="testConn(this)">测试连通性</button>
+        </div>
+      </div>
+
+      <!-- DeepSeek -->
+      <div style="display:flex;flex-direction:column">
+        <div class="provider-card" onclick="this.classList.toggle('expanded')">
+          <div class="provider-card-header">
+            <div class="provider-icon deepseek">D</div>
+            <div>
+              <div class="provider-name">DeepSeek</div>
+              <div class="provider-url">api.deepseek.com/v1</div>
+            </div>
+          </div>
+          <div class="provider-status">
+            <span class="status-dot online"></span> 在线 · 延迟 85ms
+          </div>
+          <div class="provider-models">
+            <span class="model-tag">deepseek-chat</span>
+            <span class="model-tag">deepseek-reasoner</span>
+          </div>
+        </div>
+        <div class="provider-detail" style="display:none">
+          <div class="detail-row"><span class="detail-label">API 类型</span><span>OpenAI Compatible</span></div>
+          <div class="detail-row"><span class="detail-label">最大并发</span><span>10</span></div>
+          <div class="detail-row"><span class="detail-label">超时设置</span><span>120s</span></div>
+          <div class="detail-row"><span class="detail-label">本月请求</span><span>3,891</span></div>
+          <div class="detail-row"><span class="detail-label">本月费用</span><span>¥22.15</span></div>
+          <button class="test-btn" onclick="testConn(this)">测试连通性</button>
+        </div>
+      </div>
+
+      <!-- Claude Gateway -->
+      <div style="display:flex;flex-direction:column">
+        <div class="provider-card" onclick="this.classList.toggle('expanded')">
+          <div class="provider-card-header">
+            <div class="provider-icon claude">C</div>
+            <div>
+              <div class="provider-name">Claude Gateway</div>
+              <div class="provider-url">gateway.example.com/v1</div>
+            </div>
+          </div>
+          <div class="provider-status">
+            <span class="status-dot online"></span> 在线 · 延迟 200ms
+          </div>
+          <div class="provider-models">
+            <span class="model-tag">claude-sonnet-4</span>
+          </div>
+        </div>
+        <div class="provider-detail" style="display:none">
+          <div class="detail-row"><span class="detail-label">API 类型</span><span>Anthropic Compatible</span></div>
+          <div class="detail-row"><span class="detail-label">最大并发</span><span>3</span></div>
+          <div class="detail-row"><span class="detail-label">超时设置</span><span>90s</span></div>
+          <div class="detail-row"><span class="detail-label">本月请求</span><span>684</span></div>
+          <div class="detail-row"><span class="detail-label">本月费用</span><span>¥156.70</span></div>
+          <button class="test-btn" onclick="testConn(this)">测试连通性</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== PAGE 3: STATS ========== -->
+<div id="page-stats" class="tab-page">
+  <div class="stats-page" style="display:flex">
+    <div class="stats-header">
+      <h2>使用统计</h2>
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="time-filters">
+          <button class="time-btn" onclick="setTime(this)">24h</button>
+          <button class="time-btn active" onclick="setTime(this)">7d</button>
+          <button class="time-btn" onclick="setTime(this)">30d</button>
+          <button class="time-btn" onclick="setTime(this)">全部</button>
+        </div>
+        <button class="export-btn">📥 导出 CSV</button>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">总费用</div>
+        <div class="kpi-value">¥227<span class="unit">.17</span></div>
+        <div class="kpi-trend up">↑ 12% vs 上周</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">总请求</div>
+        <div class="kpi-value">5,822</div>
+        <div class="kpi-trend up">↑ 8% vs 上周</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">缓存命中率</div>
+        <div class="kpi-value">73<span class="unit">%</span></div>
+        <div class="kpi-trend up">↑ 5% vs 上周</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">平均延迟</div>
+        <div class="kpi-value">1.4<span class="unit">s</span></div>
+        <div class="kpi-trend down">↓ 0.2s vs 上周</div>
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <!-- Left: By Model -->
+      <div class="stats-col">
+        <div class="stats-card">
+          <div class="stats-card-title">按模型聚合 <span class="count">5 个模型</span></div>
+          <div class="bar-row">
+            <span class="bar-label">gpt-4.1</span>
+            <div class="bar-track"><div class="bar-fill c1" style="width:65%"></div></div>
+            <span class="bar-value">¥89.20</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">deepseek-chat</span>
+            <div class="bar-track"><div class="bar-fill c2" style="width:48%"></div></div>
+            <span class="bar-value">¥12.30</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">claude-sonnet-4</span>
+            <div class="bar-track"><div class="bar-fill c3" style="width:82%"></div></div>
+            <span class="bar-value">¥108.50</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">deepseek-reasoner</span>
+            <div class="bar-track"><div class="bar-fill c4" style="width:18%"></div></div>
+            <span class="bar-value">¥9.85</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">gpt-4.1-mini</span>
+            <div class="bar-track"><div class="bar-fill c1" style="width:10%"></div></div>
+            <span class="bar-value">¥7.32</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: By Conversation -->
+      <div class="stats-col">
+        <div class="stats-card">
+          <div class="stats-card-title">按对话聚合 <span class="count">5 个对话</span></div>
+          <div class="conv-stat">
+            <div class="conv-stat-icon">🏗️</div>
+            <div class="conv-stat-info">
+              <div class="conv-stat-title">API 架构讨论</div>
+              <div class="conv-stat-meta">24 条消息 · 52.3k tokens</div>
+            </div>
+            <div class="conv-stat-cost">¥86.40</div>
+          </div>
+          <div class="conv-stat">
+            <div class="conv-stat-icon">🐍</div>
+            <div class="conv-stat-info">
+              <div class="conv-stat-title">Python 优化问题</div>
+              <div class="conv-stat-meta">18 条消息 · 38.1k tokens</div>
+            </div>
+            <div class="conv-stat-cost">¥52.30</div>
+          </div>
+          <div class="conv-stat">
+            <div class="conv-stat-icon">⚛️</div>
+            <div class="conv-stat-info">
+              <div class="conv-stat-title">React 组件设计</div>
+              <div class="conv-stat-meta">31 条消息 · 45.7k tokens</div>
+            </div>
+            <div class="conv-stat-cost">¥48.15</div>
+          </div>
+          <div class="conv-stat">
+            <div class="conv-stat-icon">📊</div>
+            <div class="conv-stat-info">
+              <div class="conv-stat-title">数据分析脚本</div>
+              <div class="conv-stat-meta">12 条消息 · 15.8k tokens</div>
+            </div>
+            <div class="conv-stat-cost">¥28.60</div>
+          </div>
+          <div class="conv-stat">
+            <div class="conv-stat-icon">✨</div>
+            <div class="conv-stat-info">
+              <div class="conv-stat-title">新对话</div>
+              <div class="conv-stat-meta">2 条消息 · 1.2k tokens</div>
+            </div>
+            <div class="conv-stat-cost">¥11.72</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sparkline -->
+    <div class="sparkline-card">
+      <div class="stats-card-title">费用趋势（近 7 天）</div>
+      <svg viewBox="0 0 600 80" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#9589f7" stop-opacity="0.4"/>
+            <stop offset="100%" stop-color="#9589f7" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path class="sparkline-area" d="M0,60 L86,45 L172,52 L258,30 L344,20 L430,38 L516,15 L600,25 L600,80 L0,80Z"/>
+        <path class="sparkline-path" d="M0,60 L86,45 L172,52 L258,30 L344,20 L430,38 L516,15 L600,25"/>
+        <!-- data points -->
+        <circle cx="0" cy="60" r="3" fill="#9589f7"/>
+        <circle cx="86" cy="45" r="3" fill="#9589f7"/>
+        <circle cx="172" cy="52" r="3" fill="#9589f7"/>
+        <circle cx="258" cy="30" r="3" fill="#9589f7"/>
+        <circle cx="344" cy="20" r="3" fill="#9589f7"/>
+        <circle cx="430" cy="38" r="3" fill="#9589f7"/>
+        <circle cx="516" cy="15" r="3" fill="#9589f7"/>
+        <circle cx="600" cy="25" r="3" fill="#9589f7"/>
+      </svg>
+      <div class="spark-labels">
+        <span>6/11</span><span>6/12</span><span>6/13</span><span>6/14</span><span>6/15</span><span>6/16</span><span>6/17</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(id){
+  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+function selectConv(el,title,model){
+  document.querySelectorAll('.conv-item').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('chatTitle').textContent=title;
+  document.getElementById('modelBadge').textContent=model;
+}
+
+function setTime(el){
+  el.parentElement.querySelectorAll('.time-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function testConn(btn){
+  btn.classList.add('testing');
+  btn.textContent='测试中…';
+  setTimeout(()=>{
+    btn.classList.remove('testing');
+    btn.textContent='✓ 连通正常 (85ms)';
+    btn.style.background='var(--success)';
+    setTimeout(()=>{btn.textContent='测试连通性';btn.style.background='var(--info)'},2000);
+  },1200);
+}
+
+// Provider detail toggle via sibling
+document.querySelectorAll('.provider-card').forEach(card=>{
+  card.addEventListener('click',function(){
+    const detail=this.nextElementSibling;
+    if(detail&&detail.classList.contains('provider-detail')){
+      detail.style.display=detail.style.display==='none'?'block':'none';
+    }
+  });
+});
+</script>
+</body>
+</html>
