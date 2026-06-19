@@ -25,6 +25,41 @@ pub struct ModelStats {
 }
 
 #[derive(Deserialize)]
+pub struct StatsRange {
+    pub start_ts: Option<i64>,
+    pub end_ts: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct DailyCost {
+    pub date: String,
+    pub model_key: String,
+    pub model_name: String,
+    pub provider_name: String,
+    pub cost_nanos: i64,
+    pub cached_tokens: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+}
+
+#[derive(Serialize)]
+pub struct ConversationStats {
+    pub conversation_id: String,
+    pub title: String,
+    pub model: String,
+    pub requests: i64,
+    pub tokens: i64,
+    pub total_cost_nanos: i64,
+    pub updated_at: i64,
+}
+
+fn range_bounds(range: Option<StatsRange>) -> (Option<i64>, Option<i64>) {
+    range
+        .map(|r| (r.start_ts, r.end_ts))
+        .unwrap_or((None, None))
+}
+
+#[derive(Deserialize)]
 pub struct RecordGenerationRunInput {
     pub conversation_id: String,
     pub assistant_message_id: Option<String>,
@@ -240,36 +275,55 @@ pub fn get_conversation_token_usage(
 }
 
 #[tauri::command]
-pub fn get_stats_summary(db: State<'_, DbConn>) -> Result<StatsSummary, String> {
+pub fn get_stats_summary(
+    db: State<'_, DbConn>,
+    range: Option<StatsRange>,
+) -> Result<StatsSummary, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let (start_ts, end_ts) = range_bounds(range);
     let total_requests: i64 = conn
-        .query_row("SELECT COUNT(*) FROM generation_runs", [], |r| r.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM generation_runs
+             WHERE (?1 IS NULL OR created_at >= ?1)
+               AND (?2 IS NULL OR created_at <= ?2)",
+            params![start_ts, end_ts],
+            |r| r.get(0),
+        )
         .unwrap_or(0);
     let total_cost: i64 = conn
         .query_row(
-            "SELECT COALESCE(SUM(cost_nanos), 0) FROM generation_runs",
-            [],
+            "SELECT COALESCE(SUM(cost_nanos), 0) FROM generation_runs
+             WHERE (?1 IS NULL OR created_at >= ?1)
+               AND (?2 IS NULL OR created_at <= ?2)",
+            params![start_ts, end_ts],
             |r| r.get(0),
         )
         .unwrap_or(0);
     let total_cached: i64 = conn
         .query_row(
-            "SELECT COALESCE(SUM(cache_read_input_tokens), 0) FROM generation_runs",
-            [],
+            "SELECT COALESCE(SUM(cache_read_input_tokens), 0) FROM generation_runs
+             WHERE (?1 IS NULL OR created_at >= ?1)
+               AND (?2 IS NULL OR created_at <= ?2)",
+            params![start_ts, end_ts],
             |r| r.get(0),
         )
         .unwrap_or(0);
     let total_input: i64 = conn
         .query_row(
-            "SELECT COALESCE(SUM(uncached_input_tokens), 0) FROM generation_runs",
-            [],
+            "SELECT COALESCE(SUM(uncached_input_tokens), 0) FROM generation_runs
+             WHERE (?1 IS NULL OR created_at >= ?1)
+               AND (?2 IS NULL OR created_at <= ?2)",
+            params![start_ts, end_ts],
             |r| r.get(0),
         )
         .unwrap_or(0);
     let avg_latency: f64 = conn
         .query_row(
-            "SELECT COALESCE(AVG(first_event_latency_ms), 0) FROM generation_runs WHERE first_event_latency_ms IS NOT NULL",
-            [],
+            "SELECT COALESCE(AVG(first_event_latency_ms), 0) FROM generation_runs
+             WHERE first_event_latency_ms IS NOT NULL
+               AND (?1 IS NULL OR created_at >= ?1)
+               AND (?2 IS NULL OR created_at <= ?2)",
+            params![start_ts, end_ts],
             |r| r.get(0),
         )
         .unwrap_or(0.0);
@@ -289,7 +343,8 @@ pub fn get_stats_summary(db: State<'_, DbConn>) -> Result<StatsSummary, String> 
 
 #[cfg(test)]
 mod tests {
-    use super::calculate_cost_nanos;
+    use super::{calculate_cost_nanos, query_stats_daily_costs};
+    use rusqlite::{params, Connection};
 
     #[test]
     fn calculates_cost_from_token_prices_per_million() {
@@ -311,11 +366,83 @@ mod tests {
         let cost = calculate_cost_nanos(-10, 100, 0, 50, -1, 1_000_000_000, 0, 2_000_000_000);
         assert_eq!(cost, 200_000);
     }
+
+    #[test]
+    fn daily_stats_keep_model_dimension() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE providers (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+             CREATE TABLE models (
+                id TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                model_name TEXT NOT NULL,
+                display_name TEXT NOT NULL
+             );
+             CREATE TABLE messages (
+                id TEXT PRIMARY KEY,
+                provider_id TEXT,
+                provider_name TEXT,
+                model_name TEXT
+             );
+             CREATE TABLE generation_runs (
+                assistant_message_id TEXT,
+                provider_id TEXT,
+                model_id TEXT,
+                cost_nanos INTEGER,
+                cache_read_input_tokens INTEGER,
+                cache_write_input_tokens INTEGER,
+                uncached_input_tokens INTEGER,
+                output_tokens INTEGER,
+                created_at INTEGER
+             );",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO providers (id, name) VALUES (?1, ?2)",
+            params!["p1", "Provider One"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO models (id, provider_id, model_name, display_name) VALUES (?1, ?2, ?3, ?4)",
+            params!["m1", "p1", "model-one", "Model One"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO models (id, provider_id, model_name, display_name) VALUES (?1, ?2, ?3, ?4)",
+            params!["m2", "p1", "model-two", "Model Two"],
+        )
+        .unwrap();
+        for (model_id, cached, input, output) in
+            [("m1", 100, 200, 300), ("m2", 400, 500, 600)]
+        {
+            conn.execute(
+                "INSERT INTO generation_runs (
+                    assistant_message_id, provider_id, model_id, cost_nanos,
+                    cache_read_input_tokens, cache_write_input_tokens,
+                    uncached_input_tokens, output_tokens, created_at
+                 ) VALUES (NULL, ?1, ?2, 0, ?3, 0, ?4, ?5, 1700000000)",
+                params!["p1", model_id, cached, input, output],
+            )
+            .unwrap();
+        }
+
+        let rows = query_stats_daily_costs(&conn, None, None).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].model_key, "m1");
+        assert_eq!(rows[0].model_name, "Model One");
+        assert_eq!(rows[0].cached_tokens, 100);
+        assert_eq!(rows[1].model_key, "m2");
+        assert_eq!(rows[1].output_tokens, 600);
+    }
 }
 
 #[tauri::command]
-pub fn get_stats_by_model(db: State<'_, DbConn>) -> Result<Vec<ModelStats>, String> {
+pub fn get_stats_by_model(
+    db: State<'_, DbConn>,
+    range: Option<StatsRange>,
+) -> Result<Vec<ModelStats>, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let (start_ts, end_ts) = range_bounds(range);
     let mut stmt = conn
         .prepare(
             "SELECT
@@ -328,12 +455,14 @@ pub fn get_stats_by_model(db: State<'_, DbConn>) -> Result<Vec<ModelStats>, Stri
                 COALESCE(SUM(gr.cost_nanos), 0) AS cost
             FROM generation_runs gr
             LEFT JOIN messages m ON gr.assistant_message_id = m.id
+            WHERE (?1 IS NULL OR gr.created_at >= ?1)
+              AND (?2 IS NULL OR gr.created_at <= ?2)
             GROUP BY m.model_name, m.provider_name
             ORDER BY cost DESC",
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map([], |row| {
+        .query_map(params![start_ts, end_ts], |row| {
             Ok(ModelStats {
                 model_name: row.get(0)?,
                 provider_name: row.get(1)?,
@@ -342,6 +471,105 @@ pub fn get_stats_by_model(db: State<'_, DbConn>) -> Result<Vec<ModelStats>, Stri
                 uncached_tokens: row.get(4)?,
                 output_tokens: row.get(5)?,
                 total_cost_nanos: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+#[tauri::command]
+pub fn get_stats_daily_costs(
+    db: State<'_, DbConn>,
+    range: Option<StatsRange>,
+) -> Result<Vec<DailyCost>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let (start_ts, end_ts) = range_bounds(range);
+    query_stats_daily_costs(&conn, start_ts, end_ts).map_err(|e| e.to_string())
+}
+
+fn query_stats_daily_costs(
+    conn: &rusqlite::Connection,
+    start_ts: Option<i64>,
+    end_ts: Option<i64>,
+) -> rusqlite::Result<Vec<DailyCost>> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT
+                strftime('%Y-%m-%d', gr.created_at, 'unixepoch', 'localtime') AS day,
+                COALESCE(
+                    gr.model_id,
+                    'legacy:' || COALESCE(gr.provider_id, msg.provider_id, '') || ':' ||
+                    COALESCE(msg.model_name, model.model_name, 'unknown')
+                ) AS model_key,
+                COALESCE(model.display_name, msg.model_name, model.model_name, 'unknown') AS model_name,
+                COALESCE(provider.name, msg.provider_name, 'unknown') AS provider_name,
+                COALESCE(SUM(gr.cost_nanos), 0) AS cost,
+                COALESCE(SUM(gr.cache_read_input_tokens + gr.cache_write_input_tokens), 0) AS cached,
+                COALESCE(SUM(gr.uncached_input_tokens), 0) AS input,
+                COALESCE(SUM(gr.output_tokens), 0) AS output
+            FROM generation_runs gr
+            LEFT JOIN messages msg ON gr.assistant_message_id = msg.id
+            LEFT JOIN models model ON gr.model_id = model.id
+            LEFT JOIN providers provider
+              ON provider.id = COALESCE(gr.provider_id, model.provider_id, msg.provider_id)
+            WHERE (?1 IS NULL OR gr.created_at >= ?1)
+              AND (?2 IS NULL OR gr.created_at <= ?2)
+            GROUP BY 1, 2, 3, 4
+            ORDER BY day ASC, provider_name ASC, model_name ASC",
+        )?;
+    let rows = stmt
+        .query_map(params![start_ts, end_ts], |row| {
+            Ok(DailyCost {
+                date: row.get(0)?,
+                model_key: row.get(1)?,
+                model_name: row.get(2)?,
+                provider_name: row.get(3)?,
+                cost_nanos: row.get(4)?,
+                cached_tokens: row.get(5)?,
+                input_tokens: row.get(6)?,
+                output_tokens: row.get(7)?,
+            })
+        })?;
+    rows.collect()
+}
+
+#[tauri::command]
+pub fn get_stats_by_conversation(
+    db: State<'_, DbConn>,
+    range: Option<StatsRange>,
+) -> Result<Vec<ConversationStats>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let (start_ts, end_ts) = range_bounds(range);
+    let mut stmt = conn
+        .prepare(
+            "SELECT
+                c.id,
+                c.title,
+                COALESCE(MAX(m.model_name), MAX(models.model_name), 'unknown') AS model_name,
+                COUNT(*) AS request_count,
+                COALESCE(SUM(gr.uncached_input_tokens + gr.cache_read_input_tokens + gr.cache_write_input_tokens + gr.output_tokens), 0) AS tokens,
+                COALESCE(SUM(gr.cost_nanos), 0) AS cost,
+                MAX(c.updated_at) AS updated_at
+            FROM generation_runs gr
+            JOIN conversations c ON gr.conversation_id = c.id
+            LEFT JOIN messages m ON gr.assistant_message_id = m.id
+            LEFT JOIN models ON gr.model_id = models.id
+            WHERE (?1 IS NULL OR gr.created_at >= ?1)
+              AND (?2 IS NULL OR gr.created_at <= ?2)
+            GROUP BY c.id, c.title
+            ORDER BY cost DESC, updated_at DESC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![start_ts, end_ts], |row| {
+            Ok(ConversationStats {
+                conversation_id: row.get(0)?,
+                title: row.get(1)?,
+                model: row.get(2)?,
+                requests: row.get(3)?,
+                tokens: row.get(4)?,
+                total_cost_nanos: row.get(5)?,
+                updated_at: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?;

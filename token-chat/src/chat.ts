@@ -1,7 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { state, type Conversation, type Message, type Model } from './state';
-import { t } from './i18n';
+import { getLang, t } from './i18n';
+import { getEffectiveSystemPrompt } from './prompt';
+import { tooltipAttrs } from './tooltip';
 
 declare global {
   interface Window {
@@ -34,9 +36,27 @@ interface StreamMetrics {
   tokens_generated: number;
 }
 
+type ApiMessageContent =
+  | string
+  | Array<
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; image_url: { url: string } }
+    >;
+
 interface ApiMessage {
   role: string;
-  content: string;
+  content: ApiMessageContent;
+}
+
+interface MessageAttachment {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  kind: 'text' | 'image' | 'binary';
+  content?: string;
+  data_url?: string;
+  truncated?: boolean;
 }
 
 interface TokenParts {
@@ -84,9 +104,167 @@ interface StreamCapture {
 
 let currentTokenUsage: ConversationTokenUsage | null = null;
 let liveTokenUsage: LiveTokenUsage | null = null;
+let selectedAttachments: MessageAttachment[] = [];
+let selectionCopyFallbackBound = false;
+
+const MAX_TEXT_ATTACHMENT_BYTES = 180_000;
+const MAX_IMAGE_ATTACHMENT_BYTES = 4_000_000;
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function formatFileSize(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function parseAttachments(json: string | null | undefined): MessageAttachment[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function isTextLike(file: File): boolean {
+  if (file.type.startsWith('text/')) return true;
+  return /\.(csv|json|log|md|txt|xml|yaml|yml|ts|tsx|js|jsx|css|html|rs|py|java|go|sql)$/i.test(file.name);
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function fileToAttachment(file: File): Promise<MessageAttachment> {
+  const base: MessageAttachment = {
+    id: crypto.randomUUID(),
+    name: file.name,
+    mime: file.type || 'application/octet-stream',
+    size: file.size,
+    kind: 'binary',
+  };
+
+  if (file.type.startsWith('image/')) {
+    if (file.size <= MAX_IMAGE_ATTACHMENT_BYTES) {
+      return { ...base, kind: 'image', data_url: await readFileAsDataUrl(file) };
+    }
+    return { ...base, kind: 'image', truncated: true };
+  }
+
+  if (isTextLike(file)) {
+    const truncated = file.size > MAX_TEXT_ATTACHMENT_BYTES;
+    const slice = truncated ? file.slice(0, MAX_TEXT_ATTACHMENT_BYTES) : file;
+    return {
+      ...base,
+      kind: 'text',
+      content: await slice.text(),
+      truncated,
+    };
+  }
+
+  return base;
+}
+
+async function addAttachmentFiles(files: FileList | null): Promise<void> {
+  if (!files || files.length === 0) return;
+  const additions = await Promise.all(Array.from(files).map(fileToAttachment));
+  selectedAttachments = [...selectedAttachments, ...additions];
+}
+
+function renderAttachmentDrafts(): string {
+  if (selectedAttachments.length === 0) return '';
+  return `
+    <div class="attachment-drafts">
+      ${selectedAttachments.map(a => `
+        <div class="attachment-chip">
+          <span class="attachment-chip-name">${escHtml(a.name)}</span>
+          <span class="attachment-chip-meta">${escHtml(a.kind)} · ${formatFileSize(a.size)}</span>
+          <button class="attachment-remove" data-remove-attachment="${a.id}" title="Remove attachment">&#10005;</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderMessageAttachments(attachments: MessageAttachment[]): string {
+  if (attachments.length === 0) return '';
+  return `
+    <div class="msg-attachments">
+      ${attachments.map(a => `
+        <div class="msg-attachment">
+          ${a.kind === 'image' && a.data_url ? `<img src="${escHtml(a.data_url)}" alt="${escHtml(a.name)}">` : ''}
+          <div class="msg-attachment-name">${escHtml(a.name)}</div>
+          <div class="msg-attachment-meta">${escHtml(a.mime)} · ${formatFileSize(a.size)}${a.truncated ? ' · truncated' : ''}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function stringifyApiContent(content: ApiMessageContent): string {
+  if (typeof content === 'string') return content;
+  return content.map(part => {
+    if (part.type === 'text') return part.text;
+    return '[Image attachment]';
+  }).join('\n');
+}
+
+function buildTextWithAttachments(text: string, attachments: MessageAttachment[]): string {
+  const parts: string[] = [];
+  if (text.trim()) parts.push(text.trim());
+
+  const attachmentTexts = attachments.map(a => {
+    if (a.kind === 'text' && a.content) {
+      return [
+        `File: ${a.name}`,
+        `Type: ${a.mime || 'text/plain'}`,
+        a.truncated ? 'Note: content was truncated.' : '',
+        'Content:',
+        a.content,
+      ].filter(Boolean).join('\n');
+    }
+    return `File: ${a.name}\nType: ${a.mime}\nSize: ${formatFileSize(a.size)}${a.truncated ? '\nNote: file was too large to embed.' : ''}`;
+  });
+
+  if (attachmentTexts.length > 0) {
+    parts.push(`Attachments:\n\n${attachmentTexts.join('\n\n---\n\n')}`);
+  }
+  return parts.join('\n\n');
+}
+
+function buildApiContent(text: string, attachments: MessageAttachment[]): ApiMessageContent {
+  const imageAttachments = attachments.filter(a => a.kind === 'image' && a.data_url);
+  const textPart = buildTextWithAttachments(text, attachments);
+  if (imageAttachments.length === 0) return textPart;
+
+  return [
+    { type: 'text', text: textPart || 'Please review the attached file(s).' },
+    ...imageAttachments.map(a => ({ type: 'image_url' as const, image_url: { url: a.data_url! } })),
+  ];
+}
+
+function titleFromContent(text: string, attachments: MessageAttachment[]): string {
+  const source = text.trim() || attachments[0]?.name || 'New Conversation';
+  const cleaned = source
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[#*_`>\[\]()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.length > 28 ? `${cleaned.slice(0, 28)}...` : cleaned;
+}
+
+function isDefaultConversationTitle(title: string): boolean {
+  const normalized = title.trim().toLowerCase();
+  return normalized === '' || normalized === 'new conversation' || title.trim() === '新对话';
 }
 
 function clampTokenNumber(value: unknown): number {
@@ -101,7 +279,7 @@ function estimateTokenCount(text: string): number {
 }
 
 function estimatePromptTokens(messages: ApiMessage[]): number {
-  return messages.reduce((sum, msg) => sum + estimateTokenCount(msg.content) + 4, 2);
+  return messages.reduce((sum, msg) => sum + estimateTokenCount(stringifyApiContent(msg.content)) + 4, 2);
 }
 
 function deriveTokenParts(messagesForApi: ApiMessage[], assistantContent: string, usage: StreamUsage | null): TokenParts {
@@ -143,6 +321,29 @@ function formatCostNanos(nanos: number, currency = 'USD'): string {
   const amount = nanos / 1_000_000_000;
   const prefix = currency.toUpperCase() === 'USD' ? '$' : `${currency.toUpperCase()} `;
   return `${prefix}${amount.toFixed(4)}`;
+}
+
+function getTokenChartText() {
+  if (getLang() === 'zh') {
+    return {
+      title: 'Token \u7528\u91cf\uff08\u6700\u8fd1 10 \u6761\u6d88\u606f\uff09',
+      noData: '\u6682\u65e0\u6570\u636e',
+      input: '\u8f93\u5165',
+      output: '\u8f93\u51fa',
+      total: '\u603b\u8ba1',
+      cost: '\u8d39\u7528',
+      tokens: 'Token',
+    };
+  }
+  return {
+    title: 'Token Usage (last 10 msgs)',
+    noData: 'No data yet',
+    input: 'Input',
+    output: 'Output',
+    total: 'Total',
+    cost: 'Cost',
+    tokens: 'tokens',
+  };
 }
 
 function buildEstimatedUsageFromMessages(convId: string, model: Model | null): ConversationTokenUsage {
@@ -217,10 +418,11 @@ function getPanelUsage(convId: string, model: Model | null): ConversationTokenUs
 }
 
 function renderMiniChart(runs: TokenUsageRun[]): string {
+  const text = getTokenChartText();
   if (runs.length === 0) {
     return `<svg viewBox="0 0 260 60" style="width:100%;height:60px">
       <line x1="0" y1="58" x2="260" y2="58" stroke="var(--line)" stroke-width="1"/>
-      <text x="130" y="34" text-anchor="middle" fill="var(--text-faint)" font-size="11">No data yet</text>
+      <text x="130" y="34" text-anchor="middle" fill="var(--text-faint)" class="chart-text">${text.noData}</text>
     </svg>`;
   }
 
@@ -236,9 +438,14 @@ function renderMiniChart(runs: TokenUsageRun[]): string {
     const x = startX + idx * (barWidth + gap);
     const inputY = 58 - totalHeight;
     const outputY = 58 - outputHeight;
-    return `<g>
-      <rect x="${x}" y="${inputY}" width="${barWidth}" height="${inputHeight}" rx="2" fill="var(--stack-input)" opacity="0.75"/>
-      <rect x="${x}" y="${outputY}" width="${barWidth}" height="${outputHeight}" rx="2" fill="var(--stack-output)" opacity="0.85"/>
+    return `<g class="mini-chart-run" ${tooltipAttrs(formatShortDateTime(run.created_at), [
+      { label: text.input, value: `${run.input_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--chart-input)' },
+      { label: text.output, value: `${run.output_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--chart-output)' },
+      { label: text.total, value: `${total.toLocaleString()} ${text.tokens}`, color: 'var(--chart-line)' },
+      { label: text.cost, value: formatCostNanos(run.cost_nanos) },
+    ])}>
+      <rect x="${x}" y="${inputY}" width="${barWidth}" height="${inputHeight}" rx="2" fill="var(--chart-input)" opacity="0.75"/>
+      <rect x="${x}" y="${outputY}" width="${barWidth}" height="${outputHeight}" rx="2" fill="var(--chart-output)" opacity="0.85"/>
     </g>`;
   }).join('');
 
@@ -286,17 +493,168 @@ function relativeTime(ts: number): string {
   return `${Math.floor(diff / 86_400_000)}d ago`;
 }
 
-function renderMarkdown(text: string): string {
-  let html = escHtml(text);
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    const label = lang ? `<span class="msg-code-lang">${escHtml(lang)}</span>` : '';
-    return `<div class="msg-code-block">${label}<button class="msg-code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent)">Copy</button><pre><code>${code}</code></pre></div>`;
+function formatShortDateTime(ts: number): string {
+  return new Date(ts * 1000).toLocaleString(undefined, {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   });
-  html = html.replace(/`([^`]+)`/g, '<code style="background:var(--surface-raised);padding:1px 4px;border-radius:3px;font-family:var(--font-mono);font-size:12px">$1</code>');
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  html = html.replace(/\n/g, '<br>');
-  return html;
+}
+
+function placeholderToken(index: number): string {
+  return `\uE000${index}\uE001`;
+}
+
+function restorePlaceholders(html: string, placeholders: string[]): string {
+  return html.replace(/\uE000(\d+)\uE001/g, (_, idx) => placeholders[Number(idx)] ?? '');
+}
+
+function renderLatex(math: string, block: boolean): string {
+  let html = escHtml(math.trim());
+  html = html.replace(/\\mathbf\{([^{}]+)\}/g, '<span class="math-vector">$1</span>');
+  html = html.replace(/\\mathrm\{([^{}]+)\}/g, '<span class="math-roman">$1</span>');
+
+  for (let i = 0; i < 4; i += 1) {
+    html = html.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '<span class="math-frac"><span>$1</span><span>$2</span></span>');
+  }
+
+  const commands: Record<string, string> = {
+    '\\varepsilon': 'ε',
+    '\\epsilon': 'ε',
+    '\\partial': '∂',
+    '\\nabla': '∇',
+    '\\cdot': '·',
+    '\\times': '×',
+    '\\rho': 'ρ',
+    '\\mu': 'μ',
+    '\\pi': 'π',
+    '\\alpha': 'α',
+    '\\beta': 'β',
+    '\\gamma': 'γ',
+    '\\Delta': 'Δ',
+    '\\delta': 'δ',
+    '\\leq': '≤',
+    '\\geq': '≥',
+    '\\neq': '≠',
+    '\\infty': '∞',
+    '\\left': '',
+    '\\right': '',
+  };
+  for (const [cmd, value] of Object.entries(commands).sort((a, b) => b[0].length - a[0].length)) {
+    html = html.split(cmd).join(value);
+  }
+  html = html.replace(/\\([a-zA-Z]+)/g, '$1');
+  html = html.replace(/_\{([^{}]+)\}/g, '<sub>$1</sub>');
+  html = html.replace(/_([A-Za-z0-9]+)/g, '<sub>$1</sub>');
+  html = html.replace(/\^\{([^{}]+)\}/g, '<sup>$1</sup>');
+  html = html.replace(/\^([A-Za-z0-9+\-=]+)/g, '<sup>$1</sup>');
+
+  const cls = block ? 'math-block' : 'math-inline';
+  return `<span class="${cls}" title="${escHtml(math.trim())}">${html}</span>`;
+}
+
+function renderInlineMarkdown(text: string): string {
+  const placeholders: string[] = [];
+  let working = text.replace(/`([^`]+)`/g, (_, code) => {
+    const token = placeholderToken(placeholders.length);
+    placeholders.push(`<code class="md-inline-code">${escHtml(code)}</code>`);
+    return token;
+  });
+  working = working.replace(/\$([^$\n]+)\$/g, (_, math) => {
+    const token = placeholderToken(placeholders.length);
+    placeholders.push(renderLatex(math, false));
+    return token;
+  });
+
+  let html = escHtml(working);
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  return restorePlaceholders(html, placeholders);
+}
+
+function renderMarkdown(text: string): string {
+  const blockPlaceholders: string[] = [];
+  let source = text.replace(/\r\n/g, '\n');
+  source = source.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const label = lang ? `<span class="msg-code-lang">${escHtml(lang)}</span>` : '';
+    const token = placeholderToken(blockPlaceholders.length);
+    blockPlaceholders.push(`<div class="msg-code-block">${label}<button class="msg-code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent)">Copy</button><pre><code>${escHtml(code)}</code></pre></div>`);
+    return `\n${token}\n`;
+  });
+  source = source.replace(/\$\$([\s\S]*?)\$\$/g, (_, math) => {
+    const token = placeholderToken(blockPlaceholders.length);
+    blockPlaceholders.push(renderLatex(math, true));
+    return `\n${token}\n`;
+  });
+
+  const parts: string[] = [];
+  let paragraph: string[] = [];
+  let listType: 'ul' | 'ol' | null = null;
+
+  const closeList = () => {
+    if (listType) {
+      parts.push(`</${listType}>`);
+      listType = null;
+    }
+  };
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return;
+    closeList();
+    parts.push(`<p>${paragraph.map(renderInlineMarkdown).join('<br>')}</p>`);
+    paragraph = [];
+  };
+  const openList = (type: 'ul' | 'ol') => {
+    flushParagraph();
+    if (listType === type) return;
+    closeList();
+    listType = type;
+    parts.push(`<${type} class="md-list">`);
+  };
+
+  for (const line of source.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushParagraph();
+      closeList();
+      continue;
+    }
+    if (/^\uE000\d+\uE001$/.test(trimmed)) {
+      flushParagraph();
+      closeList();
+      parts.push(trimmed);
+      continue;
+    }
+
+    const heading = /^(#{1,6})\s+(.+)$/.exec(trimmed);
+    if (heading) {
+      flushParagraph();
+      closeList();
+      const level = Math.min(6, heading[1].length);
+      parts.push(`<h${level} class="md-heading md-h${level}">${renderInlineMarkdown(heading[2])}</h${level}>`);
+      continue;
+    }
+
+    const unordered = /^[-*+]\s+(.+)$/.exec(trimmed);
+    if (unordered) {
+      openList('ul');
+      parts.push(`<li>${renderInlineMarkdown(unordered[1])}</li>`);
+      continue;
+    }
+
+    const ordered = /^\d+\.\s+(.+)$/.exec(trimmed);
+    if (ordered) {
+      openList('ol');
+      parts.push(`<li>${renderInlineMarkdown(ordered[1])}</li>`);
+      continue;
+    }
+
+    paragraph.push(line);
+  }
+
+  flushParagraph();
+  closeList();
+  return `<div class="markdown-body">${restorePlaceholders(parts.join(''), blockPlaceholders)}</div>`;
 }
 
 export function renderConversationList(): string {
@@ -333,6 +691,7 @@ export function renderChatMessages(): string {
 function renderMessage(msg: Message): string {
   const role = msg.role;
   const content = parseContent(msg.content_json);
+  const attachments = parseAttachments(msg.attachments_json);
   const isUser = role === 'user';
 
   let bubbleInner = '';
@@ -344,14 +703,15 @@ function renderMessage(msg: Message): string {
       </div>`;
   }
   bubbleInner += `<div class="msg-content">${renderMarkdown(content)}</div>`;
+  bubbleInner += renderMessageAttachments(attachments);
 
   let statusHtml = '';
   if (msg.status === 'streaming') {
     statusHtml = '<span class="msg-metric"><span class="spinner" style="display:inline-block"></span></span>';
   } else if (msg.status === 'cancelled') {
-    statusHtml = `<span style="color:var(--warning);font-size:11px">${t('chat.cancelled')}</span>`;
+    statusHtml = `<span style="color:var(--warning);font-size:var(--fs-secondary)">${t('chat.cancelled')}</span>`;
   } else if (msg.status === 'failed') {
-    statusHtml = `<span style="color:var(--danger);font-size:11px">${t('chat.failed')}</span>`;
+    statusHtml = `<span style="color:var(--danger);font-size:var(--fs-secondary)">${t('chat.failed')}</span>`;
   }
 
   return `
@@ -360,6 +720,7 @@ function renderMessage(msg: Message): string {
       <div class="msg-meta">
         ${!isUser && msg.model_name ? `<span class="msg-metric">${escHtml(msg.model_name)}</span>` : ''}
         ${statusHtml}
+        <button class="msg-copy-btn" data-copy-msg-id="${escHtml(msg.id)}" title="Copy message">Copy</button>
       </div>
     </div>
   `;
@@ -376,16 +737,58 @@ function parseContent(contentJson: string): string {
   }
 }
 
+function getMessageCopyText(msg: Message): string {
+  const parts = [parseContent(msg.content_json)];
+  const attachments = parseAttachments(msg.attachments_json);
+  if (attachments.length > 0) {
+    parts.push(`Attachments:\n${attachments.map(a => `- ${a.name} (${a.mime}, ${formatFileSize(a.size)})`).join('\n')}`);
+  }
+  return parts.filter(Boolean).join('\n\n');
+}
+
+async function copyText(text: string): Promise<void> {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {}
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  textarea.remove();
+}
+
+function bindSelectionCopyFallback(): void {
+  if (selectionCopyFallbackBound) return;
+  selectionCopyFallbackBound = true;
+  document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'c') return;
+    const target = e.target as HTMLElement | null;
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
+    const selected = window.getSelection()?.toString() ?? '';
+    if (selected.trim()) {
+      void copyText(selected);
+    }
+  });
+}
+
 export function renderChatInput(): string {
   const streaming = state.isStreaming;
   return `
     <div class="chat-input-area">
+      ${renderAttachmentDrafts()}
       <div class="chat-input-wrap">
-        <button class="attach-btn" title="Attach">&#128206;</button>
+        <input type="file" id="attachmentInput" multiple class="hidden">
+        <button class="attach-btn" id="attachBtn" title="${t('chat.attach')}">&#128206;</button>
         <textarea class="chat-input" rows="1" placeholder="${t('chat.typeMessage')}" id="chatInput"></textarea>
         ${streaming
-          ? `<button class="send-btn" id="sendBtn" title="${t('chat.stop')}" style="background:var(--danger)" onclick="window.__handleSend()">&#9632;</button>`
-          : `<button class="send-btn" id="sendBtn" title="${t('chat.send')}" onclick="window.__handleSend()">&#9654;</button>`
+          ? `<button class="send-btn" id="sendBtn" title="${t('chat.stop')}" style="background:var(--danger)">&#9632;</button>`
+          : `<button class="send-btn" id="sendBtn" title="${t('chat.send')}">&#9654;</button>`
         }
       </div>
     </div>
@@ -404,6 +807,7 @@ export function renderRightPanelContent(): string {
   const totalInput = usage.uncached_input_tokens + usage.cached_input_tokens + usage.cache_write_input_tokens;
   const totalOutput = usage.output_tokens;
   const costLabel = formatCostNanos(usage.cost_nanos, usage.currency);
+  const tokenChartText = getTokenChartText();
 
   return `
     <div class="metric-row">
@@ -424,7 +828,7 @@ export function renderRightPanelContent(): string {
       <div class="metric-card-sub">${usage.request_count} ${t('chat.messages')}</div>
     </div>
     <div class="mini-chart">
-      <div class="mini-chart-title">Token Usage (last 10 msgs)</div>
+      <div class="mini-chart-title">${tokenChartText.title}</div>
       ${renderMiniChart(usage.recent_runs)}
     </div>
     ${model ? `
@@ -512,6 +916,42 @@ export async function createConversation(): Promise<void> {
   }
 }
 
+async function updateConversationTitleLocal(conversationId: string, title: string): Promise<void> {
+  const trimmed = title.trim();
+  if (!trimmed) return;
+  const conv = state.conversations.find(c => c.id === conversationId);
+  if (!conv || conv.title === trimmed) return;
+  conv.title = trimmed;
+  conv.updated_at = Math.floor(Date.now() / 1000);
+  if (!isDev) {
+    try {
+      await invoke('update_conversation_title', { id: conversationId, title: trimmed });
+    } catch (e) {
+      console.error('Failed to update conversation title:', e);
+    }
+  }
+  renderChatArea();
+  renderConversationListInDom();
+}
+
+async function maybeAutoGenerateConversationTitle(conversationId: string): Promise<void> {
+  const conv = state.conversations.find(c => c.id === conversationId);
+  if (!conv || !isDefaultConversationTitle(conv.title)) return;
+  const firstUser = state.messages.find(m => m.conversation_id === conversationId && m.role === 'user');
+  if (!firstUser) return;
+  const title = titleFromContent(parseContent(firstUser.content_json), parseAttachments(firstUser.attachments_json));
+  await updateConversationTitleLocal(conversationId, title);
+}
+
+export async function renameCurrentConversation(): Promise<void> {
+  if (!state.currentConversationId) return;
+  const conv = state.conversations.find(c => c.id === state.currentConversationId);
+  if (!conv) return;
+  const title = prompt('Conversation title', conv.title);
+  if (title === null) return;
+  await updateConversationTitleLocal(conv.id, title);
+}
+
 export async function handleSend(): Promise<void> {
   let pendingAssistantMsg: Message | null = null;
   try {
@@ -527,7 +967,8 @@ export async function handleSend(): Promise<void> {
     const input = document.getElementById('chatInput') as HTMLTextAreaElement | null;
     if (!input) return;
     const text = input.value.trim();
-    if (!text) return;
+    const attachments = [...selectedAttachments];
+    if (!text && attachments.length === 0) return;
     if (!state.currentConversationId) return;
     const conversationId = state.currentConversationId;
 
@@ -562,30 +1003,23 @@ export async function handleSend(): Promise<void> {
     if (!provider) return;
 
     input.value = '';
+    selectedAttachments = [];
     autoResizeTextarea(input);
 
+    let savedUserMessage: Message;
     try {
-      await invoke('save_user_message', {
+      savedUserMessage = await invoke<Message>('save_user_message', {
         conversationId,
         content: text,
+        attachmentsJson: attachments.length > 0 ? JSON.stringify(attachments) : null,
       });
     } catch (e) {
       alert('Failed to save message: ' + String(e));
       return;
     }
 
-    const userMsg: Message = {
-      id: crypto.randomUUID(),
-      conversation_id: conversationId,
-      role: 'user',
-      content_json: JSON.stringify(text),
-      reasoning_content: null,
-      provider_name: null,
-      model_name: null,
-      status: 'sent',
-      created_at: Math.floor(Date.now() / 1000),
-    };
-    state.messages.push(userMsg);
+    state.messages.push(savedUserMessage);
+    await maybeAutoGenerateConversationTitle(conversationId);
 
     const assistantMsg: Message = {
       id: crypto.randomUUID(),
@@ -596,6 +1030,7 @@ export async function handleSend(): Promise<void> {
       provider_name: conv.provider_id ?? null,
       model_name: model.model_name,
       status: 'streaming',
+      attachments_json: null,
       created_at: Math.floor(Date.now() / 1000),
     };
     state.messages.push(assistantMsg);
@@ -603,18 +1038,22 @@ export async function handleSend(): Promise<void> {
     state.isStreaming = true;
 
     renderChatArea();
+    renderConversationListInDom();
     renderChatInputInDom();
     scrollToBottom();
 
     const messagesForApi: ApiMessage[] = [];
-    const globalPrompt = localStorage.getItem('tc-global-prompt') || '';
+    const globalPrompt = getEffectiveSystemPrompt();
     if (globalPrompt) {
       messagesForApi.push({ role: 'system', content: globalPrompt });
     }
     state.messages
       .filter(m => m.id !== assistantMsg.id)
       .forEach(m => {
-        messagesForApi.push({ role: m.role, content: parseContent(m.content_json) });
+        messagesForApi.push({
+          role: m.role,
+          content: buildApiContent(parseContent(m.content_json), parseAttachments(m.attachments_json)),
+        });
       });
 
     const capture: StreamCapture = {
@@ -665,6 +1104,7 @@ export async function handleSend(): Promise<void> {
       assistantMsg.id = savedAssistant.id;
       assistantMsg.status = savedAssistant.status;
       assistantMsg.created_at = savedAssistant.created_at;
+      renderChatArea();
     } catch (e) {
       console.error('Failed to save assistant message:', e);
     }
@@ -777,7 +1217,7 @@ function updateStreamingMessage(msg: Message): void {
     const spinner = metaEl.querySelector('.spinner');
     if (spinner) spinner.remove();
     if (msg.status === 'cancelled') {
-      metaEl.innerHTML += '<span style="color:var(--warning);font-size:11px">Cancelled</span>';
+      metaEl.innerHTML += '<span style="color:var(--warning);font-size:var(--fs-secondary)">Cancelled</span>';
     }
   }
 
@@ -802,6 +1242,7 @@ export function renderChatArea(): void {
   const messagesEl = document.getElementById('chatMessages');
   if (messagesEl) {
     messagesEl.innerHTML = renderChatMessages();
+    bindMessageEvents();
     scrollToBottom();
   }
   const titleEl = document.querySelector('.chat-center-title');
@@ -836,11 +1277,51 @@ export function renderChatInputInDom(): void {
   }
 }
 
+function rerenderChatInputPreservingDraft(): void {
+  const currentInput = document.getElementById('chatInput') as HTMLTextAreaElement | null;
+  const draft = currentInput?.value ?? '';
+  renderChatInputInDom();
+  const nextInput = document.getElementById('chatInput') as HTMLTextAreaElement | null;
+  if (nextInput) {
+    nextInput.value = draft;
+    autoResizeTextarea(nextInput);
+    nextInput.focus();
+  }
+}
+
 export function renderRightPanelInDom(): void {
   const panelBody = document.querySelector('.chat-right .panel-body');
   if (panelBody) {
     panelBody.innerHTML = renderRightPanelContent();
   }
+}
+
+function bindMessageEvents(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-copy-msg-id]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.copyMsgId;
+      const msg = state.messages.find(m => m.id === id);
+      if (!msg) return;
+      await copyText(getMessageCopyText(msg));
+      const oldText = btn.textContent ?? 'Copy';
+      btn.textContent = 'Copied';
+      btn.disabled = true;
+      window.setTimeout(() => {
+        btn.textContent = oldText;
+        btn.disabled = false;
+      }, 900);
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>('[data-toggle-thinking]').forEach(el => {
+    el.addEventListener('click', () => {
+      const body = el.querySelector('.msg-thinking-body') as HTMLElement | null;
+      if (body) {
+        body.style.display = body.style.display === 'none' ? '' : 'none';
+      }
+    });
+  });
 }
 
 export function bindConversationListEvents(): void {
@@ -878,18 +1359,37 @@ export function bindChatInputEvents(): void {
   if (sendBtn) {
     sendBtn.addEventListener('click', () => handleSend());
   }
+
+  const attachBtn = document.getElementById('attachBtn');
+  const attachmentInput = document.getElementById('attachmentInput') as HTMLInputElement | null;
+  if (attachBtn && attachmentInput) {
+    attachBtn.addEventListener('click', () => attachmentInput.click());
+    attachmentInput.addEventListener('change', async () => {
+      await addAttachmentFiles(attachmentInput.files);
+      attachmentInput.value = '';
+      rerenderChatInputPreservingDraft();
+    });
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-remove-attachment]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.removeAttachment;
+      selectedAttachments = selectedAttachments.filter(a => a.id !== id);
+      rerenderChatInputPreservingDraft();
+    });
+  });
 }
 
 export function bindChatEvents(): void {
   bindConversationListEvents();
   bindChatInputEvents();
+  bindMessageEvents();
+  bindSelectionCopyFallback();
 
-  document.querySelectorAll<HTMLElement>('[data-toggle-thinking]').forEach(el => {
-    el.addEventListener('click', () => {
-      const body = el.querySelector('.msg-thinking-body') as HTMLElement | null;
-      if (body) {
-        body.style.display = body.style.display === 'none' ? '' : 'none';
-      }
-    });
+  document.getElementById('editTitleBtn')?.addEventListener('click', () => {
+    renameCurrentConversation();
+  });
+  document.querySelector('.chat-center-title')?.addEventListener('dblclick', () => {
+    renameCurrentConversation();
   });
 }

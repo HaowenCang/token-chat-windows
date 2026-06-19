@@ -40,6 +40,7 @@ export interface Message {
   provider_name: string | null;
   model_name: string | null;
   status: string;
+  attachments_json: string | null;
   created_at: number;
 }
 

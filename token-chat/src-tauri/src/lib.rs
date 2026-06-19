@@ -2,6 +2,7 @@ mod chat;
 mod conversation;
 mod db;
 mod message;
+mod prompt;
 mod provider;
 mod stats;
 
@@ -36,10 +37,13 @@ pub fn run() {
             provider::discover_models,
             chat::send_message,
             chat::cancel_generation,
+            prompt::get_builtin_prompt,
             stats::record_generation_run,
             stats::get_conversation_token_usage,
             stats::get_stats_summary,
             stats::get_stats_by_model,
+            stats::get_stats_daily_costs,
+            stats::get_stats_by_conversation,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

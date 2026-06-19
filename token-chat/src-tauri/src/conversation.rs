@@ -60,7 +60,9 @@ pub fn create_conversation(
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
-    let title = input.title.unwrap_or_else(|| "新对话".to_string());
+    let title = input
+        .title
+        .unwrap_or_else(|| "New Conversation".to_string());
     conn.execute(
         "INSERT INTO conversations (id, title, provider_id, model_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![id, title, input.provider_id, input.model_id, now, now],

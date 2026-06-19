@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS models (
 
 CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
-    title TEXT NOT NULL DEFAULT '新对话',
+    title TEXT NOT NULL DEFAULT 'New Conversation',
     provider_id TEXT REFERENCES providers(id),
     model_id TEXT REFERENCES models(id),
     parent_conversation_id TEXT REFERENCES conversations(id),
@@ -85,4 +85,5 @@ CREATE TABLE IF NOT EXISTS generation_runs (
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_generation_runs_conversation ON generation_runs(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_generation_runs_model ON generation_runs(model_id);
+CREATE INDEX IF NOT EXISTS idx_generation_runs_created_at ON generation_runs(created_at);
 CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updated_at DESC);

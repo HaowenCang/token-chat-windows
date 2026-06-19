@@ -1,10 +1,18 @@
 import { state } from './state';
 import { t, getLang, setLang } from './i18n';
+import { getBuiltinPromptSnapshot } from './prompt';
+import { applyThemePreferences, getCustomAccentColor, resetCustomAccentColor, setCustomAccentColor } from './theme';
+import { getTooltipDelay, getTooltipStyle, setTooltipDelay, setTooltipStyle, tooltipAttrs, tooltipStyles } from './tooltip';
+import { bindFontSizeSettings, renderFontSizeSettings } from './font-size-settings';
 
 export function renderSettingsPage(): string {
   const sendKey = localStorage.getItem('tc-send-key') || 'enter';
   const currentTheme = localStorage.getItem('tc-theme') || 'midnight';
-  const globalPrompt = localStorage.getItem('tc-global-prompt') || '';
+  const storedGlobalPrompt = localStorage.getItem('tc-global-prompt');
+  const globalPrompt = storedGlobalPrompt !== null ? storedGlobalPrompt : getBuiltinPromptSnapshot();
+  const customAccent = getCustomAccentColor();
+  const tooltipStyle = getTooltipStyle();
+  const tooltipDelay = getTooltipDelay();
 
   return `
     <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
@@ -36,7 +44,38 @@ export function renderSettingsPage(): string {
               <option value="light" ${currentTheme === 'light' ? 'selected' : ''}>${t('theme.light')}</option>
             </select>
           </div>
+          <div class="settings-row">
+            <label>Accent color</label>
+            <div class="theme-color-control">
+              <input type="color" id="settingsAccentColor" value="${escHtml(customAccent)}">
+              <input class="chat-search" id="settingsAccentText" value="${escHtml(customAccent)}" style="width:120px">
+              <button class="tool-btn" id="resetAccentColor">Reset</button>
+            </div>
+          </div>
         </div>
+
+        <div class="settings-section">
+          <h3 class="settings-section-title">Data detail bubbles</h3>
+          <div class="settings-row">
+            <label>Bubble style</label>
+            <select class="chat-search" id="settingsTooltipStyle" style="width:200px">
+              ${tooltipStyles.map(style => `<option value="${style.value}" ${tooltipStyle === style.value ? 'selected' : ''}>${escHtml(style.label)}</option>`).join('')}
+            </select>
+            <button class="tool-btn tooltip-preview-trigger" ${tooltipAttrs('Preview', [
+              { label: 'Total', value: '42,000 tokens', color: 'var(--chart-line)' },
+              { label: 'Input', value: '28,000 tokens', color: 'var(--chart-input)' },
+              { label: 'Output', value: '14,000 tokens', color: 'var(--chart-output)' },
+            ])}>Preview</button>
+          </div>
+          <div class="settings-row">
+            <label>Popup delay</label>
+            <input class="chat-search" id="settingsTooltipDelay" type="number" min="0" max="2000" step="25" value="${tooltipDelay}" style="width:120px">
+            <span class="settings-unit">ms</span>
+          </div>
+          <div class="settings-hint">0ms shows immediately. Recommended range: 50-150ms.</div>
+        </div>
+
+        ${renderFontSizeSettings()}
 
         <div class="settings-section">
           <h3 class="settings-section-title">${t('settings.sendKey')}</h3>
@@ -54,7 +93,8 @@ export function renderSettingsPage(): string {
           <h3 class="settings-section-title">${t('settings.globalPrompt')}</h3>
           <div class="settings-row" style="flex-direction:column;align-items:stretch">
             <label>${t('settings.globalPromptDesc')}</label>
-            <textarea class="chat-search" id="settingsGlobalPrompt" style="width:100%;min-height:120px;resize:vertical;font-family:var(--font-mono);font-size:12px">${globalPrompt}</textarea>
+            <textarea class="chat-search" id="settingsGlobalPrompt" style="width:100%;min-height:120px;resize:vertical;font-family:var(--font-mono);font-size:var(--fs-code)">${escHtml(globalPrompt)}</textarea>
+            <div class="settings-hint">Default source: prompt.txt. Editing this field overrides the built-in prompt.</div>
           </div>
         </div>
 
@@ -83,10 +123,10 @@ function renderPromptList(): string {
     <div class="prompt-item" style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface);border-radius:8px;margin-bottom:6px">
       <div style="flex:1">
         <div style="font-weight:500">${escHtml(p.name)}</div>
-        <div style="font-size:11px;color:var(--text-faint)">${p.scope}: ${escHtml(p.prompt.slice(0, 60))}${p.prompt.length > 60 ? '...' : ''}</div>
+        <div style="font-size:var(--fs-secondary);color:var(--text-faint)">${p.scope}: ${escHtml(p.prompt.slice(0, 60))}${p.prompt.length > 60 ? '...' : ''}</div>
       </div>
-      <button class="tool-btn" data-edit-prompt="${i}" style="font-size:11px">${t('common.edit')}</button>
-      <button class="tool-btn" data-delete-prompt="${i}" style="font-size:11px;color:var(--danger)">${t('common.delete')}</button>
+      <button class="tool-btn" data-edit-prompt="${i}" style="font-size:var(--fs-secondary)">${t('common.edit')}</button>
+      <button class="tool-btn" data-delete-prompt="${i}" style="font-size:var(--fs-secondary);color:var(--danger)">${t('common.delete')}</button>
     </div>
   `).join('');
 }
@@ -96,6 +136,8 @@ function escHtml(s: string): string {
 }
 
 export function bindSettingsEvents(): void {
+  bindFontSizeSettings();
+
   const langSelect = document.getElementById('settingsLang') as HTMLSelectElement | null;
   if (langSelect) {
     langSelect.addEventListener('change', () => {
@@ -112,9 +154,47 @@ export function bindSettingsEvents(): void {
   if (themeSelect) {
     themeSelect.addEventListener('change', () => {
       const theme = themeSelect.value;
-      document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('tc-theme', theme);
+      applyThemePreferences();
     });
+  }
+
+  const accentColorInput = document.getElementById('settingsAccentColor') as HTMLInputElement | null;
+  const accentTextInput = document.getElementById('settingsAccentText') as HTMLInputElement | null;
+  const applyAccent = (value: string) => {
+    setCustomAccentColor(value);
+    const normalized = getCustomAccentColor();
+    if (accentColorInput) accentColorInput.value = normalized;
+    if (accentTextInput) accentTextInput.value = normalized;
+  };
+  if (accentColorInput) {
+    accentColorInput.addEventListener('input', () => applyAccent(accentColorInput.value));
+  }
+  if (accentTextInput) {
+    accentTextInput.addEventListener('change', () => applyAccent(accentTextInput.value));
+  }
+  document.getElementById('resetAccentColor')?.addEventListener('click', () => {
+    resetCustomAccentColor();
+    const normalized = getCustomAccentColor();
+    if (accentColorInput) accentColorInput.value = normalized;
+    if (accentTextInput) accentTextInput.value = normalized;
+  });
+
+  const tooltipStyleSelect = document.getElementById('settingsTooltipStyle') as HTMLSelectElement | null;
+  if (tooltipStyleSelect) {
+    tooltipStyleSelect.addEventListener('change', () => {
+      setTooltipStyle(tooltipStyleSelect.value);
+    });
+  }
+
+  const tooltipDelayInput = document.getElementById('settingsTooltipDelay') as HTMLInputElement | null;
+  if (tooltipDelayInput) {
+    const applyDelay = () => {
+      setTooltipDelay(tooltipDelayInput.value);
+      tooltipDelayInput.value = String(getTooltipDelay());
+    };
+    tooltipDelayInput.addEventListener('change', applyDelay);
+    tooltipDelayInput.addEventListener('blur', applyDelay);
   }
 
   const sendKeySelect = document.getElementById('settingsSendKey') as HTMLSelectElement | null;
@@ -179,7 +259,7 @@ export function bindSettingsEvents(): void {
             </div>
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:4px">${t('common.systemPrompt')}</label>
-              <textarea class="chat-search" id="editPromptContent" style="width:100%;min-height:100px;resize:vertical;font-family:var(--font-mono);font-size:12px">${escHtml(prompt.prompt)}</textarea>
+              <textarea class="chat-search" id="editPromptContent" style="width:100%;min-height:100px;resize:vertical;font-family:var(--font-mono);font-size:var(--fs-code)">${escHtml(prompt.prompt)}</textarea>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end">
               <button class="modal-footer-btn" id="cancelEditPrompt">${t('common.cancel')}</button>

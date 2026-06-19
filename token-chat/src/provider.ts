@@ -196,11 +196,11 @@ function renderProviderDetail(): string {
               ${models.map(m => `
                 <tr>
                   <td><strong>${escHtml(m.display_name)}</strong></td>
-                  <td style="color:var(--text-muted);font-family:var(--font-mono);font-size:11px">${escHtml(m.model_name)}</td>
+                  <td style="color:var(--text-muted);font-family:var(--font-mono);font-size:var(--fs-secondary)">${escHtml(m.model_name)}</td>
                   <td>${(m.context_window / 1000).toFixed(0)}K</td>
                   <td>${formatPrice(m.uncached_input_nanos_per_million)}</td>
                   <td>${formatPrice(m.output_nanos_per_million)}</td>
-                  <td><button class="tool-btn" data-edit-model="${m.id}" style="font-size:11px">Edit</button></td>
+                  <td><button class="tool-btn" data-edit-model="${m.id}" style="font-size:var(--fs-secondary)">Edit</button></td>
                 </tr>
               `).join('')}
             </tbody>
@@ -385,8 +385,8 @@ function renderDiscoverModal(): string {
                    <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer;${m.selected ? 'background:var(--accent-soft);border-color:var(--accent)' : ''}">
                      <input type="checkbox" data-discover-idx="${i}" ${m.selected ? 'checked' : ''} style="accent-color:var(--accent)">
                      <div style="flex:1">
-                       <div style="font-family:var(--font-mono);font-size:13px">${escHtml(m.id)}</div>
-                       ${m.owned_by ? `<div style="font-size:11px;color:var(--text-faint)">by ${escHtml(m.owned_by)}</div>` : ''}
+                       <div style="font-family:var(--font-mono);font-size:var(--fs-code)">${escHtml(m.id)}</div>
+                       ${m.owned_by ? `<div style="font-size:var(--fs-secondary);color:var(--text-faint)">by ${escHtml(m.owned_by)}</div>` : ''}
                      </div>
                    </label>
                  `).join('')}

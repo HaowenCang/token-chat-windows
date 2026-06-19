@@ -15,6 +15,10 @@ import {
 import { loadProviders, renderProviderPage, bindProviderEvents } from './provider';
 import { loadStats, renderStatsPage, bindStatsEvents } from './stats';
 import { renderSettingsPage, bindSettingsEvents } from './settings';
+import { loadBuiltinPrompt } from './prompt';
+import { applyThemePreferences } from './theme';
+import { bindDataTooltips } from './tooltip';
+import { applyFontSizePreferences } from './font-size';
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -69,8 +73,8 @@ function bindEvents() {
   if (themeSelect) {
     themeSelect.addEventListener('change', () => {
       const theme = themeSelect.value;
-      document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('tc-theme', theme);
+      applyThemePreferences();
     });
   }
 
@@ -118,6 +122,7 @@ function renderChatCenter() {
       <div class="chat-center-header">
         <button class="toggle-btn" data-toggle="sidebar" title="Toggle conversations">&#9776;</button>
         <span class="chat-center-title">${escHtml(conv?.title ?? 'New Conversation')}</span>
+        ${conv ? `<button class="title-edit-btn" id="editTitleBtn" title="Rename conversation">&#9998;</button>` : ''}
         <select class="model-select" id="modelSelect">
           <option value="">${t('chat.noModel')}</option>
           ${state.providers.flatMap(p => {
@@ -158,6 +163,7 @@ function renderRightPanel() {
 
 export async function render() {
   const app = document.getElementById('app')!;
+  await loadBuiltinPrompt();
   if (state.page === 'chat') {
     if (state.conversations.length === 0) await loadConversations();
     if (state.providers.length === 0) await loadProviders();
@@ -172,7 +178,9 @@ export async function render() {
     await loadStats();
   }
   const currentTheme = localStorage.getItem('tc-theme') || 'midnight';
-  document.documentElement.setAttribute('data-theme', currentTheme);
+  applyThemePreferences();
+  applyFontSizePreferences();
+  bindDataTooltips();
   app.innerHTML = `
     <nav class="topnav">
       <div class="topnav-brand">${t('app.title')}</div>
@@ -209,4 +217,5 @@ export async function render() {
   bindEvents();
 }
 
+applyFontSizePreferences();
 render();

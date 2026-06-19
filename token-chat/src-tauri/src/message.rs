@@ -61,14 +61,15 @@ pub fn save_user_message(
     db: State<'_, DbConn>,
     conversation_id: String,
     content: String,
+    attachments_json: Option<String>,
 ) -> Result<Message, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
     let content_json = serde_json::json!({"text": content}).to_string();
     conn.execute(
-        "INSERT INTO messages (id, conversation_id, role, content_json, status, created_at) VALUES (?1, ?2, 'user', ?3, 'completed', ?4)",
-        params![id, conversation_id, content_json, now],
+        "INSERT INTO messages (id, conversation_id, role, content_json, status, attachments_json, created_at) VALUES (?1, ?2, 'user', ?3, 'completed', ?4, ?5)",
+        params![id, conversation_id, content_json, attachments_json, now],
     )
     .map_err(|e| e.to_string())?;
     conn.execute(
@@ -88,7 +89,7 @@ pub fn save_user_message(
         model_id: None,
         model_name: None,
         status: "completed".to_string(),
-        attachments_json: None,
+        attachments_json,
         tool_calls_json: None,
         error: None,
         created_at: now,
