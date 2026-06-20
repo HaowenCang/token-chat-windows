@@ -4,6 +4,7 @@ import { state, type Conversation, type Message, type Model } from './state';
 import { getLang, t } from './i18n';
 import { getEffectiveSystemPrompt } from './prompt';
 import { tooltipAttrs } from './tooltip';
+import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
 
 declare global {
   interface Window {
@@ -67,10 +68,16 @@ interface TokenParts {
   source: 'provider_reported' | 'estimated';
 }
 
+interface CurrencyCost {
+  currency: string;
+  cost_nanos: number;
+}
+
 interface TokenUsageRun {
   input_tokens: number;
   output_tokens: number;
   cost_nanos: number;
+  currency?: string;
   created_at: number;
 }
 
@@ -81,6 +88,7 @@ interface ConversationTokenUsage {
   cache_write_input_tokens: number;
   output_tokens: number;
   cost_nanos: number;
+  cost_by_currency?: CurrencyCost[];
   request_count: number;
   currency: string;
   recent_runs: TokenUsageRun[];
@@ -317,10 +325,19 @@ function calculateCostNanos(parts: TokenParts, model: Model): number {
   return Math.max(0, Math.round(total / 1_000_000));
 }
 
-function formatCostNanos(nanos: number, currency = 'USD'): string {
-  const amount = nanos / 1_000_000_000;
-  const prefix = currency.toUpperCase() === 'USD' ? '$' : `${currency.toUpperCase()} `;
-  return `${prefix}${amount.toFixed(4)}`;
+function formatConvertedCostNanos(nanos: number, sourceCurrency: string): string {
+  return formatCurrencyNanos(convertCurrencyNanos(nanos, sourceCurrency), 4);
+}
+
+function formatConversationCost(usage: ConversationTokenUsage): string {
+  const costs = usage.cost_by_currency?.length
+    ? usage.cost_by_currency
+    : [{ currency: usage.currency, cost_nanos: usage.cost_nanos }];
+  const convertedNanos = costs.reduce(
+    (sum, item) => sum + convertCurrencyNanos(item.cost_nanos, item.currency),
+    0,
+  );
+  return formatCurrencyNanos(convertedNanos, 4);
 }
 
 function getTokenChartText() {
@@ -370,12 +387,14 @@ function buildEstimatedUsageFromMessages(convId: string, model: Model | null): C
     cache_write_input_tokens: 0,
     output_tokens: outputTokens,
     cost_nanos: costNanos,
+    cost_by_currency: [{ currency: model?.currency ?? getDisplayCurrency(), cost_nanos: costNanos }],
     request_count: assistantMessages.length,
-    currency: model?.currency ?? 'USD',
+    currency: model?.currency ?? getDisplayCurrency(),
     recent_runs: assistantMessages.slice(-10).map(m => ({
       input_tokens: 0,
       output_tokens: estimateTokenCount(parseContent(m.content_json)),
       cost_nanos: 0,
+      currency: model?.currency ?? getDisplayCurrency(),
       created_at: m.created_at,
     })),
   };
@@ -396,8 +415,9 @@ function getPanelUsage(convId: string, model: Model | null): ConversationTokenUs
       cache_write_input_tokens: 0,
       output_tokens: 0,
       cost_nanos: 0,
+      cost_by_currency: [],
       request_count: 0,
-      currency: model?.currency ?? 'USD',
+      currency: model?.currency ?? getDisplayCurrency(),
       recent_runs: [],
     };
   }
@@ -411,6 +431,10 @@ function getPanelUsage(convId: string, model: Model | null): ConversationTokenUs
     cache_write_input_tokens: base.cache_write_input_tokens + liveTokenUsage.parts.cacheWriteInput,
     output_tokens: base.output_tokens + liveTokenUsage.parts.output,
     cost_nanos: base.cost_nanos + liveTokenUsage.costNanos,
+    cost_by_currency: [
+      ...(base.cost_by_currency ?? [{ currency: base.currency, cost_nanos: base.cost_nanos }]),
+      { currency: liveTokenUsage.currency, cost_nanos: liveTokenUsage.costNanos },
+    ],
     request_count: base.request_count + 1,
     currency: liveTokenUsage.currency || base.currency,
     recent_runs: [...base.recent_runs, liveTokenUsage.run].slice(-10),
@@ -442,7 +466,7 @@ function renderMiniChart(runs: TokenUsageRun[]): string {
       { label: text.input, value: `${run.input_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--chart-input)' },
       { label: text.output, value: `${run.output_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--chart-output)' },
       { label: text.total, value: `${total.toLocaleString()} ${text.tokens}`, color: 'var(--chart-line)' },
-      { label: text.cost, value: formatCostNanos(run.cost_nanos) },
+      { label: text.cost, value: formatConvertedCostNanos(run.cost_nanos, run.currency ?? getDisplayCurrency()) },
     ])}>
       <rect x="${x}" y="${inputY}" width="${barWidth}" height="${inputHeight}" rx="2" fill="var(--chart-input)" opacity="0.75"/>
       <rect x="${x}" y="${outputY}" width="${barWidth}" height="${outputHeight}" rx="2" fill="var(--chart-output)" opacity="0.85"/>
@@ -479,6 +503,7 @@ function updateLiveTokenUsage(capture: StreamCapture, assistantContent: string):
       input_tokens: parts.uncachedInput + parts.cachedInput + parts.cacheWriteInput,
       output_tokens: parts.output,
       cost_nanos: costNanos,
+      currency: capture.model.currency,
       created_at: Math.floor(Date.now() / 1000),
     },
   };
@@ -806,7 +831,7 @@ export function renderRightPanelContent(): string {
   const usage = getPanelUsage(convId, model ?? null);
   const totalInput = usage.uncached_input_tokens + usage.cached_input_tokens + usage.cache_write_input_tokens;
   const totalOutput = usage.output_tokens;
-  const costLabel = formatCostNanos(usage.cost_nanos, usage.currency);
+  const costLabel = formatConversationCost(usage);
   const tokenChartText = getTokenChartText();
 
   return `
@@ -836,8 +861,8 @@ export function renderRightPanelContent(): string {
       <div class="model-info-name">${escHtml(model.display_name || model.model_name)}</div>
       <div class="model-info-provider">${escHtml(model.provider_id)}</div>
       <div class="model-info-stats">
-        <div><div class="model-info-stat-label">${t('chat.inputPerM')}</div><div class="model-info-stat-value">$${(model.uncached_input_nanos_per_million / 1e9).toFixed(2)}</div></div>
-        <div><div class="model-info-stat-label">${t('chat.outputPerM')}</div><div class="model-info-stat-value">$${(model.output_nanos_per_million / 1e9).toFixed(2)}</div></div>
+        <div><div class="model-info-stat-label">${t('chat.inputPerM')}</div><div class="model-info-stat-value">${formatCurrencyAmount(model.uncached_input_nanos_per_million / 1e9, 2, model.currency)}</div></div>
+        <div><div class="model-info-stat-label">${t('chat.outputPerM')}</div><div class="model-info-stat-value">${formatCurrencyAmount(model.output_nanos_per_million / 1e9, 2, model.currency)}</div></div>
         <div><div class="model-info-stat-label">${t('chat.maxCtx')}</div><div class="model-info-stat-value">${(model.context_window / 1000).toFixed(0)}K</div></div>
         <div><div class="model-info-stat-label">${t('chat.latency')}</div><div class="model-info-stat-value">-</div></div>
       </div>
@@ -865,7 +890,7 @@ function renderEmptyRightPanel(): string {
     </div>
     <div class="metric-card">
       <div class="metric-card-label">${t('chat.sessionCost')}</div>
-      <div class="metric-card-value">$0.00</div>
+      <div class="metric-card-value">${formatCurrencyAmount(0, 2)}</div>
       <div class="metric-card-sub">0 ${t('chat.messages')}</div>
     </div>
     <div class="model-info-card">

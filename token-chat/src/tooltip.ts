@@ -13,6 +13,7 @@ export const tooltipStyles = [
 ] as const;
 
 export const tooltipGlassLevels = [
+  { value: 'ultra-clear', labelKey: 'settings.tooltipGlassUltraClear' },
   { value: 'clear', labelKey: 'settings.tooltipGlassClear' },
   { value: 'balanced', labelKey: 'settings.tooltipGlassBalanced' },
   { value: 'frosted', labelKey: 'settings.tooltipGlassFrosted' },
@@ -149,6 +150,7 @@ function showTooltip(target: Element): void {
   if (!payload) return;
   const el = ensureTooltip();
   el.dataset.style = getTooltipStyle();
+  el.dataset.glassLevel = getTooltipGlassLevel();
   el.innerHTML = renderTooltip(payload);
   el.classList.add('show');
   positionTooltip(target);
@@ -215,7 +217,10 @@ export function applyTooltipPreferences(): void {
   document.documentElement.setAttribute('data-tooltip-style', getTooltipStyle());
   document.documentElement.setAttribute('data-tooltip-glass-level', getTooltipGlassLevel());
   document.documentElement.style.setProperty('--tooltip-delay', `${getTooltipDelay()}ms`);
-  if (tooltipEl) tooltipEl.dataset.style = getTooltipStyle();
+  if (tooltipEl) {
+    tooltipEl.dataset.style = getTooltipStyle();
+    tooltipEl.dataset.glassLevel = getTooltipGlassLevel();
+  }
 }
 
 export function bindDataTooltips(): void {

@@ -1,11 +1,18 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getLang, t } from './i18n';
 import { tooltipAttrs } from './tooltip';
+import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
 
 const isDev = !(window as any).__TAURI_INTERNALS__;
 
+interface CurrencyCost {
+  currency: string;
+  cost_nanos: number;
+}
+
 interface StatsSummary {
   total_cost_nanos: number;
+  cost_by_currency?: CurrencyCost[];
   total_requests: number;
   cache_hit_rate: number;
   avg_latency_ms: number;
@@ -14,6 +21,7 @@ interface StatsSummary {
 interface ModelStats {
   model_name: string;
   provider_name: string;
+  currency: string;
   request_count: number;
   cached_tokens: number;
   uncached_tokens: number;
@@ -26,6 +34,7 @@ interface DailyCost {
   model_key?: string;
   model_name?: string;
   provider_name?: string;
+  currency?: string;
   cost_nanos: number;
   cached_tokens: number;
   input_tokens: number;
@@ -36,6 +45,7 @@ interface ConversationStats {
   conversation_id: string;
   title: string;
   model: string;
+  currency: string;
   requests: number;
   tokens: number;
   total_cost_nanos: number;
@@ -76,7 +86,6 @@ let convSortKey = 'total_cost_nanos';
 let convSortDir: SortDir = 'desc';
 let trendScope: TrendScope = 'all';
 let selectedTrendModelKey = '';
-let trendEnteringSeries: TrendSeries | null = null;
 let trendAnimationSequence = 0;
 const trendSeriesVisibility: Record<TrendSeries, boolean> = {
   total: true,
@@ -84,43 +93,48 @@ const trendSeriesVisibility: Record<TrendSeries, boolean> = {
   input: true,
   output: true,
 };
-let rerender: (() => void) | null = null;
+let rerender: (() => void | Promise<void>) | null = null;
+let trendPickerOutsideBound = false;
 
 const mockStats: StatsData = {
   summary: {
     total_cost_nanos: 12450000000,
+    cost_by_currency: [
+      { currency: 'CNY', cost_nanos: 5200000000 },
+      { currency: 'USD', cost_nanos: 7250000000 },
+    ],
     total_requests: 156,
     cache_hit_rate: 0.68,
     avg_latency_ms: 1200,
   },
   daily_costs: [
-    { date: '2026-06-13', model_key: 'm1', model_name: 'GPT-4.1', provider_name: 'OpenAI', cost_nanos: 1200000000, cached_tokens: 4200, input_tokens: 3200, output_tokens: 1800 },
-    { date: '2026-06-14', model_key: 'm2', model_name: 'DeepSeek Chat', provider_name: 'DeepSeek', cost_nanos: 2300000000, cached_tokens: 6800, input_tokens: 4700, output_tokens: 2600 },
-    { date: '2026-06-15', model_key: 'm1', model_name: 'GPT-4.1', provider_name: 'OpenAI', cost_nanos: 1800000000, cached_tokens: 5200, input_tokens: 3900, output_tokens: 2100 },
-    { date: '2026-06-16', model_key: 'm2', model_name: 'DeepSeek Chat', provider_name: 'DeepSeek', cost_nanos: 3100000000, cached_tokens: 7600, input_tokens: 6200, output_tokens: 3100 },
-    { date: '2026-06-17', model_key: 'm1', model_name: 'GPT-4.1', provider_name: 'OpenAI', cost_nanos: 2000000000, cached_tokens: 6100, input_tokens: 4300, output_tokens: 2400 },
-    { date: '2026-06-18', model_key: 'm2', model_name: 'DeepSeek Chat', provider_name: 'DeepSeek', cost_nanos: 1500000000, cached_tokens: 4800, input_tokens: 3500, output_tokens: 1700 },
-    { date: '2026-06-19', model_key: 'm1', model_name: 'GPT-4.1', provider_name: 'OpenAI', cost_nanos: 2500000000, cached_tokens: 7900, input_tokens: 5200, output_tokens: 2900 },
+    { date: '2026-06-13', model_key: 'm1', model_name: 'GPT-4.1', provider_name: 'OpenAI', currency: 'CNY', cost_nanos: 1200000000, cached_tokens: 4200, input_tokens: 3200, output_tokens: 1800 },
+    { date: '2026-06-14', model_key: 'm2', model_name: 'DeepSeek Chat', provider_name: 'DeepSeek', currency: 'USD', cost_nanos: 2300000000, cached_tokens: 6800, input_tokens: 4700, output_tokens: 2600 },
+    { date: '2026-06-15', model_key: 'm1', model_name: 'GPT-4.1', provider_name: 'OpenAI', currency: 'CNY', cost_nanos: 1800000000, cached_tokens: 5200, input_tokens: 3900, output_tokens: 2100 },
+    { date: '2026-06-16', model_key: 'm2', model_name: 'DeepSeek Chat', provider_name: 'DeepSeek', currency: 'USD', cost_nanos: 3100000000, cached_tokens: 7600, input_tokens: 6200, output_tokens: 3100 },
+    { date: '2026-06-17', model_key: 'm1', model_name: 'GPT-4.1', provider_name: 'OpenAI', currency: 'CNY', cost_nanos: 2000000000, cached_tokens: 6100, input_tokens: 4300, output_tokens: 2400 },
+    { date: '2026-06-18', model_key: 'm2', model_name: 'DeepSeek Chat', provider_name: 'DeepSeek', currency: 'USD', cost_nanos: 1500000000, cached_tokens: 4800, input_tokens: 3500, output_tokens: 1700 },
+    { date: '2026-06-19', model_key: 'm1', model_name: 'GPT-4.1', provider_name: 'OpenAI', currency: 'CNY', cost_nanos: 2500000000, cached_tokens: 7900, input_tokens: 5200, output_tokens: 2900 },
   ],
   token_breakdown: { cached: 45000, input: 28000, output: 15000 },
   by_model: [
-    { model_name: 'gpt-4.1', provider_name: 'OpenAI', request_count: 45, cached_tokens: 12000, uncached_tokens: 8000, output_tokens: 5000, total_cost_nanos: 5200000000 },
-    { model_name: 'deepseek-chat', provider_name: 'DeepSeek', request_count: 60, cached_tokens: 20000, uncached_tokens: 12000, output_tokens: 6000, total_cost_nanos: 3800000000 },
-    { model_name: 'claude-sonnet-4', provider_name: 'Claude Gateway', request_count: 30, cached_tokens: 8000, uncached_tokens: 5000, output_tokens: 2500, total_cost_nanos: 2100000000 },
+    { model_name: 'gpt-4.1', provider_name: 'OpenAI', currency: 'CNY', request_count: 45, cached_tokens: 12000, uncached_tokens: 8000, output_tokens: 5000, total_cost_nanos: 5200000000 },
+    { model_name: 'deepseek-chat', provider_name: 'DeepSeek', currency: 'USD', request_count: 60, cached_tokens: 20000, uncached_tokens: 12000, output_tokens: 6000, total_cost_nanos: 3800000000 },
+    { model_name: 'claude-sonnet-4', provider_name: 'Claude Gateway', currency: 'EUR', request_count: 30, cached_tokens: 8000, uncached_tokens: 5000, output_tokens: 2500, total_cost_nanos: 2100000000 },
   ],
   by_conversation: [
-    { conversation_id: 'c1', title: 'Python optimization', model: 'gpt-4.1', requests: 12, tokens: 8500, total_cost_nanos: 2100000000, updated_at: 1781770000 },
-    { conversation_id: 'c2', title: 'React component design', model: 'deepseek-chat', requests: 8, tokens: 5200, total_cost_nanos: 1200000000, updated_at: 1781770000 },
-    { conversation_id: 'c3', title: 'API architecture', model: 'claude-sonnet-4', requests: 15, tokens: 12000, total_cost_nanos: 3500000000, updated_at: 1781770000 },
+    { conversation_id: 'c1', title: 'Python optimization', model: 'gpt-4.1', currency: 'CNY', requests: 12, tokens: 8500, total_cost_nanos: 2100000000, updated_at: 1781770000 },
+    { conversation_id: 'c2', title: 'React component design', model: 'deepseek-chat', currency: 'USD', requests: 8, tokens: 5200, total_cost_nanos: 1200000000, updated_at: 1781770000 },
+    { conversation_id: 'c3', title: 'API architecture', model: 'claude-sonnet-4', currency: 'EUR', requests: 15, tokens: 12000, total_cost_nanos: 3500000000, updated_at: 1781770000 },
   ],
 };
 
 function formatCost(nanos: number): string {
-  return `$${(nanos / 1_000_000_000).toFixed(4)}`;
+  return formatCurrencyNanos(nanos, 4);
 }
 
 function formatCostAmount(amount: number): string {
-  return `$${amount.toFixed(2)}`;
+  return formatCurrencyAmount(amount, 2);
 }
 
 function escHtml(s: string): string {
@@ -310,9 +324,83 @@ function smoothPath(points: { x: number; y: number }[]): string {
   return path;
 }
 
+function normalizeStatsCurrency(
+  summary: StatsSummary,
+  dailyCosts: DailyCost[],
+  byModel: ModelStats[],
+  byConversation: ConversationStats[],
+): StatsData {
+  const displayCurrency = getDisplayCurrency();
+  const convertedDaily = dailyCosts.map(day => ({
+    ...day,
+    currency: displayCurrency,
+    cost_nanos: convertCurrencyNanos(day.cost_nanos, day.currency ?? 'CNY', displayCurrency),
+  }));
+
+  const modelMap = new Map<string, ModelStats>();
+  for (const row of byModel) {
+    const key = `${row.provider_name}\u0000${row.model_name}`;
+    const current = modelMap.get(key);
+    const convertedCost = convertCurrencyNanos(row.total_cost_nanos, row.currency ?? 'CNY', displayCurrency);
+    if (current) {
+      current.request_count += row.request_count;
+      current.cached_tokens += row.cached_tokens;
+      current.uncached_tokens += row.uncached_tokens;
+      current.output_tokens += row.output_tokens;
+      current.total_cost_nanos += convertedCost;
+    } else {
+      modelMap.set(key, { ...row, currency: displayCurrency, total_cost_nanos: convertedCost });
+    }
+  }
+  const convertedModels = [...modelMap.values()];
+
+  const conversationMap = new Map<string, ConversationStats>();
+  for (const row of byConversation) {
+    const current = conversationMap.get(row.conversation_id);
+    const convertedCost = convertCurrencyNanos(row.total_cost_nanos, row.currency ?? 'CNY', displayCurrency);
+    if (current) {
+      current.requests += row.requests;
+      current.tokens += row.tokens;
+      current.total_cost_nanos += convertedCost;
+      current.updated_at = Math.max(current.updated_at, row.updated_at);
+    } else {
+      conversationMap.set(row.conversation_id, { ...row, currency: displayCurrency, total_cost_nanos: convertedCost });
+    }
+  }
+
+  const costRows = summary.cost_by_currency?.length
+    ? summary.cost_by_currency
+    : byModel.map(row => ({ currency: row.currency ?? 'CNY', cost_nanos: row.total_cost_nanos }));
+  const totalCost = costRows.reduce(
+    (sum, item) => sum + convertCurrencyNanos(item.cost_nanos, item.currency, displayCurrency),
+    0,
+  );
+
+  return {
+    summary: {
+      ...summary,
+      total_cost_nanos: totalCost,
+      cost_by_currency: [{ currency: displayCurrency, cost_nanos: totalCost }],
+    },
+    daily_costs: convertedDaily,
+    token_breakdown: {
+      cached: convertedModels.reduce((sum, row) => sum + row.cached_tokens, 0),
+      input: convertedModels.reduce((sum, row) => sum + row.uncached_tokens, 0),
+      output: convertedModels.reduce((sum, row) => sum + row.output_tokens, 0),
+    },
+    by_model: convertedModels,
+    by_conversation: [...conversationMap.values()],
+  };
+}
+
 export async function loadStats(): Promise<void> {
   if (isDev) {
-    statsData = { ...mockStats };
+    statsData = normalizeStatsCurrency(
+      mockStats.summary,
+      mockStats.daily_costs,
+      mockStats.by_model,
+      mockStats.by_conversation,
+    );
     return;
   }
   try {
@@ -321,17 +409,7 @@ export async function loadStats(): Promise<void> {
     const byModel = await invoke<ModelStats[]>('get_stats_by_model', { range });
     const dailyCosts = await invoke<DailyCost[]>('get_stats_daily_costs', { range });
     const byConversation = await invoke<ConversationStats[]>('get_stats_by_conversation', { range });
-    statsData = {
-      summary,
-      daily_costs: dailyCosts,
-      token_breakdown: {
-        cached: byModel.reduce((s, m) => s + m.cached_tokens, 0),
-        input: byModel.reduce((s, m) => s + m.uncached_tokens, 0),
-        output: byModel.reduce((s, m) => s + m.output_tokens, 0),
-      },
-      by_model: byModel,
-      by_conversation: byConversation,
-    };
+    statsData = normalizeStatsCurrency(summary, dailyCosts, byModel, byConversation);
   } catch {
     statsData = emptyStats();
   }
@@ -341,6 +419,7 @@ function emptyStats(): StatsData {
   return {
     summary: {
       total_cost_nanos: 0,
+      cost_by_currency: [],
       total_requests: 0,
       cache_hit_rate: 0,
       avg_latency_ms: 0,
@@ -545,9 +624,9 @@ function renderTokenTrend(dailyCosts: DailyCost[]): string {
       ? `<text x="${xFor(idx)}" y="${H - 14}" text-anchor="middle" fill="var(--chart-axis)" class="chart-text">${escHtml(d.date)}</text>`
       : '';
     return `<g class="token-trend-bar" ${tooltipAttrs(d.date, rowsFor(d, total))}>
-      ${trendSeriesVisibility.cached ? `<rect class="trend-series trend-series-cached ${trendEnteringSeries === 'cached' ? 'series-entering' : ''}" x="${x}" y="${cachedY}" width="${barWidth}" height="${cachedHeight}" rx="2" fill="var(--chart-cache)"/>` : ''}
-      ${trendSeriesVisibility.input ? `<rect class="trend-series trend-series-input ${trendEnteringSeries === 'input' ? 'series-entering' : ''}" x="${x}" y="${inputY}" width="${barWidth}" height="${inputHeight}" rx="2" fill="var(--chart-input)"/>` : ''}
-      ${trendSeriesVisibility.output ? `<rect class="trend-series trend-series-output ${trendEnteringSeries === 'output' ? 'series-entering' : ''}" x="${x}" y="${outputY}" width="${barWidth}" height="${outputHeight}" rx="2" fill="var(--chart-output)"/>` : ''}
+      ${trendSeriesVisibility.cached ? `<rect class="trend-series trend-series-cached" x="${x}" y="${cachedY}" width="${barWidth}" height="${cachedHeight}" rx="2" fill="var(--chart-cache)"/>` : ''}
+      ${trendSeriesVisibility.input ? `<rect class="trend-series trend-series-input" x="${x}" y="${inputY}" width="${barWidth}" height="${inputHeight}" rx="2" fill="var(--chart-input)"/>` : ''}
+      ${trendSeriesVisibility.output ? `<rect class="trend-series trend-series-output" x="${x}" y="${outputY}" width="${barWidth}" height="${outputHeight}" rx="2" fill="var(--chart-output)"/>` : ''}
       ${label}
     </g>`;
   }).join('');
@@ -565,9 +644,9 @@ function renderTokenTrend(dailyCosts: DailyCost[]): string {
       </linearGradient>
     </defs>
     ${grid}
-    ${trendSeriesVisibility.total ? `<path class="trend-series trend-series-total ${trendEnteringSeries === 'total' ? 'series-entering' : ''}" d="${areaPath}" fill="url(#tokenTrendArea)"/>` : ''}
+    ${trendSeriesVisibility.total ? `<path class="trend-series trend-series-total" d="${areaPath}" fill="url(#tokenTrendArea)"/>` : ''}
     ${bars}
-    ${trendSeriesVisibility.total ? `<path class="trend-series trend-series-total ${trendEnteringSeries === 'total' ? 'series-entering' : ''}" d="${linePath}" fill="none" stroke="var(--chart-line)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
+    ${trendSeriesVisibility.total ? `<path class="trend-series trend-series-total" d="${linePath}" fill="none" stroke="var(--chart-line)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
     ${trendSeriesVisibility.total ? hits : ''}
   </svg>`;
 }
@@ -585,6 +664,46 @@ function renderTrendLegendButton(series: TrendSeries, label: string): string {
       data-trend-series="${series}"
       aria-pressed="${active}"
     >${swatch}<span>${label}</span></button>
+  `;
+}
+
+function renderTrendModelPicker(
+  options: TrendModelOption[],
+  selectedModel: TrendModelOption | undefined,
+  text: ReturnType<typeof getChartText>,
+): string {
+  const selectedLabel = selectedModel
+    ? `${selectedModel.modelName}${selectedModel.providerName ? ` - ${selectedModel.providerName}` : ''}`
+    : text.noData;
+  return `
+    <div class="token-trend-model-picker" id="tokenTrendModelPicker">
+      <button
+        type="button"
+        class="chat-search token-trend-model-trigger"
+        id="tokenTrendModelTrigger"
+        aria-haspopup="listbox"
+        aria-expanded="false"
+        aria-controls="tokenTrendModelMenu"
+      >
+        <span class="token-trend-model-value">${escHtml(selectedLabel)}</span>
+        <span class="token-trend-model-chevron" aria-hidden="true">&#9662;</span>
+      </button>
+      <div class="token-trend-model-menu hidden" id="tokenTrendModelMenu" role="listbox" aria-label="${escHtml(text.selectModel)}">
+        ${options.length === 0 ? `<div class="token-trend-model-empty">${text.noData}</div>` : options.map(option => {
+          const label = `${option.modelName}${option.providerName ? ` - ${option.providerName}` : ''}`;
+          const selected = option.key === selectedTrendModelKey;
+          return `
+            <button
+              type="button"
+              class="token-trend-model-option ${selected ? 'selected' : ''}"
+              role="option"
+              aria-selected="${selected}"
+              data-trend-model-key="${escHtml(option.key)}"
+            >${escHtml(label)}</button>
+          `;
+        }).join('')}
+      </div>
+    </div>
   `;
 }
 
@@ -609,15 +728,7 @@ function renderTokenTrendPanel(dailyCosts: DailyCost[]): string {
             <button type="button" class="${trendScope === 'all' ? 'active' : ''}" data-trend-scope="all">${text.tokenTotal}</button>
             <button type="button" class="${trendScope === 'model' ? 'active' : ''}" data-trend-scope="model">${text.singleModel}</button>
           </div>
-          ${trendScope === 'model' ? `
-            <select class="chat-search token-trend-model-select" id="tokenTrendModel" aria-label="${text.selectModel}">
-              ${options.length === 0 ? `<option value="">${text.noData}</option>` : options.map(option => `
-                <option value="${escHtml(option.key)}" ${option.key === selectedTrendModelKey ? 'selected' : ''}>
-                  ${escHtml(option.modelName)}${option.providerName ? ` - ${escHtml(option.providerName)}` : ''}
-                </option>
-              `).join('')}
-            </select>
-          ` : ''}
+          ${trendScope === 'model' ? renderTrendModelPicker(options, selectedModel, text) : ''}
         </div>
       </div>
       <div class="token-trend-legend" aria-label="${escHtml(title)}">
@@ -745,7 +856,7 @@ export function renderStatsPage(): string {
   const { summary, daily_costs, token_breakdown, by_model, by_conversation } = statsData;
   const aggregateDailyCosts = mergeDailyCosts(daily_costs);
   return `
-    <div style="flex:1;overflow-y:auto">
+    <div class="stats-page-scroll" style="flex:1;overflow-y:auto">
       <div class="stats-top">
         <h2>${t('stats.title')}</h2>
         <div class="time-filters">
@@ -814,23 +925,57 @@ function refreshTokenTrendPanel(): void {
   bindTokenTrendEvents();
 }
 
-function waitForTrendExit(nodes: SVGElement[]): Promise<void> {
-  return Promise.all(nodes.map(node => new Promise<void>(resolve => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(fallback);
-      resolve();
-    };
-    const fallback = window.setTimeout(finish, 260);
-    node.addEventListener('animationend', finish, { once: true });
-  }))).then(() => undefined);
+function setTrendLegendDisabled(disabled: boolean): void {
+  document.querySelectorAll<HTMLButtonElement>('.token-trend-legend button')
+    .forEach(button => { button.disabled = disabled; });
+}
+
+function nextAnimationFrame(): Promise<void> {
+  return new Promise(resolve => window.requestAnimationFrame(() => resolve()));
+}
+
+async function animateTrendSeries(
+  nodes: SVGElement[],
+  keyframes: Keyframe[],
+  easing: string,
+): Promise<void> {
+  if (
+    nodes.length === 0
+    || typeof nodes[0].animate !== 'function'
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) return;
+  const animations = nodes.map(node => node.animate(keyframes, {
+    duration: 180,
+    easing,
+    fill: 'forwards',
+  }));
+  await Promise.all(animations.map(animation => animation.finished.catch(() => undefined)));
 }
 
 function cancelTrendAnimation(): void {
   trendAnimationSequence += 1;
-  trendEnteringSeries = null;
+}
+
+function closeTrendModelPicker(): void {
+  const trigger = document.getElementById('tokenTrendModelTrigger');
+  const menu = document.getElementById('tokenTrendModelMenu');
+  trigger?.setAttribute('aria-expanded', 'false');
+  menu?.classList.add('hidden');
+}
+
+function openTrendModelPicker(focusSelected = false): void {
+  const trigger = document.getElementById('tokenTrendModelTrigger');
+  const menu = document.getElementById('tokenTrendModelMenu');
+  if (!trigger || !menu) return;
+  trigger.setAttribute('aria-expanded', 'true');
+  menu.classList.remove('hidden');
+  if (focusSelected) {
+    window.requestAnimationFrame(() => {
+      const selected = menu.querySelector<HTMLButtonElement>('.token-trend-model-option.selected');
+      const first = menu.querySelector<HTMLButtonElement>('.token-trend-model-option');
+      (selected ?? first)?.focus();
+    });
+  }
 }
 
 function bindTokenTrendEvents(): void {
@@ -844,12 +989,46 @@ function bindTokenTrendEvents(): void {
     });
   });
 
-  const modelSelect = document.getElementById('tokenTrendModel') as HTMLSelectElement | null;
-  if (modelSelect) {
-    modelSelect.addEventListener('change', () => {
+  const modelTrigger = document.getElementById('tokenTrendModelTrigger') as HTMLButtonElement | null;
+  const modelMenu = document.getElementById('tokenTrendModelMenu');
+  const modelOptions = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-trend-model-key]'));
+
+  modelTrigger?.addEventListener('click', () => {
+    if (modelMenu?.classList.contains('hidden')) openTrendModelPicker();
+    else closeTrendModelPicker();
+  });
+  modelTrigger?.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openTrendModelPicker(true);
+    } else if (event.key === 'Escape') {
+      closeTrendModelPicker();
+    }
+  });
+
+  modelOptions.forEach((option, index) => {
+    option.addEventListener('click', () => {
       cancelTrendAnimation();
-      selectedTrendModelKey = modelSelect.value;
+      selectedTrendModelKey = option.dataset.trendModelKey ?? '';
       refreshTokenTrendPanel();
+    });
+    option.addEventListener('keydown', event => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const offset = event.key === 'ArrowDown' ? 1 : -1;
+        modelOptions[(index + offset + modelOptions.length) % modelOptions.length]?.focus();
+      } else if (event.key === 'Escape') {
+        closeTrendModelPicker();
+        modelTrigger?.focus();
+      }
+    });
+  });
+
+  if (!trendPickerOutsideBound) {
+    trendPickerOutsideBound = true;
+    document.addEventListener('pointerdown', event => {
+      const picker = document.getElementById('tokenTrendModelPicker');
+      if (picker && !picker.contains(event.target as Node)) closeTrendModelPicker();
     });
   }
 
@@ -861,15 +1040,12 @@ function bindTokenTrendEvents(): void {
 
       if (trendSeriesVisibility[series]) {
         const nodes = Array.from(document.querySelectorAll<SVGElement>(`.trend-series-${series}`));
-        button.closest('.token-trend-legend')
-          ?.querySelectorAll<HTMLButtonElement>('button')
-          .forEach(legendButton => { legendButton.disabled = true; });
+        setTrendLegendDisabled(true);
         button.classList.remove('active');
         button.classList.add('inactive');
         button.setAttribute('aria-pressed', 'false');
-        nodes.forEach(node => node.classList.add('series-leaving'));
 
-        await waitForTrendExit(nodes);
+        await animateTrendSeries(nodes, [{ opacity: 1 }, { opacity: 0 }], 'cubic-bezier(.4,0,1,1)');
         if (animationId !== trendAnimationSequence) return;
         trendSeriesVisibility[series] = false;
         refreshTokenTrendPanel();
@@ -877,16 +1053,26 @@ function bindTokenTrendEvents(): void {
       }
 
       trendSeriesVisibility[series] = true;
-      trendEnteringSeries = series;
       refreshTokenTrendPanel();
-      window.setTimeout(() => {
-        if (animationId === trendAnimationSequence) trendEnteringSeries = null;
-      }, 240);
+      setTrendLegendDisabled(true);
+      await nextAnimationFrame();
+      if (animationId !== trendAnimationSequence) return;
+      const nodes = Array.from(document.querySelectorAll<SVGElement>(`.trend-series-${series}`));
+      await animateTrendSeries(nodes, [{ opacity: 0 }, { opacity: 1 }], 'cubic-bezier(0,0,.2,1)');
+      if (animationId === trendAnimationSequence) setTrendLegendDisabled(false);
     });
   });
 }
 
-export function bindStatsEvents(renderFn: () => void): void {
+async function rerenderStatsPreservingScroll(): Promise<void> {
+  const currentScroller = document.querySelector<HTMLElement>('.stats-page-scroll');
+  const scrollTop = currentScroller?.scrollTop ?? 0;
+  await rerender?.();
+  const nextScroller = document.querySelector<HTMLElement>('.stats-page-scroll');
+  if (nextScroller) nextScroller.scrollTop = scrollTop;
+}
+
+export function bindStatsEvents(renderFn: () => void | Promise<void>): void {
   rerender = renderFn;
   cancelTrendAnimation();
   bindTokenTrendEvents();
@@ -916,7 +1102,7 @@ export function bindStatsEvents(renderFn: () => void): void {
   }
 
   document.querySelectorAll<HTMLElement>('[data-sort-model]').forEach(el => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', async () => {
       const key = el.dataset.sortModel!;
       if (modelSortKey === key) {
         modelSortDir = modelSortDir === 'asc' ? 'desc' : 'asc';
@@ -924,12 +1110,12 @@ export function bindStatsEvents(renderFn: () => void): void {
         modelSortKey = key;
         modelSortDir = 'desc';
       }
-      rerender?.();
+      await rerenderStatsPreservingScroll();
     });
   });
 
   document.querySelectorAll<HTMLElement>('[data-sort-conv]').forEach(el => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', async () => {
       const key = el.dataset.sortConv!;
       if (convSortKey === key) {
         convSortDir = convSortDir === 'asc' ? 'desc' : 'asc';
@@ -937,7 +1123,7 @@ export function bindStatsEvents(renderFn: () => void): void {
         convSortKey = key;
         convSortDir = 'desc';
       }
-      rerender?.();
+      await rerenderStatsPreservingScroll();
     });
   });
 
@@ -953,7 +1139,7 @@ export function bindStatsEvents(renderFn: () => void): void {
 
   document.getElementById('exportCsv')?.addEventListener('click', () => {
     if (!statsData) return;
-    const rows = ['Model,Provider,Requests,Cached Input,Uncached Input,Output,Total Tokens,Cost'];
+    const rows = [`Model,Provider,Requests,Cached Input,Uncached Input,Output,Total Tokens,Cost (${getDisplayCurrency()})`];
     for (const m of statsData.by_model) {
       const total = m.cached_tokens + m.uncached_tokens + m.output_tokens;
       rows.push([m.model_name, m.provider_name, m.request_count, m.cached_tokens, m.uncached_tokens, m.output_tokens, total, (m.total_cost_nanos / 1e9).toFixed(2)].join(','));

@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { state, type Provider, type Model } from './state';
 import { t } from './i18n';
+import { currencyOptions, formatCurrencyAmount, getDisplayCurrency, normalizeCurrency } from './currency';
 
 const isDev = !(window as any).__TAURI_INTERNALS__;
 
@@ -32,10 +33,17 @@ function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function formatPrice(nanos: number): string {
-  const dollars = nanos / 1e9;
-  if (dollars === 0) return 'Free';
-  return `$${dollars.toFixed(2)}`;
+function renderCurrencyOptions(selectedCurrency: string): string {
+  const selected = normalizeCurrency(selectedCurrency);
+  return currencyOptions.map(option => `
+    <option value="${option.value}" ${option.value === selected ? 'selected' : ''}>${escHtml(t(option.labelKey))} (${option.value})</option>
+  `).join('');
+}
+
+function formatPrice(nanos: number, currency: string): string {
+  const amount = nanos / 1e9;
+  if (amount === 0) return 'Free';
+  return formatCurrencyAmount(amount, 2, currency);
 }
 
 export async function loadProviders(): Promise<void> {
@@ -191,15 +199,15 @@ function renderProviderDetail(): string {
       ${models.length === 0
         ? '<div class="placeholder-content" style="height:80px">No models configured</div>'
         : `<table class="data-table">
-            <thead><tr><th>Name</th><th>API Name</th><th>Context</th><th>Input $/M</th><th>Output $/M</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>API Name</th><th>Context</th><th>Input / 1M</th><th>Output / 1M</th><th></th></tr></thead>
             <tbody>
               ${models.map(m => `
                 <tr>
                   <td><strong>${escHtml(m.display_name)}</strong></td>
                   <td style="color:var(--text-muted);font-family:var(--font-mono);font-size:var(--fs-secondary)">${escHtml(m.model_name)}</td>
                   <td>${(m.context_window / 1000).toFixed(0)}K</td>
-                  <td>${formatPrice(m.uncached_input_nanos_per_million)}</td>
-                  <td>${formatPrice(m.output_nanos_per_million)}</td>
+                  <td>${formatPrice(m.uncached_input_nanos_per_million, m.currency)}</td>
+                  <td>${formatPrice(m.output_nanos_per_million, m.currency)}</td>
                   <td><button class="tool-btn" data-edit-model="${m.id}" style="font-size:var(--fs-secondary)">Edit</button></td>
                 </tr>
               `).join('')}
@@ -281,20 +289,20 @@ function renderAddModelModal(): string {
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Uncached Input ($/M)</label>
+              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Uncached Input (per 1M tokens)</label>
               <input class="chat-search" type="number" step="0.01" id="modelInputPrice" placeholder="2.50" style="width:100%">
             </div>
             <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Cache Read ($/M)</label>
+              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Cache Read (per 1M tokens)</label>
               <input class="chat-search" type="number" step="0.01" id="modelCachePrice" placeholder="1.25" style="width:100%">
             </div>
             <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Output ($/M)</label>
+              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Output (per 1M tokens)</label>
               <input class="chat-search" type="number" step="0.01" id="modelOutputPrice" placeholder="10.00" style="width:100%">
             </div>
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Currency</label>
-              <input class="chat-search" type="text" id="modelCurrency" value="USD" style="width:100%">
+              <select class="chat-search" id="modelCurrency" style="width:100%">${renderCurrencyOptions(getDisplayCurrency())}</select>
             </div>
           </div>
           <div>
@@ -428,20 +436,20 @@ function renderEditModelModal(): string {
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Uncached Input ($/M)</label>
+              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Uncached Input (per 1M tokens)</label>
               <input class="chat-search" type="number" step="0.01" id="editModelInputPrice" value="${(model.uncached_input_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
             <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Cache Read ($/M)</label>
+              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Cache Read (per 1M tokens)</label>
               <input class="chat-search" type="number" step="0.01" id="editModelCachePrice" value="${(model.cache_read_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
             <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Output ($/M)</label>
+              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Output (per 1M tokens)</label>
               <input class="chat-search" type="number" step="0.01" id="editModelOutputPrice" value="${(model.output_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Currency</label>
-              <input class="chat-search" type="text" id="editModelCurrency" value="${escHtml(model.currency)}" style="width:100%">
+              <select class="chat-search" id="editModelCurrency" style="width:100%">${renderCurrencyOptions(model.currency)}</select>
             </div>
           </div>
           <div>
@@ -975,7 +983,7 @@ async function addDiscoveredModels(): Promise<void> {
         uncached_input_nanos_per_million: 0,
         cache_read_nanos_per_million: 0,
         output_nanos_per_million: 0,
-        currency: 'USD',
+        currency: getDisplayCurrency(),
       };
       mockModels.push(newModel);
     } else {
@@ -989,7 +997,7 @@ async function addDiscoveredModels(): Promise<void> {
             uncached_input_nanos_per_million: 0,
             cache_read_nanos_per_million: 0,
             output_nanos_per_million: 0,
-            currency: 'USD',
+            currency: getDisplayCurrency(),
           },
         });
       } catch (e) {
@@ -1020,7 +1028,7 @@ async function saveEditModel(): Promise<void> {
   const inputPriceInput = document.getElementById('editModelInputPrice') as HTMLInputElement | null;
   const cachePriceInput = document.getElementById('editModelCachePrice') as HTMLInputElement | null;
   const outputPriceInput = document.getElementById('editModelOutputPrice') as HTMLInputElement | null;
-  const currencyInput = document.getElementById('editModelCurrency') as HTMLInputElement | null;
+  const currencyInput = document.getElementById('editModelCurrency') as HTMLSelectElement | null;
   const systemPromptInput = document.getElementById('editModelSystemPrompt') as HTMLTextAreaElement | null;
   const tempInput = document.getElementById('editModelTemperature') as HTMLInputElement | null;
 
@@ -1030,7 +1038,7 @@ async function saveEditModel(): Promise<void> {
   const uncached_input = (parseFloat(inputPriceInput?.value ?? '0') || 0) * 1e9;
   const cache_read = (parseFloat(cachePriceInput?.value ?? '0') || 0) * 1e9;
   const output = (parseFloat(outputPriceInput?.value ?? '0') || 0) * 1e9;
-  const currency = currencyInput?.value.trim() || 'USD';
+  const currency = normalizeCurrency(currencyInput?.value || getDisplayCurrency());
   const system_prompt = systemPromptInput?.value.trim() || null;
   const temperature = parseFloat(tempInput?.value ?? '0.7') || 0.7;
 
@@ -1101,7 +1109,7 @@ async function saveModel(): Promise<void> {
   const inputPriceInput = document.getElementById('modelInputPrice') as HTMLInputElement | null;
   const cachePriceInput = document.getElementById('modelCachePrice') as HTMLInputElement | null;
   const outputPriceInput = document.getElementById('modelOutputPrice') as HTMLInputElement | null;
-  const currencyInput = document.getElementById('modelCurrency') as HTMLInputElement | null;
+  const currencyInput = document.getElementById('modelCurrency') as HTMLSelectElement | null;
 
   const model_name = nameInput?.value.trim() ?? '';
   const display_name = displayNameInput?.value.trim() ?? '';
@@ -1109,7 +1117,7 @@ async function saveModel(): Promise<void> {
   const uncached_input = (parseFloat(inputPriceInput?.value ?? '0') || 0) * 1e9;
   const cache_read = (parseFloat(cachePriceInput?.value ?? '0') || 0) * 1e9;
   const output = (parseFloat(outputPriceInput?.value ?? '0') || 0) * 1e9;
-  const currency = currencyInput?.value.trim() || 'USD';
+  const currency = normalizeCurrency(currencyInput?.value || getDisplayCurrency());
 
   if (!model_name || !display_name) return;
 

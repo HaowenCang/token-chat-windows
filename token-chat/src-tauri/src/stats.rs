@@ -6,8 +6,15 @@ use tauri::State;
 use uuid::Uuid;
 
 #[derive(Serialize)]
+pub struct CurrencyCost {
+    pub currency: String,
+    pub cost_nanos: i64,
+}
+
+#[derive(Serialize)]
 pub struct StatsSummary {
     pub total_cost_nanos: i64,
+    pub cost_by_currency: Vec<CurrencyCost>,
     pub total_requests: i64,
     pub cache_hit_rate: f64,
     pub avg_latency_ms: f64,
@@ -17,6 +24,7 @@ pub struct StatsSummary {
 pub struct ModelStats {
     pub model_name: String,
     pub provider_name: String,
+    pub currency: String,
     pub request_count: i64,
     pub cached_tokens: i64,
     pub uncached_tokens: i64,
@@ -36,6 +44,7 @@ pub struct DailyCost {
     pub model_key: String,
     pub model_name: String,
     pub provider_name: String,
+    pub currency: String,
     pub cost_nanos: i64,
     pub cached_tokens: i64,
     pub input_tokens: i64,
@@ -47,6 +56,7 @@ pub struct ConversationStats {
     pub conversation_id: String,
     pub title: String,
     pub model: String,
+    pub currency: String,
     pub requests: i64,
     pub tokens: i64,
     pub total_cost_nanos: i64,
@@ -81,6 +91,7 @@ pub struct TokenUsageRun {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub cost_nanos: i64,
+    pub currency: String,
     pub created_at: i64,
 }
 
@@ -92,6 +103,7 @@ pub struct ConversationTokenUsage {
     pub cache_write_input_tokens: i64,
     pub output_tokens: i64,
     pub cost_nanos: i64,
+    pub cost_by_currency: Vec<CurrencyCost>,
     pub request_count: i64,
     pub currency: String,
     pub recent_runs: Vec<TokenUsageRun>,
@@ -208,16 +220,14 @@ pub fn get_conversation_token_usage(
     conversation_id: String,
 ) -> Result<ConversationTokenUsage, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
-    let (uncached, cached, cache_write, output, cost, requests, currency) = conn
+    let (uncached, cached, cache_write, output, requests) = conn
         .query_row(
             "SELECT
                 COALESCE(SUM(uncached_input_tokens), 0),
                 COALESCE(SUM(cache_read_input_tokens), 0),
                 COALESCE(SUM(cache_write_input_tokens), 0),
                 COALESCE(SUM(output_tokens), 0),
-                COALESCE(SUM(cost_nanos), 0),
-                COUNT(*),
-                COALESCE(MAX(currency), 'CNY')
+                COUNT(*)
             FROM generation_runs
             WHERE conversation_id = ?1",
             params![conversation_id],
@@ -228,12 +238,35 @@ pub fn get_conversation_token_usage(
                     row.get::<_, i64>(2)?,
                     row.get::<_, i64>(3)?,
                     row.get::<_, i64>(4)?,
-                    row.get::<_, i64>(5)?,
-                    row.get::<_, String>(6)?,
                 ))
             },
         )
         .map_err(|e| e.to_string())?;
+
+    let mut cost_stmt = conn
+        .prepare(
+            "SELECT COALESCE(currency, 'CNY'), COALESCE(SUM(cost_nanos), 0)
+             FROM generation_runs
+             WHERE conversation_id = ?1
+             GROUP BY COALESCE(currency, 'CNY')
+             ORDER BY 1",
+        )
+        .map_err(|e| e.to_string())?;
+    let cost_rows = cost_stmt
+        .query_map(params![conversation_id], |row| {
+            Ok(CurrencyCost {
+                currency: row.get(0)?,
+                cost_nanos: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    let cost_by_currency: Vec<CurrencyCost> = cost_rows.filter_map(|row| row.ok()).collect();
+    let cost = cost_by_currency.iter().map(|item| item.cost_nanos).sum();
+    let currency = if cost_by_currency.len() == 1 {
+        cost_by_currency[0].currency.clone()
+    } else {
+        "CNY".to_string()
+    };
 
     let mut stmt = conn
         .prepare(
@@ -241,6 +274,7 @@ pub fn get_conversation_token_usage(
                 cache_read_input_tokens + cache_write_input_tokens + uncached_input_tokens,
                 output_tokens,
                 cost_nanos,
+                COALESCE(currency, 'CNY'),
                 created_at
             FROM generation_runs
             WHERE conversation_id = ?1
@@ -254,7 +288,8 @@ pub fn get_conversation_token_usage(
                 input_tokens: row.get(0)?,
                 output_tokens: row.get(1)?,
                 cost_nanos: row.get(2)?,
-                created_at: row.get(3)?,
+                currency: row.get(3)?,
+                created_at: row.get(4)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -268,6 +303,7 @@ pub fn get_conversation_token_usage(
         cache_write_input_tokens: cache_write,
         output_tokens: output,
         cost_nanos: cost,
+        cost_by_currency,
         request_count: requests,
         currency,
         recent_runs,
@@ -299,6 +335,25 @@ pub fn get_stats_summary(
             |r| r.get(0),
         )
         .unwrap_or(0);
+    let mut cost_stmt = conn
+        .prepare(
+            "SELECT COALESCE(currency, 'CNY'), COALESCE(SUM(cost_nanos), 0)
+             FROM generation_runs
+             WHERE (?1 IS NULL OR created_at >= ?1)
+               AND (?2 IS NULL OR created_at <= ?2)
+             GROUP BY COALESCE(currency, 'CNY')
+             ORDER BY 1",
+        )
+        .map_err(|e| e.to_string())?;
+    let cost_rows = cost_stmt
+        .query_map(params![start_ts, end_ts], |row| {
+            Ok(CurrencyCost {
+                currency: row.get(0)?,
+                cost_nanos: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    let cost_by_currency = cost_rows.filter_map(|row| row.ok()).collect();
     let total_cached: i64 = conn
         .query_row(
             "SELECT COALESCE(SUM(cache_read_input_tokens), 0) FROM generation_runs
@@ -335,6 +390,7 @@ pub fn get_stats_summary(
     };
     Ok(StatsSummary {
         total_cost_nanos: total_cost,
+        cost_by_currency,
         total_requests,
         cache_hit_rate: cache_rate,
         avg_latency_ms: avg_latency,
@@ -393,6 +449,7 @@ mod tests {
                 cache_write_input_tokens INTEGER,
                 uncached_input_tokens INTEGER,
                 output_tokens INTEGER,
+                currency TEXT,
                 created_at INTEGER
              );",
         )
@@ -412,16 +469,16 @@ mod tests {
             params!["m2", "p1", "model-two", "Model Two"],
         )
         .unwrap();
-        for (model_id, cached, input, output) in
-            [("m1", 100, 200, 300), ("m2", 400, 500, 600)]
+        for (model_id, cached, input, output, currency) in
+            [("m1", 100, 200, 300, "CNY"), ("m2", 400, 500, 600, "USD")]
         {
             conn.execute(
                 "INSERT INTO generation_runs (
                     assistant_message_id, provider_id, model_id, cost_nanos,
                     cache_read_input_tokens, cache_write_input_tokens,
-                    uncached_input_tokens, output_tokens, created_at
-                 ) VALUES (NULL, ?1, ?2, 0, ?3, 0, ?4, ?5, 1700000000)",
-                params!["p1", model_id, cached, input, output],
+                    uncached_input_tokens, output_tokens, currency, created_at
+                 ) VALUES (NULL, ?1, ?2, 0, ?3, 0, ?4, ?5, ?6, 1700000000)",
+                params!["p1", model_id, cached, input, output, currency],
             )
             .unwrap();
         }
@@ -431,7 +488,9 @@ mod tests {
         assert_eq!(rows[0].model_key, "m1");
         assert_eq!(rows[0].model_name, "Model One");
         assert_eq!(rows[0].cached_tokens, 100);
+        assert_eq!(rows[0].currency, "CNY");
         assert_eq!(rows[1].model_key, "m2");
+        assert_eq!(rows[1].currency, "USD");
         assert_eq!(rows[1].output_tokens, 600);
     }
 }
@@ -448,6 +507,7 @@ pub fn get_stats_by_model(
             "SELECT
                 COALESCE(m.model_name, 'unknown') AS model_name,
                 COALESCE(m.provider_name, 'unknown') AS provider_name,
+                COALESCE(gr.currency, 'CNY') AS currency,
                 COUNT(*) AS request_count,
                 COALESCE(SUM(gr.cache_read_input_tokens), 0) AS cached,
                 COALESCE(SUM(gr.uncached_input_tokens), 0) AS uncached,
@@ -457,7 +517,7 @@ pub fn get_stats_by_model(
             LEFT JOIN messages m ON gr.assistant_message_id = m.id
             WHERE (?1 IS NULL OR gr.created_at >= ?1)
               AND (?2 IS NULL OR gr.created_at <= ?2)
-            GROUP BY m.model_name, m.provider_name
+            GROUP BY m.model_name, m.provider_name, COALESCE(gr.currency, 'CNY')
             ORDER BY cost DESC",
         )
         .map_err(|e| e.to_string())?;
@@ -466,11 +526,12 @@ pub fn get_stats_by_model(
             Ok(ModelStats {
                 model_name: row.get(0)?,
                 provider_name: row.get(1)?,
-                request_count: row.get(2)?,
-                cached_tokens: row.get(3)?,
-                uncached_tokens: row.get(4)?,
-                output_tokens: row.get(5)?,
-                total_cost_nanos: row.get(6)?,
+                currency: row.get(2)?,
+                request_count: row.get(3)?,
+                cached_tokens: row.get(4)?,
+                uncached_tokens: row.get(5)?,
+                output_tokens: row.get(6)?,
+                total_cost_nanos: row.get(7)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -503,6 +564,7 @@ fn query_stats_daily_costs(
                 ) AS model_key,
                 COALESCE(model.display_name, msg.model_name, model.model_name, 'unknown') AS model_name,
                 COALESCE(provider.name, msg.provider_name, 'unknown') AS provider_name,
+                COALESCE(gr.currency, 'CNY') AS currency,
                 COALESCE(SUM(gr.cost_nanos), 0) AS cost,
                 COALESCE(SUM(gr.cache_read_input_tokens + gr.cache_write_input_tokens), 0) AS cached,
                 COALESCE(SUM(gr.uncached_input_tokens), 0) AS input,
@@ -514,22 +576,22 @@ fn query_stats_daily_costs(
               ON provider.id = COALESCE(gr.provider_id, model.provider_id, msg.provider_id)
             WHERE (?1 IS NULL OR gr.created_at >= ?1)
               AND (?2 IS NULL OR gr.created_at <= ?2)
-            GROUP BY 1, 2, 3, 4
-            ORDER BY day ASC, provider_name ASC, model_name ASC",
+            GROUP BY 1, 2, 3, 4, 5
+            ORDER BY day ASC, provider_name ASC, model_name ASC, currency ASC",
         )?;
-    let rows = stmt
-        .query_map(params![start_ts, end_ts], |row| {
-            Ok(DailyCost {
-                date: row.get(0)?,
-                model_key: row.get(1)?,
-                model_name: row.get(2)?,
-                provider_name: row.get(3)?,
-                cost_nanos: row.get(4)?,
-                cached_tokens: row.get(5)?,
-                input_tokens: row.get(6)?,
-                output_tokens: row.get(7)?,
-            })
-        })?;
+    let rows = stmt.query_map(params![start_ts, end_ts], |row| {
+        Ok(DailyCost {
+            date: row.get(0)?,
+            model_key: row.get(1)?,
+            model_name: row.get(2)?,
+            provider_name: row.get(3)?,
+            currency: row.get(4)?,
+            cost_nanos: row.get(5)?,
+            cached_tokens: row.get(6)?,
+            input_tokens: row.get(7)?,
+            output_tokens: row.get(8)?,
+        })
+    })?;
     rows.collect()
 }
 
@@ -546,6 +608,7 @@ pub fn get_stats_by_conversation(
                 c.id,
                 c.title,
                 COALESCE(MAX(m.model_name), MAX(models.model_name), 'unknown') AS model_name,
+                COALESCE(gr.currency, 'CNY') AS currency,
                 COUNT(*) AS request_count,
                 COALESCE(SUM(gr.uncached_input_tokens + gr.cache_read_input_tokens + gr.cache_write_input_tokens + gr.output_tokens), 0) AS tokens,
                 COALESCE(SUM(gr.cost_nanos), 0) AS cost,
@@ -556,7 +619,7 @@ pub fn get_stats_by_conversation(
             LEFT JOIN models ON gr.model_id = models.id
             WHERE (?1 IS NULL OR gr.created_at >= ?1)
               AND (?2 IS NULL OR gr.created_at <= ?2)
-            GROUP BY c.id, c.title
+            GROUP BY c.id, c.title, COALESCE(gr.currency, 'CNY')
             ORDER BY cost DESC, updated_at DESC",
         )
         .map_err(|e| e.to_string())?;
@@ -566,10 +629,11 @@ pub fn get_stats_by_conversation(
                 conversation_id: row.get(0)?,
                 title: row.get(1)?,
                 model: row.get(2)?,
-                requests: row.get(3)?,
-                tokens: row.get(4)?,
-                total_cost_nanos: row.get(5)?,
-                updated_at: row.get(6)?,
+                currency: row.get(3)?,
+                requests: row.get(4)?,
+                tokens: row.get(5)?,
+                total_cost_nanos: row.get(6)?,
+                updated_at: row.get(7)?,
             })
         })
         .map_err(|e| e.to_string())?;

@@ -1,6 +1,16 @@
 import { t } from './i18n';
 import { fontSizeOptions, getFontSize, resetFontSizes, setFontSize, type FontSizeKey } from './font-size';
 
+function rangeProgress(value: number, min: number, max: number): number {
+  if (max <= min) return 0;
+  return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+}
+
+function syncRangeProgress(input: HTMLInputElement): void {
+  const progress = rangeProgress(Number(input.value), Number(input.min), Number(input.max));
+  input.style.setProperty('--range-progress', `${progress}%`);
+}
+
 export function renderFontSizeSettings(): string {
   return `
     <div class="settings-section">
@@ -11,6 +21,7 @@ export function renderFontSizeSettings(): string {
       <div class="font-size-grid">
         ${fontSizeOptions.map(option => {
           const value = getFontSize(option.key);
+          const progress = rangeProgress(value, option.min, option.max);
           return `
             <div class="font-size-setting">
               <label for="fontSize-${option.key}">${t(option.labelKey)}</label>
@@ -21,6 +32,7 @@ export function renderFontSizeSettings(): string {
                 max="${option.max}"
                 step="1"
                 value="${value}"
+                style="--range-progress:${progress}%"
                 data-font-size-range="${option.key}"
               >
               <div class="font-size-number-wrap">
@@ -49,11 +61,15 @@ export function bindFontSizeSettings(): void {
   const syncInputs = (key: FontSizeKey, value: number) => {
     const range = document.querySelector<HTMLInputElement>(`[data-font-size-range="${key}"]`);
     const number = document.querySelector<HTMLInputElement>(`[data-font-size-number="${key}"]`);
-    if (range) range.value = String(value);
+    if (range) {
+      range.value = String(value);
+      syncRangeProgress(range);
+    }
     if (number) number.value = String(value);
   };
 
   document.querySelectorAll<HTMLInputElement>('[data-font-size-range]').forEach(input => {
+    syncRangeProgress(input);
     input.addEventListener('input', () => {
       const key = input.dataset.fontSizeRange as FontSizeKey;
       syncInputs(key, setFontSize(key, input.value));

@@ -14,6 +14,14 @@ import {
   tooltipStyles,
 } from './tooltip';
 import { bindFontSizeSettings, renderFontSizeSettings } from './font-size-settings';
+import {
+  currencyOptions,
+  type CurrencyCode,
+  getDisplayCurrency,
+  getExchangeRate,
+  setDisplayCurrency,
+  setExchangeRate,
+} from './currency';
 
 export function renderSettingsPage(): string {
   const sendKey = localStorage.getItem('tc-send-key') || 'enter';
@@ -24,6 +32,7 @@ export function renderSettingsPage(): string {
   const tooltipStyle = getTooltipStyle();
   const tooltipGlassLevel = getTooltipGlassLevel();
   const tooltipDelay = getTooltipDelay();
+  const displayCurrency = getDisplayCurrency();
 
   return `
     <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
@@ -63,6 +72,23 @@ export function renderSettingsPage(): string {
               <button class="tool-btn" id="resetAccentColor">Reset</button>
             </div>
           </div>
+        </div>
+
+        <div class="settings-section">
+          <h3 class="settings-section-title">${t('settings.costCurrency')}</h3>
+          <div class="settings-row">
+            <label>${t('settings.displayCurrency')}</label>
+            <select class="chat-search" id="settingsDisplayCurrency" style="width:240px">
+              ${currencyOptions.map(option => `<option value="${option.value}" ${displayCurrency === option.value ? 'selected' : ''}>${escHtml(t(option.labelKey))} (${option.value})</option>`).join('')}
+            </select>
+          </div>
+          <div class="settings-row settings-rate-setting">
+            <label>${t('settings.exchangeRates')}</label>
+            <div class="settings-rate-list" id="settingsExchangeRates">
+              ${renderExchangeRateFields(displayCurrency)}
+            </div>
+          </div>
+          <div class="settings-hint">${t('settings.exchangeRateHint')}</div>
         </div>
 
         <div class="settings-section">
@@ -152,6 +178,36 @@ function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function renderExchangeRateFields(baseCurrency: CurrencyCode): string {
+  return currencyOptions
+    .filter(option => option.value !== baseCurrency)
+    .map(option => `
+      <label class="settings-rate-row">
+        <span class="settings-rate-source">1 ${option.value}</span>
+        <span class="settings-rate-equals">=</span>
+        <input
+          class="chat-search settings-rate-input"
+          type="number"
+          min="0.000001"
+          step="0.0001"
+          value="${getExchangeRate(option.value, baseCurrency)}"
+          data-exchange-source="${option.value}"
+        >
+        <span class="settings-rate-base">${baseCurrency}</span>
+      </label>
+    `).join('');
+}
+
+function bindExchangeRateInputs(): void {
+  document.querySelectorAll<HTMLInputElement>('[data-exchange-source]').forEach(input => {
+    const applyRate = () => {
+      input.value = String(setExchangeRate(input.dataset.exchangeSource ?? '', input.value));
+    };
+    input.addEventListener('change', applyRate);
+    input.addEventListener('blur', applyRate);
+  });
+}
+
 export function bindSettingsEvents(): void {
   bindFontSizeSettings();
 
@@ -196,6 +252,19 @@ export function bindSettingsEvents(): void {
     if (accentColorInput) accentColorInput.value = normalized;
     if (accentTextInput) accentTextInput.value = normalized;
   });
+
+  const displayCurrencySelect = document.getElementById('settingsDisplayCurrency') as HTMLSelectElement | null;
+  bindExchangeRateInputs();
+  if (displayCurrencySelect) {
+    displayCurrencySelect.addEventListener('change', () => {
+      setDisplayCurrency(displayCurrencySelect.value);
+      const rateList = document.getElementById('settingsExchangeRates');
+      if (rateList) {
+        rateList.innerHTML = renderExchangeRateFields(getDisplayCurrency());
+        bindExchangeRateInputs();
+      }
+    });
+  }
 
   const tooltipStyleSelect = document.getElementById('settingsTooltipStyle') as HTMLSelectElement | null;
   const tooltipGlassRow = document.getElementById('settingsTooltipGlassRow');

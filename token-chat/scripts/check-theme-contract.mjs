@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 const themes = ['midnight', 'ocean', 'forest', 'sunset', 'rose', 'light'];
-const required = ['--app-bg', '--sidebar-bg', '--surface', '--surface-raised', '--chart-bg', '--chart-grid', '--chart-axis', '--chart-text', '--chart-border', '--chart-muted', '--chart-control-bg', '--chart-control-active', '--chart-control-hover', '--line'];
+const required = ['--app-bg', '--sidebar-bg', '--surface', '--surface-raised', '--chart-bg', '--chart-grid', '--chart-axis', '--chart-text', '--chart-border', '--chart-muted', '--chart-control-bg', '--chart-control-active', '--chart-control-hover', '--range-track', '--line'];
 const failures = [];
 
 for (const theme of themes) {
@@ -23,7 +23,7 @@ const rules = [
   ['.token-trend-panel', 'background: var(--chart-bg)'],
   ['.token-trend-tabs', 'background: var(--chart-control-bg)'],
   ['.token-trend-tabs button.active', 'background: var(--chart-control-active)'],
-  ['.token-trend-model-select', 'background: var(--chart-bg)'],
+  ['.token-trend-model-menu', 'background: var(--chart-bg)'],
   ['.token-trend-legend-btn:hover', 'background: var(--chart-control-hover)'],
   ['.token-trend-line-swatch i', 'background: var(--chart-bg)'],
 ];
@@ -32,6 +32,10 @@ for (const [selector, declaration] of rules) {
   const escaped = selector.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
   const block = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1];
   if (!block?.includes(declaration)) failures.push(`${selector}: expected ${declaration}`);
+}
+
+if (!css.includes('var(--range-track) var(--range-progress) 100%')) {
+  failures.push('font size range: unfilled track must use the active theme');
 }
 
 if (failures.length) {

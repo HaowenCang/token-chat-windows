@@ -19,6 +19,7 @@ import { loadBuiltinPrompt } from './prompt';
 import { applyThemePreferences } from './theme';
 import { bindDataTooltips } from './tooltip';
 import { applyFontSizePreferences } from './font-size';
+import { formatCurrencyAmount } from './currency';
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -203,7 +204,7 @@ export async function render() {
           <option value="rose" ${currentTheme === 'rose' ? 'selected' : ''}>${t('theme.rose')}</option>
           <option value="light" ${currentTheme === 'light' ? 'selected' : ''}>${t('theme.light')}</option>
         </select>
-        <div class="topnav-stat">Today: <span>$0.00</span></div>
+        <div class="topnav-stat">Today: <span>${formatCurrencyAmount(0, 2)}</span></div>
         <div class="topnav-stat">Tokens: <span>0</span></div>
       </div>
     </nav>
