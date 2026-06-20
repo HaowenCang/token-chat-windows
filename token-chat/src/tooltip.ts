@@ -1,16 +1,25 @@
 const TOOLTIP_STYLE_KEY = 'tc-tooltip-style';
 const TOOLTIP_DELAY_KEY = 'tc-tooltip-delay';
+const TOOLTIP_GLASS_LEVEL_KEY = 'tc-tooltip-glass-level';
 const DEFAULT_STYLE = 'dark';
 const DEFAULT_DELAY_MS = 80;
+const DEFAULT_GLASS_LEVEL = 'clear';
 
 export const tooltipStyles = [
-  { value: 'dark', label: 'Dark card' },
-  { value: 'light', label: 'Light card' },
-  { value: 'glass', label: 'Glass' },
-  { value: 'compact', label: 'Compact' },
+  { value: 'dark', labelKey: 'settings.tooltipStyleDark' },
+  { value: 'light', labelKey: 'settings.tooltipStyleLight' },
+  { value: 'glass', labelKey: 'settings.tooltipStyleGlass' },
+  { value: 'compact', labelKey: 'settings.tooltipStyleCompact' },
+] as const;
+
+export const tooltipGlassLevels = [
+  { value: 'clear', labelKey: 'settings.tooltipGlassClear' },
+  { value: 'balanced', labelKey: 'settings.tooltipGlassBalanced' },
+  { value: 'frosted', labelKey: 'settings.tooltipGlassFrosted' },
 ] as const;
 
 type TooltipStyle = typeof tooltipStyles[number]['value'];
+type TooltipGlassLevel = typeof tooltipGlassLevels[number]['value'];
 
 interface TooltipRow {
   label: string;
@@ -31,6 +40,10 @@ let bound = false;
 
 function isTooltipStyle(value: string | null): value is TooltipStyle {
   return tooltipStyles.some(style => style.value === value);
+}
+
+function isTooltipGlassLevel(value: string | null): value is TooltipGlassLevel {
+  return tooltipGlassLevels.some(level => level.value === value);
 }
 
 function clampDelay(value: number): number {
@@ -178,6 +191,17 @@ export function setTooltipStyle(value: string): void {
   applyTooltipPreferences();
 }
 
+export function getTooltipGlassLevel(): TooltipGlassLevel {
+  const stored = localStorage.getItem(TOOLTIP_GLASS_LEVEL_KEY);
+  return isTooltipGlassLevel(stored) ? stored : DEFAULT_GLASS_LEVEL;
+}
+
+export function setTooltipGlassLevel(value: string): void {
+  if (!isTooltipGlassLevel(value)) return;
+  localStorage.setItem(TOOLTIP_GLASS_LEVEL_KEY, value);
+  applyTooltipPreferences();
+}
+
 export function getTooltipDelay(): number {
   return clampDelay(Number(localStorage.getItem(TOOLTIP_DELAY_KEY) ?? DEFAULT_DELAY_MS));
 }
@@ -189,7 +213,9 @@ export function setTooltipDelay(value: string | number): void {
 
 export function applyTooltipPreferences(): void {
   document.documentElement.setAttribute('data-tooltip-style', getTooltipStyle());
+  document.documentElement.setAttribute('data-tooltip-glass-level', getTooltipGlassLevel());
   document.documentElement.style.setProperty('--tooltip-delay', `${getTooltipDelay()}ms`);
+  if (tooltipEl) tooltipEl.dataset.style = getTooltipStyle();
 }
 
 export function bindDataTooltips(): void {

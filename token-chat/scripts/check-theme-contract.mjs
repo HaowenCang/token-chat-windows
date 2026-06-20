@@ -23,7 +23,7 @@ const rules = [
   ['.token-trend-panel', 'background: var(--chart-bg)'],
   ['.token-trend-tabs', 'background: var(--chart-control-bg)'],
   ['.token-trend-tabs button.active', 'background: var(--chart-control-active)'],
-  ['.token-trend-model-select', 'background: var(--chart-control-bg)'],
+  ['.token-trend-model-select', 'background: var(--chart-bg)'],
   ['.token-trend-legend-btn:hover', 'background: var(--chart-control-hover)'],
   ['.token-trend-line-swatch i', 'background: var(--chart-bg)'],
 ];

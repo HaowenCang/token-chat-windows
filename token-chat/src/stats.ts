@@ -77,6 +77,7 @@ let convSortDir: SortDir = 'desc';
 let trendScope: TrendScope = 'all';
 let selectedTrendModelKey = '';
 let trendEnteringSeries: TrendSeries | null = null;
+let trendAnimationSequence = 0;
 const trendSeriesVisibility: Record<TrendSeries, boolean> = {
   total: true,
   cached: true,
@@ -609,7 +610,7 @@ function renderTokenTrendPanel(dailyCosts: DailyCost[]): string {
             <button type="button" class="${trendScope === 'model' ? 'active' : ''}" data-trend-scope="model">${text.singleModel}</button>
           </div>
           ${trendScope === 'model' ? `
-            <select class="token-trend-model-select" id="tokenTrendModel" aria-label="${text.selectModel}">
+            <select class="chat-search token-trend-model-select" id="tokenTrendModel" aria-label="${text.selectModel}">
               ${options.length === 0 ? `<option value="">${text.noData}</option>` : options.map(option => `
                 <option value="${escHtml(option.key)}" ${option.key === selectedTrendModelKey ? 'selected' : ''}>
                   ${escHtml(option.modelName)}${option.providerName ? ` - ${escHtml(option.providerName)}` : ''}
@@ -813,11 +814,31 @@ function refreshTokenTrendPanel(): void {
   bindTokenTrendEvents();
 }
 
+function waitForTrendExit(nodes: SVGElement[]): Promise<void> {
+  return Promise.all(nodes.map(node => new Promise<void>(resolve => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(fallback);
+      resolve();
+    };
+    const fallback = window.setTimeout(finish, 260);
+    node.addEventListener('animationend', finish, { once: true });
+  }))).then(() => undefined);
+}
+
+function cancelTrendAnimation(): void {
+  trendAnimationSequence += 1;
+  trendEnteringSeries = null;
+}
+
 function bindTokenTrendEvents(): void {
   document.querySelectorAll<HTMLElement>('[data-trend-scope]').forEach(button => {
     button.addEventListener('click', () => {
       const nextScope = button.dataset.trendScope as TrendScope;
       if (nextScope === trendScope) return;
+      cancelTrendAnimation();
       trendScope = nextScope;
       refreshTokenTrendPanel();
     });
@@ -826,26 +847,32 @@ function bindTokenTrendEvents(): void {
   const modelSelect = document.getElementById('tokenTrendModel') as HTMLSelectElement | null;
   if (modelSelect) {
     modelSelect.addEventListener('change', () => {
+      cancelTrendAnimation();
       selectedTrendModelKey = modelSelect.value;
       refreshTokenTrendPanel();
     });
   }
 
   document.querySelectorAll<HTMLButtonElement>('[data-trend-series]').forEach(button => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       const series = button.dataset.trendSeries as TrendSeries;
-      if (!(series in trendSeriesVisibility)) return;
+      if (!(series in trendSeriesVisibility) || button.disabled) return;
+      const animationId = ++trendAnimationSequence;
 
       if (trendSeriesVisibility[series]) {
-        const nodes = document.querySelectorAll<SVGElement>(`.trend-series-${series}`);
+        const nodes = Array.from(document.querySelectorAll<SVGElement>(`.trend-series-${series}`));
+        button.closest('.token-trend-legend')
+          ?.querySelectorAll<HTMLButtonElement>('button')
+          .forEach(legendButton => { legendButton.disabled = true; });
         button.classList.remove('active');
         button.classList.add('inactive');
         button.setAttribute('aria-pressed', 'false');
         nodes.forEach(node => node.classList.add('series-leaving'));
-        window.setTimeout(() => {
-          trendSeriesVisibility[series] = false;
-          refreshTokenTrendPanel();
-        }, nodes.length > 0 ? 180 : 0);
+
+        await waitForTrendExit(nodes);
+        if (animationId !== trendAnimationSequence) return;
+        trendSeriesVisibility[series] = false;
+        refreshTokenTrendPanel();
         return;
       }
 
@@ -853,7 +880,7 @@ function bindTokenTrendEvents(): void {
       trendEnteringSeries = series;
       refreshTokenTrendPanel();
       window.setTimeout(() => {
-        trendEnteringSeries = null;
+        if (animationId === trendAnimationSequence) trendEnteringSeries = null;
       }, 240);
     });
   });
@@ -861,6 +888,7 @@ function bindTokenTrendEvents(): void {
 
 export function bindStatsEvents(renderFn: () => void): void {
   rerender = renderFn;
+  cancelTrendAnimation();
   bindTokenTrendEvents();
 
   document.querySelectorAll<HTMLElement>('[data-range]').forEach(el => {

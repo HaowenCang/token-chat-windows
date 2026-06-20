@@ -2,7 +2,17 @@ import { state } from './state';
 import { t, getLang, setLang } from './i18n';
 import { getBuiltinPromptSnapshot } from './prompt';
 import { applyThemePreferences, getCustomAccentColor, resetCustomAccentColor, setCustomAccentColor } from './theme';
-import { getTooltipDelay, getTooltipStyle, setTooltipDelay, setTooltipStyle, tooltipAttrs, tooltipStyles } from './tooltip';
+import {
+  getTooltipDelay,
+  getTooltipGlassLevel,
+  getTooltipStyle,
+  setTooltipDelay,
+  setTooltipGlassLevel,
+  setTooltipStyle,
+  tooltipAttrs,
+  tooltipGlassLevels,
+  tooltipStyles,
+} from './tooltip';
 import { bindFontSizeSettings, renderFontSizeSettings } from './font-size-settings';
 
 export function renderSettingsPage(): string {
@@ -12,6 +22,7 @@ export function renderSettingsPage(): string {
   const globalPrompt = storedGlobalPrompt !== null ? storedGlobalPrompt : getBuiltinPromptSnapshot();
   const customAccent = getCustomAccentColor();
   const tooltipStyle = getTooltipStyle();
+  const tooltipGlassLevel = getTooltipGlassLevel();
   const tooltipDelay = getTooltipDelay();
 
   return `
@@ -55,24 +66,30 @@ export function renderSettingsPage(): string {
         </div>
 
         <div class="settings-section">
-          <h3 class="settings-section-title">Data detail bubbles</h3>
+          <h3 class="settings-section-title">${t('settings.dataDetailBubbles')}</h3>
           <div class="settings-row">
-            <label>Bubble style</label>
+            <label>${t('settings.bubbleStyle')}</label>
             <select class="chat-search" id="settingsTooltipStyle" style="width:200px">
-              ${tooltipStyles.map(style => `<option value="${style.value}" ${tooltipStyle === style.value ? 'selected' : ''}>${escHtml(style.label)}</option>`).join('')}
+              ${tooltipStyles.map(style => `<option value="${style.value}" ${tooltipStyle === style.value ? 'selected' : ''}>${escHtml(t(style.labelKey))}</option>`).join('')}
             </select>
-            <button class="tool-btn tooltip-preview-trigger" ${tooltipAttrs('Preview', [
-              { label: 'Total', value: '42,000 tokens', color: 'var(--chart-line)' },
-              { label: 'Input', value: '28,000 tokens', color: 'var(--chart-input)' },
-              { label: 'Output', value: '14,000 tokens', color: 'var(--chart-output)' },
-            ])}>Preview</button>
+            <button class="tool-btn tooltip-preview-trigger" ${tooltipAttrs(t('settings.tooltipPreview'), [
+              { label: t('settings.tooltipTotal'), value: '42,000 tokens', color: 'var(--chart-line)' },
+              { label: t('settings.tooltipInput'), value: '28,000 tokens', color: 'var(--chart-input)' },
+              { label: t('settings.tooltipOutput'), value: '14,000 tokens', color: 'var(--chart-output)' },
+            ])}>${t('settings.tooltipPreview')}</button>
+          </div>
+          <div class="settings-row ${tooltipStyle === 'glass' ? '' : 'hidden'}" id="settingsTooltipGlassRow">
+            <label>${t('settings.tooltipGlassLevel')}</label>
+            <select class="chat-search" id="settingsTooltipGlassLevel" style="width:200px">
+              ${tooltipGlassLevels.map(level => `<option value="${level.value}" ${tooltipGlassLevel === level.value ? 'selected' : ''}>${escHtml(t(level.labelKey))}</option>`).join('')}
+            </select>
           </div>
           <div class="settings-row">
-            <label>Popup delay</label>
+            <label>${t('settings.popupDelay')}</label>
             <input class="chat-search" id="settingsTooltipDelay" type="number" min="0" max="2000" step="25" value="${tooltipDelay}" style="width:120px">
             <span class="settings-unit">ms</span>
           </div>
-          <div class="settings-hint">0ms shows immediately. Recommended range: 50-150ms.</div>
+          <div class="settings-hint">${t('settings.tooltipDelayHint')}</div>
         </div>
 
         ${renderFontSizeSettings()}
@@ -181,9 +198,22 @@ export function bindSettingsEvents(): void {
   });
 
   const tooltipStyleSelect = document.getElementById('settingsTooltipStyle') as HTMLSelectElement | null;
+  const tooltipGlassRow = document.getElementById('settingsTooltipGlassRow');
   if (tooltipStyleSelect) {
+    const syncGlassRow = () => {
+      tooltipGlassRow?.classList.toggle('hidden', tooltipStyleSelect.value !== 'glass');
+    };
     tooltipStyleSelect.addEventListener('change', () => {
       setTooltipStyle(tooltipStyleSelect.value);
+      syncGlassRow();
+    });
+    syncGlassRow();
+  }
+
+  const tooltipGlassSelect = document.getElementById('settingsTooltipGlassLevel') as HTMLSelectElement | null;
+  if (tooltipGlassSelect) {
+    tooltipGlassSelect.addEventListener('change', () => {
+      setTooltipGlassLevel(tooltipGlassSelect.value);
     });
   }
 
