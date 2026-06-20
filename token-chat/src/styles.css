@@ -28,14 +28,19 @@
   --chart-axis: #98a4b3;
   --chart-bg: #ffffff;
   --chart-text: #242832;
+  --chart-border: #e4eaf1;
+  --chart-muted: #8d96a5;
+  --chart-control-bg: #f5f5f7;
+  --chart-control-active: #eeeae4;
+  --chart-control-hover: #f2f5f9;
   --line: #30363d;
   --radius: 12px;
 }
 
 [data-theme="ocean"] {
   --app-bg: #eef4f8;
-  --sidebar-bg: #ffffff;
-  --surface: #f0f6fa;
+  --sidebar-bg: #dcecf5;
+  --surface: #f7fbfd;
   --surface-raised: #ffffff;
   --text: #1a2a3a;
   --text-muted: #5a7a90;
@@ -49,13 +54,22 @@
   --stack-cache: #1a8a50;
   --stack-input: #2a8ab5;
   --stack-output: #c07020;
+  --chart-bg: #f8fcff;
+  --chart-grid: #d9e7ef;
+  --chart-axis: #7894a7;
+  --chart-text: #1a2a3a;
+  --chart-border: #cbdde8;
+  --chart-muted: #668397;
+  --chart-control-bg: #eaf3f8;
+  --chart-control-active: #dbeaf2;
+  --chart-control-hover: #edf6fa;
   --line: #d0dce5;
 }
 
 [data-theme="forest"] {
   --app-bg: #eef5f0;
-  --sidebar-bg: #ffffff;
-  --surface: #f0f5f2;
+  --sidebar-bg: #deeee4;
+  --surface: #f7fbf8;
   --surface-raised: #ffffff;
   --text: #1a2a20;
   --text-muted: #5a806a;
@@ -69,13 +83,22 @@
   --stack-cache: #2a8a60;
   --stack-input: #2a8ab5;
   --stack-output: #c07020;
+  --chart-bg: #f8fcf9;
+  --chart-grid: #d8e8dd;
+  --chart-axis: #769384;
+  --chart-text: #1a2a20;
+  --chart-border: #c9ddd0;
+  --chart-muted: #668070;
+  --chart-control-bg: #eaf4ed;
+  --chart-control-active: #dcecdf;
+  --chart-control-hover: #eef7f0;
   --line: #d0ddd5;
 }
 
 [data-theme="sunset"] {
   --app-bg: #f8f2ee;
-  --sidebar-bg: #ffffff;
-  --surface: #f5f0ec;
+  --sidebar-bg: #f1e1d6;
+  --surface: #fff8f3;
   --surface-raised: #ffffff;
   --text: #2a1a10;
   --text-muted: #8a6a50;
@@ -89,13 +112,22 @@
   --stack-cache: #1a8a50;
   --stack-input: #2a8ab5;
   --stack-output: #b06030;
+  --chart-bg: #fffbf8;
+  --chart-grid: #eadfd7;
+  --chart-axis: #9b806e;
+  --chart-text: #2a1a10;
+  --chart-border: #e5d3c7;
+  --chart-muted: #8a6a50;
+  --chart-control-bg: #f8ede6;
+  --chart-control-active: #f1e1d7;
+  --chart-control-hover: #fbf1eb;
   --line: #e0d5cc;
 }
 
 [data-theme="rose"] {
   --app-bg: #f8eef4;
-  --sidebar-bg: #ffffff;
-  --surface: #f5f0f3;
+  --sidebar-bg: #f1dfe9;
+  --surface: #fff8fb;
   --surface-raised: #ffffff;
   --text: #2a1020;
   --text-muted: #8a5a78;
@@ -109,13 +141,22 @@
   --stack-cache: #1a8a50;
   --stack-input: #2a8ab5;
   --stack-output: #a04070;
+  --chart-bg: #fffbfd;
+  --chart-grid: #eadce4;
+  --chart-axis: #9c7b90;
+  --chart-text: #2a1020;
+  --chart-border: #e3d0db;
+  --chart-muted: #8a5a78;
+  --chart-control-bg: #f8eaf1;
+  --chart-control-active: #f0dce7;
+  --chart-control-hover: #fbf0f5;
   --line: #e0d0d8;
 }
 
 [data-theme="light"] {
   --app-bg: #f6f8fa;
-  --sidebar-bg: #ffffff;
-  --surface: #f0f2f5;
+  --sidebar-bg: #edf1f5;
+  --surface: #ffffff;
   --surface-raised: #ffffff;
   --text: #1f2328;
   --text-muted: #656d76;
@@ -129,6 +170,15 @@
   --stack-cache: #1a7f37;
   --stack-input: #0969da;
   --stack-output: #bf8700;
+  --chart-bg: #ffffff;
+  --chart-grid: #e5e9ee;
+  --chart-axis: #7d8590;
+  --chart-text: #1f2328;
+  --chart-border: #d1d9e0;
+  --chart-muted: #656d76;
+  --chart-control-bg: #f0f2f5;
+  --chart-control-active: #e5e9ee;
+  --chart-control-hover: #f4f6f8;
   --line: #d1d9e0;
 }
 
@@ -189,6 +239,7 @@ body {
 
 .page-body {
   display: flex;
+  background: var(--app-bg);
   flex: 1;
   overflow: hidden;
 }
@@ -1119,7 +1170,7 @@ body {
   border-bottom: 1px solid var(--line);
 }
 .data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: rgba(255,255,255,.02); }
+.data-table tr:hover td { background: var(--surface); }
 
 /* Modal */
 .modal-overlay {
@@ -1193,6 +1244,7 @@ body {
 /* Provider list */
 .provider-list {
   width: 260px;
+  background: var(--sidebar-bg);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -1232,6 +1284,7 @@ body {
 }
 .provider-detail {
   flex: 1;
+  background: var(--app-bg);
   overflow-y: auto;
   padding: 24px;
 }
@@ -1406,7 +1459,7 @@ body {
 .token-trend-panel {
   grid-column: 1 / -1;
   background: var(--chart-bg);
-  border-color: #e4eaf1;
+  border-color: var(--chart-border);
   border-radius: 8px;
   color: var(--chart-text);
   padding: 0 14px 16px;
@@ -1429,7 +1482,7 @@ body {
 }
 .token-trend-total {
   margin-left: 8px;
-  color: #8d96a5;
+  color: var(--chart-muted);
   font-size: var(--fs-body);
 }
 .token-trend-controls {
@@ -1444,16 +1497,16 @@ body {
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border: 1px solid #ebe6df;
+  border: 1px solid var(--chart-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--chart-control-bg);
 }
 .token-trend-tabs button {
   flex: 1;
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #8d96a5;
+  color: var(--chart-muted);
   padding: 7px 13px;
   font-size: var(--fs-control);
   font-weight: 700;
@@ -1461,7 +1514,7 @@ body {
 }
 .token-trend-tabs button.active {
   color: var(--chart-text);
-  background: #eeeae4;
+  background: var(--chart-control-active);
   box-shadow: 0 1px 3px rgba(31,42,68,.10);
 }
 .token-trend-model-select {
@@ -1469,15 +1522,15 @@ body {
   height: 36px;
   border: none;
   border-radius: 8px;
-  background: #f5f5f7;
-  color: #4f5663;
+  background: var(--chart-control-bg);
+  color: var(--chart-muted);
   padding: 0 12px;
   outline: none;
   font-size: var(--fs-control);
   font-family: var(--font);
 }
 .token-trend-model-select:focus {
-  box-shadow: 0 0 0 2px rgba(47,115,255,.20);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 .token-trend-legend {
   display: flex;
@@ -1492,7 +1545,7 @@ body {
   gap: 7px;
   border: none;
   background: transparent;
-  color: #5f6674;
+  color: var(--chart-muted);
   padding: 4px 6px;
   border-radius: 5px;
   cursor: pointer;
@@ -1502,11 +1555,11 @@ body {
   transition: opacity .18s ease, background .18s ease, color .18s ease;
 }
 .token-trend-legend-btn:hover {
-  background: #f2f5f9;
+  background: var(--chart-control-hover);
 }
 .token-trend-legend-btn.inactive {
   opacity: .38;
-  color: #939ba7;
+  color: var(--chart-axis);
 }
 .token-trend-line-swatch {
   position: relative;
@@ -1531,7 +1584,7 @@ body {
   height: 8px;
   border: 2px solid var(--chart-line);
   border-radius: 50%;
-  background: #fff;
+  background: var(--chart-bg);
 }
 .token-trend-color-swatch {
   width: 16px;
