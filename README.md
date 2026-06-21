@@ -28,9 +28,16 @@ npm install
 # 开发模式
 npm run tauri dev
 
-# 构建
-npm run tauri build
+# 构建安装包 (NSIS + MSI)
+build-installers.bat
 ```
+
+## 安装包
+
+构建完成后，安装包位于：
+
+- **NSIS**: `token-chat/src-tauri/target/release/bundle/nsis/`
+- **MSI**: `token-chat/src-tauri/target/release/bundle/msi/`
 
 ## 许可证
 

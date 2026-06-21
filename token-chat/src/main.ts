@@ -1,7 +1,9 @@
 import './styles.css';
+import './unified-shell.css';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { state, type Page } from './state';
-import { t, getLang, setLang } from './i18n';
+import { t, getLang } from './i18n';
 import {
   loadConversations,
   renderConversationList,
@@ -20,9 +22,27 @@ import { applyThemePreferences } from './theme';
 import { bindDataTooltips } from './tooltip';
 import { applyFontSizePreferences } from './font-size';
 import { formatCurrencyAmount } from './currency';
+import { initCustomSelects } from './custom-select';
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function iconSvg(name: 'menu' | 'edit' | 'panel' | 'close' | 'minimize' | 'maximize' | 'sparkles' | 'chat' | 'cube' | 'chart' | 'gear'): string {
+  const paths = {
+    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+    edit: '<path d="M13.5 6.5 17.5 10.5M4 20l4.2-.9L19 6.3a2 2 0 0 0-2.8-2.8L3.9 16.3 3 21z"/>',
+    panel: '<rect x="3" y="4" width="18" height="16" rx="4"/><path d="M15 4v16"/>',
+    close: '<path d="m7 7 10 10M17 7 7 17"/>',
+    minimize: '<path d="M6 12h12"/>',
+    maximize: '<rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/>',
+    sparkles: '<path d="M12 3.5c.7 3.3 2.2 4.8 5.5 5.5-3.3.7-4.8 2.2-5.5 5.5-.7-3.3-2.2-4.8-5.5-5.5 3.3-.7 4.8-2.2 5.5-5.5Z"/><path d="M18.5 14.5c.35 1.7 1.3 2.65 3 3-1.7.35-2.65 1.3-3 3-.35-1.7-1.3-2.65-3-3 1.7-.35 2.65-1.3 3-3Z"/>',
+    chat: '<path d="M5 17.5 3.8 21l4.1-1.5a9 9 0 1 0-2.9-2Z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>',
+    cube: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4.3 7.7 7.7 4.4 7.7-4.4M12 12.1V21"/>',
+    chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 9 19.36a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.08 14H3v-4h.08A1.7 1.7 0 0 0 4.64 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.63 1.7 1.7 0 0 0 10 3.08V3h4v.08A1.7 1.7 0 0 0 15 4.64a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.37 9 1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/>',
+  };
+  return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`;
 }
 
 function switchPage(page: Page) {
@@ -70,22 +90,7 @@ function bindEvents() {
     });
   }
 
-  const themeSelect = document.getElementById('themeSelect') as HTMLSelectElement | null;
-  if (themeSelect) {
-    themeSelect.addEventListener('change', () => {
-      const theme = themeSelect.value;
-      localStorage.setItem('tc-theme', theme);
-      applyThemePreferences();
-    });
-  }
-
-  const langSelect = document.getElementById('langSelect') as HTMLSelectElement | null;
-  if (langSelect) {
-    langSelect.addEventListener('change', () => {
-      setLang(langSelect.value as 'zh' | 'en');
-      render();
-    });
-  }
+  bindWindowChromeEvents();
 
   bindChatEvents();
   if (state.page === 'provider') bindProviderEvents();
@@ -93,10 +98,68 @@ function bindEvents() {
   if (state.page === 'settings') bindSettingsEvents();
 }
 
-function renderSidebar() {
-  const collapsed = state.sidebarCollapsed;
+function bindWindowChromeEvents() {
+  const isTauri = Boolean((window as any).__TAURI_INTERNALS__);
+  const windowHandle = isTauri ? getCurrentWindow() : null;
+
+  document.querySelectorAll<HTMLButtonElement>('[data-window-action]').forEach(button => {
+    button.addEventListener('click', async () => {
+      if (!windowHandle) return;
+      const action = button.dataset.windowAction;
+      if (action === 'minimize') await windowHandle.minimize();
+      if (action === 'maximize') await windowHandle.toggleMaximize();
+      if (action === 'close') await windowHandle.close();
+    });
+  });
+
+  document.querySelector<HTMLElement>('.window-titlebar')?.addEventListener('dblclick', event => {
+    if (!windowHandle || (event.target as Element).closest('.window-controls')) return;
+    void windowHandle.toggleMaximize();
+  });
+}
+
+function pageLabel(page: Page): string {
+  const labels: Record<Page, string> = {
+    chat: t('nav.chat'),
+    provider: t('nav.providers'),
+    stats: t('nav.stats'),
+    settings: t('nav.settings'),
+  };
+  return labels[page];
+}
+
+function renderWindowTitlebar(): string {
   return `
-    <aside class="chat-left ${collapsed ? 'collapsed' : ''}" id="chatLeft">
+    <header class="window-titlebar" data-tauri-drag-region>
+      <div class="window-titlebar-title" data-tauri-drag-region>
+        <span>Token Chat</span>
+        <span class="window-titlebar-separator">/</span>
+        <span class="window-titlebar-page">${pageLabel(state.page)}</span>
+      </div>
+      <div class="window-controls">
+        <button class="window-control" data-window-action="minimize" aria-label="Minimize" title="Minimize">${iconSvg('minimize')}</button>
+        <button class="window-control" data-window-action="maximize" aria-label="Maximize" title="Maximize">${iconSvg('maximize')}</button>
+        <button class="window-control close" data-window-action="close" aria-label="Close" title="Close">${iconSvg('close')}</button>
+      </div>
+    </header>
+  `;
+}
+
+function renderSidebar() {
+  const collapsed = state.page === 'chat' && state.sidebarCollapsed;
+  const secondary = state.page !== 'chat';
+  return `
+    <aside class="chat-left ${collapsed ? 'collapsed' : ''} ${secondary ? 'on-secondary-page' : ''}" id="chatLeft">
+      <div class="sidebar-brand-shell">
+        <div class="sidebar-brand"><span class="brand-mark">${iconSvg('sparkles')}</span><span>${t('app.title')}</span></div>
+      </div>
+      <div class="sidebar-nav" aria-label="Primary navigation">
+        <button class="sidebar-nav-btn ${state.page === 'chat' ? 'active' : ''}" data-page="chat" ${state.page === 'chat' ? 'aria-current="page"' : ''}>${iconSvg('chat')}<span>${t('nav.chat')}</span></button>
+        <button class="sidebar-nav-btn ${state.page === 'provider' ? 'active' : ''}" data-page="provider" ${state.page === 'provider' ? 'aria-current="page"' : ''}>${iconSvg('cube')}<span>${t('nav.providers')}</span></button>
+        <button class="sidebar-nav-btn ${state.page === 'stats' ? 'active' : ''}" data-page="stats" ${state.page === 'stats' ? 'aria-current="page"' : ''}>${iconSvg('chart')}<span>${t('nav.stats')}</span></button>
+        <button class="sidebar-nav-btn ${state.page === 'settings' ? 'active' : ''}" data-page="settings" ${state.page === 'settings' ? 'aria-current="page"' : ''}>${iconSvg('gear')}<span>${t('nav.settings')}</span></button>
+      </div>
+      ${state.page === 'chat' ? `
       <div class="chat-left-header">
         <h3>${t('chat.conversations')}</h3>
         <input class="chat-search" type="text" placeholder="${t('chat.search')}">
@@ -105,12 +168,7 @@ function renderSidebar() {
       <div class="chat-list" id="chatList">
         ${renderConversationList()}
       </div>
-      <div class="sidebar-nav">
-        <button class="sidebar-nav-btn ${state.page === 'chat' ? 'active' : ''}" data-page="chat">${t('nav.chat')}</button>
-        <button class="sidebar-nav-btn ${state.page === 'provider' ? 'active' : ''}" data-page="provider">${t('nav.providers')}</button>
-        <button class="sidebar-nav-btn ${state.page === 'stats' ? 'active' : ''}" data-page="stats">${t('nav.stats')}</button>
-        <button class="sidebar-nav-btn ${state.page === 'settings' ? 'active' : ''}" data-page="settings">${t('nav.settings')}</button>
-      </div>
+      ` : '<div class="sidebar-secondary-fill"></div>'}
     </aside>
   `;
 }
@@ -121,9 +179,9 @@ function renderChatCenter() {
   return `
     <main class="chat-center">
       <div class="chat-center-header">
-        <button class="toggle-btn" data-toggle="sidebar" title="Toggle conversations">&#9776;</button>
+        <button class="toggle-btn" data-toggle="sidebar" title="Toggle conversations" aria-label="Toggle conversations">${iconSvg('menu')}</button>
         <span class="chat-center-title">${escHtml(conv?.title ?? 'New Conversation')}</span>
-        ${conv ? `<button class="title-edit-btn" id="editTitleBtn" title="Rename conversation">&#9998;</button>` : ''}
+        ${conv ? `<button class="title-edit-btn" id="editTitleBtn" title="Rename conversation" aria-label="Rename conversation">${iconSvg('edit')}</button>` : ''}
         <select class="model-select" id="modelSelect">
           <option value="">${t('chat.noModel')}</option>
           ${state.providers.flatMap(p => {
@@ -137,7 +195,7 @@ function renderChatCenter() {
           <button class="tool-btn" id="exportChatBtn">Export</button>
           <button class="tool-btn" data-page="provider">Settings</button>
         </div>
-        <button class="toggle-btn" data-toggle="right" title="Toggle token monitor" style="margin-left:4px">&#9638;</button>
+        <button class="toggle-btn" data-toggle="right" title="Toggle token monitor" aria-label="Toggle token monitor" style="margin-left:4px">${iconSvg('panel')}</button>
       </div>
       <div class="chat-messages" id="chatMessages">
         ${renderChatMessages()}
@@ -153,7 +211,7 @@ function renderRightPanel() {
     <aside class="chat-right ${collapsed ? 'collapsed' : ''}" id="chatRight">
       <div class="chat-right-header">
         <h3>${t('chat.tokenMonitor')}</h3>
-        <button class="toggle-btn" data-toggle="right" style="width:24px;height:24px;font-size:12px">&#10005;</button>
+        <button class="toggle-btn" data-toggle="right" aria-label="Close token monitor" style="width:28px;height:28px">${iconSvg('close')}</button>
       </div>
       <div class="panel-body">
         ${renderRightPanelContent()}
@@ -183,10 +241,12 @@ export async function render() {
   applyFontSizePreferences();
   bindDataTooltips();
   app.innerHTML = `
+    ${renderWindowTitlebar()}
+    ${false ? `
     <nav class="topnav">
-      <div class="topnav-brand">${t('app.title')}</div>
+      <div class="topnav-brand"><span class="brand-mark">${iconSvg('sparkles')}</span><span>${t('app.title')}</span></div>
       <div class="topnav-tabs">
-        <button class="topnav-tab ${state.page === 'chat' ? 'active' : ''}" data-page="chat">${t('nav.chat')}</button>
+        <button class="topnav-tab" data-page="chat">${t('nav.chat')}</button>
         <button class="topnav-tab ${state.page === 'provider' ? 'active' : ''}" data-page="provider">${t('nav.providers')}</button>
         <button class="topnav-tab ${state.page === 'stats' ? 'active' : ''}" data-page="stats">${t('nav.stats')}</button>
         <button class="topnav-tab ${state.page === 'settings' ? 'active' : ''}" data-page="settings">${t('nav.settings')}</button>
@@ -207,9 +267,10 @@ export async function render() {
         <div class="topnav-stat">Today: <span>${formatCurrencyAmount(0, 2)}</span></div>
         <div class="topnav-stat">Tokens: <span>0</span></div>
       </div>
-    </nav>
-    <div class="page-body">
-      ${state.page === 'chat' ? renderSidebar() + renderChatCenter() + renderRightPanel() : ''}
+    </nav>` : ''}
+    <div class="page-body ${state.page === 'chat' ? 'chat-page-body' : ''}" data-page-body="${state.page}">
+      ${renderSidebar()}
+      ${state.page === 'chat' ? renderChatCenter() + renderRightPanel() : ''}
       ${state.page === 'provider' ? renderProviderPage() : ''}
       ${state.page === 'stats' ? renderStatsPage() : ''}
       ${state.page === 'settings' ? renderSettingsPage() : ''}
@@ -219,4 +280,5 @@ export async function render() {
 }
 
 applyFontSizePreferences();
+initCustomSelects();
 render();

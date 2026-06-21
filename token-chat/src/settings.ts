@@ -35,11 +35,12 @@ export function renderSettingsPage(): string {
   const displayCurrency = getDisplayCurrency();
 
   return `
-    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
-      <div style="padding:20px 28px 0">
-        <h2 style="font-size:var(--fs-page-title);font-weight:700">${t('settings.title')}</h2>
-      </div>
-      <div style="flex:1;overflow-y:auto;padding:20px 28px 28px">
+    <div class="page-screen settings-page">
+      <div class="settings-scroll">
+        <div class="settings-content">
+          <div class="page-header">
+            <h2>${t('settings.title')}</h2>
+          </div>
         <div class="settings-section">
           <h3 class="settings-section-title">${t('settings.language')}</h3>
           <div class="settings-row">
@@ -134,7 +135,7 @@ export function renderSettingsPage(): string {
 
         <div class="settings-section">
           <h3 class="settings-section-title">${t('settings.globalPrompt')}</h3>
-          <div class="settings-row" style="flex-direction:column;align-items:stretch">
+          <div class="settings-row settings-row--stacked">
             <label>${t('settings.globalPromptDesc')}</label>
             <textarea class="chat-search" id="settingsGlobalPrompt" style="width:100%;min-height:120px;resize:vertical;font-family:var(--font-mono);font-size:var(--fs-code)">${escHtml(globalPrompt)}</textarea>
             <div class="settings-hint">Default source: prompt.txt. Editing this field overrides the built-in prompt.</div>
@@ -143,7 +144,7 @@ export function renderSettingsPage(): string {
 
         <div class="settings-section">
           <h3 class="settings-section-title">${t('settings.customPrompts')}</h3>
-          <div class="settings-row" style="flex-direction:column;align-items:stretch">
+          <div class="settings-row settings-row--stacked">
             <div style="display:flex;gap:8px;margin-bottom:12px">
               <button class="test-btn" id="addPromptBtn">+ ${t('settings.addPrompt')}</button>
             </div>
@@ -151,6 +152,7 @@ export function renderSettingsPage(): string {
               ${renderPromptList()}
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -183,8 +185,7 @@ function renderExchangeRateFields(baseCurrency: CurrencyCode): string {
     .filter(option => option.value !== baseCurrency)
     .map(option => `
       <label class="settings-rate-row">
-        <span class="settings-rate-source">1 ${option.value}</span>
-        <span class="settings-rate-equals">=</span>
+        <span class="settings-rate-source">1 ${option.value} <span class="settings-rate-equals">=</span></span>
         <input
           class="chat-search settings-rate-input"
           type="number"

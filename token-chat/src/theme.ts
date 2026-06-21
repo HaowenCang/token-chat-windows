@@ -1,4 +1,12 @@
+import { getCurrentWindow } from '@tauri-apps/api/window';
+
 const CUSTOM_ACCENT_KEY = 'tc-custom-accent';
+
+function syncWindowTheme(theme: string): void {
+  if (!(window as any).__TAURI_INTERNALS__) return;
+  const nativeTheme = theme === 'midnight' ? 'dark' : 'light';
+  void getCurrentWindow().setTheme(nativeTheme).catch(() => {});
+}
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const normalized = hex.trim();
@@ -30,6 +38,7 @@ export function resetCustomAccentColor(): void {
 export function applyThemePreferences(): void {
   const theme = localStorage.getItem('tc-theme') || 'midnight';
   document.documentElement.setAttribute('data-theme', theme);
+  syncWindowTheme(theme);
 
   const customAccent = localStorage.getItem(CUSTOM_ACCENT_KEY);
   const rgb = customAccent ? hexToRgb(customAccent) : null;

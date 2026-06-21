@@ -16,6 +16,44 @@ let streamUnlisten: UnlistenFn | null = null;
 let metricsUnlisten: UnlistenFn | null = null;
 const isDev = !(window as any).__TAURI_INTERNALS__;
 
+const devNow = Math.floor(Date.now() / 1000);
+const mockConversations: Conversation[] = [
+  { id: 'demo-1', title: '如何优化 TypeScript 项目', provider_id: 'p2', model_id: 'm3', pinned_at: devNow, archived_at: null, updated_at: devNow - 180 },
+  { id: 'demo-2', title: 'API 设计最佳实践', provider_id: 'p1', model_id: 'm1', pinned_at: null, archived_at: null, updated_at: devNow - 86400 },
+  { id: 'demo-3', title: '实现一个虚拟列表组件', provider_id: 'p1', model_id: 'm2', pinned_at: null, archived_at: null, updated_at: devNow - 172800 },
+  { id: 'demo-4', title: 'Windows 客户端开发建议', provider_id: 'p1', model_id: 'm1', pinned_at: null, archived_at: null, updated_at: devNow - 259200 },
+  { id: 'demo-5', title: '数据库索引优化指南', provider_id: 'p2', model_id: 'm3', pinned_at: null, archived_at: null, updated_at: devNow - 345600 },
+];
+
+const mockMessages: Message[] = [
+  {
+    id: 'demo-user-1', conversation_id: 'demo-1', role: 'user',
+    content_json: JSON.stringify('如何优化大型 TypeScript 项目的构建速度？请给出可落地的方案，包括工具链、配置和代码组织方面的建议。'),
+    reasoning_content: null, provider_name: null, model_name: null, status: 'completed', attachments_json: null, created_at: devNow - 170,
+  },
+  {
+    id: 'demo-assistant-1', conversation_id: 'demo-1', role: 'assistant',
+    content_json: JSON.stringify(`优化大型 TypeScript 项目的构建速度，可以从工具链、任务编排与代码组织三条线同时推进。
+
+## 1. 工具链选择
+
+- 使用更快的转译工具：开发阶段用 **esbuild**、**SWC** 或基于 esbuild 的 Vite。
+- 将类型检查从转译流程中拆开，使用独立的 \`tsc --noEmit\` 任务并行执行。
+- 对多包仓库使用 Turborepo 或 Nx，只构建真正发生变化的工作区。
+
+## 2. 配置优化
+
+- 开启 \`incremental\` 与 \`tsBuildInfoFile\`，复用上一次类型检查结果。
+- 使用 \`skipLibCheck\` 减少第三方声明文件的重复检查。
+- 收紧 \`include\` / \`exclude\`，避免测试产物与生成目录进入编译图。
+
+## 3. 代码组织
+
+按稳定边界拆分项目引用，让核心包、UI 包和工具包拥有独立缓存。先用构建分析器找出最慢的 10%，再决定是否增加新的工程复杂度。`),
+    reasoning_content: null, provider_name: 'Anthropic', model_name: 'Claude Sonnet 4', status: 'completed', attachments_json: null, created_at: devNow - 120,
+  },
+];
+
 interface StreamChunk {
   content: string;
   reasoning: string;
@@ -705,10 +743,21 @@ export function renderConversationList(): string {
 
 export function renderChatMessages(): string {
   if (!state.currentConversationId) {
-    return `<div class="placeholder-content">${t('chat.selectOrCreate')}</div>`;
+    return `
+      <div class="chat-welcome">
+        <div class="welcome-orb" aria-hidden="true"><span></span></div>
+        <h1>${t('chat.selectOrCreate')}</h1>
+        <p>${t('chat.noConversations')}</p>
+      </div>
+    `;
   }
   if (state.messages.length === 0) {
-    return `<div class="placeholder-content">${t('chat.sendToBegin')}</div>`;
+    return `
+      <div class="chat-welcome compact">
+        <div class="welcome-orb" aria-hidden="true"><span></span></div>
+        <h1>${t('chat.sendToBegin')}</h1>
+      </div>
+    `;
   }
   return state.messages.map(m => renderMessage(m)).join('');
 }
@@ -809,11 +858,13 @@ export function renderChatInput(): string {
       ${renderAttachmentDrafts()}
       <div class="chat-input-wrap">
         <input type="file" id="attachmentInput" multiple class="hidden">
-        <button class="attach-btn" id="attachBtn" title="${t('chat.attach')}">&#128206;</button>
+        <button class="attach-btn" id="attachBtn" title="${t('chat.attach')}" aria-label="${t('chat.attach')}">
+          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m8.5 12.5 6.2-6.2a3.2 3.2 0 1 1 4.5 4.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.3-8.3"/><path d="m7.8 15.8 8.1-8.1"/></svg>
+        </button>
         <textarea class="chat-input" rows="1" placeholder="${t('chat.typeMessage')}" id="chatInput"></textarea>
         ${streaming
-          ? `<button class="send-btn" id="sendBtn" title="${t('chat.stop')}" style="background:var(--danger)">&#9632;</button>`
-          : `<button class="send-btn" id="sendBtn" title="${t('chat.send')}">&#9654;</button>`
+          ? `<button class="send-btn" id="sendBtn" title="${t('chat.stop')}" aria-label="${t('chat.stop')}" style="background:var(--danger)"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><rect x="7.5" y="7.5" width="9" height="9" rx="2"/></svg></button>`
+          : `<button class="send-btn" id="sendBtn" title="${t('chat.send')}" aria-label="${t('chat.send')}"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 12 6-6 6 6M12 7v11"/></svg></button>`
         }
       </div>
     </div>
@@ -901,6 +952,10 @@ function renderEmptyRightPanel(): string {
 }
 
 export async function loadConversations(): Promise<void> {
+  if (isDev) {
+    state.conversations = [...mockConversations];
+    return;
+  }
   try {
     state.conversations = await invoke<Conversation[]>('list_conversations');
   } catch {
@@ -911,10 +966,14 @@ export async function loadConversations(): Promise<void> {
 export async function selectConversation(id: string): Promise<void> {
   state.currentConversationId = id;
   liveTokenUsage = null;
-  try {
-    state.messages = await invoke<Message[]>('list_messages', { conversationId: id });
-  } catch {
-    state.messages = [];
+  if (isDev) {
+    state.messages = mockMessages.filter(message => message.conversation_id === id);
+  } else {
+    try {
+      state.messages = await invoke<Message[]>('list_messages', { conversationId: id });
+    } catch {
+      state.messages = [];
+    }
   }
   await loadTokenUsage(id);
   renderChatArea();
@@ -923,6 +982,22 @@ export async function selectConversation(id: string): Promise<void> {
 }
 
 export async function createConversation(): Promise<void> {
+  if (isDev) {
+    const now = Math.floor(Date.now() / 1000);
+    const conv: Conversation = {
+      id: crypto.randomUUID(), title: 'New Conversation',
+      provider_id: state.providers[0]?.id ?? null,
+      model_id: state.models.find(model => model.provider_id === state.providers[0]?.id)?.id ?? null,
+      pinned_at: null, archived_at: null, updated_at: now,
+    };
+    state.conversations.unshift(conv);
+    state.currentConversationId = conv.id;
+    state.messages = [];
+    renderChatArea();
+    renderConversationListInDom();
+    renderRightPanelInDom();
+    return;
+  }
   try {
     let providerId: string | undefined;
     let modelId: string | undefined;

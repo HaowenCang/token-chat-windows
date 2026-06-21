@@ -92,8 +92,8 @@ function getHealthStatus(_provider: Provider): 'online' | 'degraded' | 'offline'
 
 export function renderProviderPage(): string {
   return `
-    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
-      <div style="padding:20px 28px 0;display:flex;align-items:center;gap:12px">
+    <div class="page-screen provider-page" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <div class="page-header" style="padding:20px 28px 0;display:flex;align-items:center;gap:12px">
         <h2 style="font-size:var(--fs-page-title);font-weight:700">${t('provider.title')}</h2>
         <div style="margin-left:auto;display:flex;gap:8px">
           <button class="tool-btn" id="importConfigBtn">${t('provider.import')}</button>
@@ -101,7 +101,7 @@ export function renderProviderPage(): string {
           <button class="test-btn" id="addProviderBtn">+ ${t('provider.add')}</button>
         </div>
       </div>
-      <div style="flex:1;display:flex;overflow:hidden;margin:16px 28px 28px;border:1px solid var(--line);border-radius:12px;background:var(--sidebar-bg)">
+      <div class="provider-shell" style="flex:1;display:flex;overflow:hidden;margin:16px 28px 28px;border:1px solid var(--line);border-radius:12px;background:var(--sidebar-bg)">
         <div class="provider-list" style="border-right:1px solid var(--line)">
           <div class="provider-list-header">${t('provider.list')} (${state.providers.length})</div>
           <div class="provider-items" id="providerItems">
@@ -1164,22 +1164,14 @@ function refreshProviderView(): void {
   const pageBody = document.querySelector('.page-body');
   if (!pageBody) return;
 
-  const providerPage = pageBody.querySelector('[style*="flex:1;display:flex;flex-direction:column"]') ||
-    pageBody.firstElementChild;
-  if (!providerPage) return;
-
-  const app = document.getElementById('app');
-  if (!app) return;
-
-  const existing = app.querySelector('.page-body');
+  const existing = pageBody.querySelector('.provider-page');
   if (!existing) return;
 
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = renderProviderPage();
   const newContent = tempDiv.firstElementChild;
   if (newContent) {
-    existing.innerHTML = '';
-    existing.appendChild(newContent);
+    existing.replaceWith(newContent);
     bindProviderEvents();
   }
 }
