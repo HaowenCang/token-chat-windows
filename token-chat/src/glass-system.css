@@ -1,0 +1,671 @@
+/* Shared Liquid Glass primitives. Imported last so every page consumes one system. */
+:root,
+[data-theme] {
+  --control-radius: 14px;
+  --control-border-focus: color-mix(in srgb, var(--accent) 55%, transparent);
+  --control-focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  --glass-layer-one-blur: blur(26px) saturate(150%);
+  --glass-layer-two-blur: blur(18px) saturate(160%);
+  --glass-layer-three-blur: blur(24px) saturate(180%);
+  --glass-modal-bg: color-mix(in srgb, var(--dropdown-bg) 94%, transparent);
+  --glass-danger-bg: color-mix(in srgb, var(--danger) 10%, var(--control-bg));
+  --glass-danger-border: color-mix(in srgb, var(--danger) 36%, var(--control-border));
+}
+
+/* Layer 1: application panels and cards. */
+.glass-card,
+.provider-shell,
+.settings-section,
+.kpi-card,
+.chart-panel,
+.table-panel {
+  border: 1px solid var(--glass-card-border) !important;
+  border-radius: 22px !important;
+  background: var(--glass-card-bg) !important;
+  background-clip: padding-box !important;
+  box-shadow: var(--glass-card-shadow), inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 72%, transparent) !important;
+  -webkit-backdrop-filter: var(--glass-layer-one-blur) !important;
+  backdrop-filter: var(--glass-layer-one-blur) !important;
+}
+
+.glass-list-item {
+  transition: transform .18s ease, background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.glass-list-item:hover {
+  transform: translateY(-1px);
+  border-color: var(--control-border-hover) !important;
+  background: color-mix(in srgb, var(--glass-card-bg) 88%, var(--control-bg-hover)) !important;
+  box-shadow: 0 12px 28px rgba(31, 35, 50, .10), inset 0 1px 0 var(--control-highlight) !important;
+}
+
+/* The same sidebar and navigation primitives are used on every route. */
+.glass-sidebar {
+  width: var(--sidebar-width) !important;
+  flex: 0 0 var(--sidebar-width) !important;
+  border: 1px solid var(--glass-card-border) !important;
+  border-radius: 26px !important;
+  background: var(--panel-primary) !important;
+  background-clip: padding-box !important;
+  box-shadow: 0 18px 50px rgba(31, 35, 50, .13), inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 72%, transparent) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(158%) !important;
+  backdrop-filter: blur(32px) saturate(158%) !important;
+  isolation: isolate;
+}
+
+.glass-sidebar .sidebar-brand-shell { padding: 13px 14px 8px; }
+.glass-sidebar .sidebar-brand { min-height: 40px; gap: 10px; }
+.glass-sidebar .brand-mark { width: 34px; height: 34px; border-radius: 12px; }
+
+.glass-sidebar .glass-nav {
+  margin: 0 10px 10px !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.glass-nav-item {
+  width: 100% !important;
+  min-height: 40px !important;
+  padding: 0 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  border: 1px solid var(--control-border) !important;
+  border-radius: var(--control-radius) !important;
+  background: color-mix(in srgb, var(--control-bg) 38%, transparent) !important;
+  color: var(--text-secondary) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 48%, transparent) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(150%) !important;
+  backdrop-filter: blur(16px) saturate(150%) !important;
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, color .18s ease, transform .18s ease !important;
+}
+
+.glass-nav-item:hover {
+  transform: translateY(-1px);
+  border-color: var(--control-border-hover) !important;
+  background: color-mix(in srgb, var(--control-bg-hover) 64%, transparent) !important;
+  color: var(--text-primary) !important;
+}
+
+.glass-nav-item.active,
+.glass-nav-item[aria-current="page"] {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--control-border)) !important;
+  background: color-mix(in srgb, var(--accent) 14%, var(--control-bg)) !important;
+  color: var(--text-primary) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 84%, transparent), 0 7px 18px var(--accent-soft) !important;
+}
+
+.glass-nav-item:focus-visible {
+  outline: none !important;
+  border-color: var(--control-border-focus) !important;
+  box-shadow: var(--control-focus-ring), inset 0 1px 0 var(--control-highlight) !important;
+}
+
+/* Layer 2: all form controls and buttons. */
+.glass-control,
+.glass-input,
+.glass-textarea,
+.custom-select--field .custom-select-trigger,
+.custom-select--model .custom-select-trigger,
+.token-trend-model-trigger {
+  border: 1px solid var(--control-border) !important;
+  border-radius: var(--control-radius) !important;
+  background: var(--control-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: inset 0 1px 0 var(--control-highlight), var(--control-shadow) !important;
+  -webkit-backdrop-filter: var(--glass-layer-two-blur) !important;
+  backdrop-filter: var(--glass-layer-two-blur) !important;
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease !important;
+}
+
+.glass-input,
+.glass-control,
+.custom-select--field .custom-select-trigger,
+.custom-select--model .custom-select-trigger,
+.token-trend-model-trigger {
+  min-height: var(--control-height) !important;
+  height: var(--control-height) !important;
+  padding: 0 13px !important;
+}
+
+.glass-textarea {
+  min-height: 88px;
+  padding: 11px 13px !important;
+  line-height: 1.55 !important;
+  text-align: start !important;
+  vertical-align: top !important;
+  overflow: auto !important;
+}
+
+.glass-input:hover,
+.glass-textarea:hover,
+.glass-control:hover,
+.custom-select-trigger:hover,
+.token-trend-model-trigger:hover {
+  border-color: var(--control-border-hover) !important;
+  background: var(--control-bg-hover) !important;
+}
+
+.glass-input:focus,
+.glass-input:focus-visible,
+.glass-textarea:focus,
+.glass-textarea:focus-visible,
+.glass-control:focus-visible,
+.custom-select-trigger:focus-visible,
+.custom-select-trigger.open,
+.token-trend-model-trigger:focus-visible,
+.token-trend-model-trigger[aria-expanded="true"] {
+  outline: none !important;
+  border-color: var(--control-border-focus) !important;
+  background: var(--control-bg-focus) !important;
+  box-shadow: var(--control-focus-ring), inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 92%, transparent), 0 8px 22px rgba(31, 35, 50, .10) !important;
+}
+
+.glass-input::placeholder,
+.glass-textarea::placeholder,
+input.chat-search::placeholder,
+textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opacity: 1; }
+
+.glass-input:disabled,
+.glass-textarea:disabled,
+.glass-control:disabled,
+.custom-select-trigger:disabled,
+.glass-button:disabled {
+  cursor: not-allowed !important;
+  opacity: .48 !important;
+  filter: saturate(.55) !important;
+  transform: none !important;
+}
+
+/* Bridge old semantic classes into the same component contract. */
+.provider-page :is(input.chat-search:not([type="color"]), textarea.chat-search),
+.settings-page :is(input.chat-search:not([type="color"]), textarea.chat-search),
+.chat-left input.chat-search {
+  border: 1px solid var(--control-border) !important;
+  border-radius: var(--control-radius) !important;
+  background: var(--control-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: inset 0 1px 0 var(--control-highlight), var(--control-shadow) !important;
+  -webkit-backdrop-filter: var(--glass-layer-two-blur) !important;
+  backdrop-filter: var(--glass-layer-two-blur) !important;
+}
+
+.glass-button,
+.tool-btn,
+.test-btn,
+.modal-footer-btn,
+.export-btn {
+  min-height: var(--control-height) !important;
+  height: var(--control-height) !important;
+  padding: 0 15px !important;
+  border: 1px solid var(--control-border) !important;
+  border-radius: var(--control-radius) !important;
+  background: var(--control-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: inset 0 1px 0 var(--control-highlight), 0 5px 16px rgba(31, 35, 50, .07) !important;
+  -webkit-backdrop-filter: var(--glass-layer-two-blur) !important;
+  backdrop-filter: var(--glass-layer-two-blur) !important;
+  transition: transform .18s ease, background-color .18s ease, border-color .18s ease, box-shadow .18s ease !important;
+}
+
+.glass-button:hover,
+.tool-btn:hover,
+.test-btn:hover,
+.modal-footer-btn:hover,
+.export-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--control-border-hover) !important;
+  background: var(--control-bg-hover) !important;
+  box-shadow: inset 0 1px 0 var(--control-highlight), 0 8px 20px rgba(31, 35, 50, .10) !important;
+}
+
+.glass-button:active,
+.tool-btn:active,
+.test-btn:active,
+.modal-footer-btn:active,
+.export-btn:active { transform: translateY(0) scale(.985); }
+
+.glass-button:focus-visible,
+.tool-btn:focus-visible,
+.test-btn:focus-visible,
+.modal-footer-btn:focus-visible,
+.export-btn:focus-visible {
+  outline: none !important;
+  border-color: var(--control-border-focus) !important;
+  box-shadow: var(--control-focus-ring), inset 0 1px 0 var(--control-highlight) !important;
+}
+
+.glass-button--primary,
+.test-btn.glass-button--primary,
+.chat-new-btn.glass-button--primary {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--control-border)) !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 82%, white 18%), var(--accent)) !important;
+  color: #fff !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.42), 0 8px 22px color-mix(in srgb, var(--accent) 28%, transparent) !important;
+}
+
+.glass-button--primary:hover {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 76%, white 24%), color-mix(in srgb, var(--accent) 92%, black 8%)) !important;
+}
+
+.glass-button--danger {
+  border-color: var(--glass-danger-border) !important;
+  background: var(--glass-danger-bg) !important;
+  color: var(--danger) !important;
+}
+
+.glass-button--danger:hover {
+  border-color: color-mix(in srgb, var(--danger) 52%, var(--control-border)) !important;
+  background: color-mix(in srgb, var(--danger) 16%, var(--control-bg-hover)) !important;
+}
+
+.glass-chip,
+.tag {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 3px 9px !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--control-border)) !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--accent) 11%, var(--control-bg)) !important;
+  color: color-mix(in srgb, var(--accent) 86%, var(--text-primary)) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 68%, transparent) !important;
+}
+
+.glass-range,
+.settings-page input[type="range"],
+.provider-page input[type="range"] {
+  height: 24px;
+  accent-color: var(--accent);
+  background: transparent !important;
+}
+
+.glass-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.glass-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  padding: 9px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  background: color-mix(in srgb, var(--control-bg) 60%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 55%, transparent);
+  cursor: pointer;
+}
+
+.glass-check-row:hover,
+.glass-check-row.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--control-border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--control-bg-hover));
+}
+
+/* Layer 3: dropdowns, calendars and modals. */
+.glass-dropdown,
+.custom-select-menu,
+.token-trend-model-menu,
+.glass-date-popover {
+  position: fixed;
+  z-index: 20000;
+  padding: 7px !important;
+  overflow: auto;
+  border: 1px solid var(--dropdown-border) !important;
+  border-radius: 18px !important;
+  background: var(--dropdown-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--dropdown-shadow), inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 84%, transparent) !important;
+  -webkit-backdrop-filter: var(--glass-layer-three-blur) !important;
+  backdrop-filter: var(--glass-layer-three-blur) !important;
+}
+
+.custom-select-menu { max-height: min(320px, calc(100vh - 24px)); }
+
+.glass-dropdown-option,
+.custom-select-option,
+.token-trend-model-option {
+  min-height: 38px !important;
+  padding: 8px 11px !important;
+  border: 1px solid transparent !important;
+  border-radius: 11px !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease !important;
+}
+
+.glass-dropdown-option:hover,
+.custom-select-option:hover,
+.token-trend-model-option:hover {
+  border-color: color-mix(in srgb, var(--accent) 14%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 12%, transparent) !important;
+  color: var(--text-primary) !important;
+}
+
+.glass-dropdown-option.selected,
+.custom-select-option.selected,
+.token-trend-model-option.selected,
+.glass-dropdown-option[aria-selected="true"],
+.custom-select-option[aria-selected="true"] {
+  border-color: color-mix(in srgb, var(--accent) 23%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+  color: color-mix(in srgb, var(--accent) 84%, var(--text-primary)) !important;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 76%, transparent) !important;
+}
+
+.glass-modal-backdrop,
+.modal-backdrop.glass-modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 12000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+  background: rgba(12, 16, 28, .28) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(120%) !important;
+  backdrop-filter: blur(10px) saturate(120%) !important;
+}
+
+.glass-modal,
+.modal-overlay.glass-modal {
+  max-width: min(620px, calc(100vw - 32px)) !important;
+  max-height: min(82vh, 760px) !important;
+  overflow: hidden !important;
+  border: 1px solid var(--dropdown-border) !important;
+  border-radius: 24px !important;
+  background: var(--glass-modal-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 28px 80px rgba(16, 22, 38, .24), inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 90%, transparent) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(180%) !important;
+  backdrop-filter: blur(30px) saturate(180%) !important;
+}
+
+.glass-modal .modal-header,
+.glass-modal .modal-footer {
+  flex: 0 0 auto;
+  border-color: var(--glass-divider) !important;
+  background: color-mix(in srgb, var(--control-bg) 52%, transparent) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 52%, transparent) !important;
+}
+
+.glass-modal .modal-body { min-height: 0; overflow-y: auto !important; }
+.glass-modal .modal-body > div { min-width: 0; }
+.glass-modal .modal-body label { color: var(--text-secondary) !important; }
+.glass-modal .modal-close {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--control-border) !important;
+  border-radius: 12px !important;
+  background: var(--control-bg) !important;
+  color: var(--text-secondary) !important;
+  box-shadow: inset 0 1px 0 var(--control-highlight) !important;
+}
+.glass-modal .modal-close:hover { background: var(--control-bg-hover) !important; color: var(--text-primary) !important; }
+.glass-modal .modal-close:focus-visible { outline: none; box-shadow: var(--control-focus-ring) !important; }
+
+/* Provider management. */
+.provider-page { min-width: 0; padding: 0 0 0; }
+.provider-page .page-header { padding: 18px 2px 0 !important; }
+.provider-page .provider-shell {
+  min-height: 0;
+  margin: 16px 0 0 !important;
+  overflow: hidden !important;
+}
+.provider-list {
+  width: min(310px, 34%) !important;
+  min-width: 230px;
+  border-right: 1px solid var(--glass-divider) !important;
+  background: color-mix(in srgb, var(--panel-primary) 68%, transparent) !important;
+}
+.provider-list-header { color: var(--text-secondary) !important; border-color: var(--glass-divider) !important; }
+.provider-items { padding: 9px !important; }
+.provider-item {
+  margin-bottom: 7px;
+  padding: 12px !important;
+  border-radius: 16px !important;
+  background: color-mix(in srgb, var(--control-bg) 54%, transparent) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 50%, transparent) !important;
+}
+.provider-item.active {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--control-border)) !important;
+  background: color-mix(in srgb, var(--accent) 13%, var(--control-bg)) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 80%, transparent), 0 8px 22px var(--accent-soft) !important;
+}
+.provider-detail { min-width: 0; background: transparent !important; }
+.provider-detail-header,
+.health-section,
+.provider-models { border-color: var(--glass-divider) !important; }
+.health-bar { overflow: hidden; background: color-mix(in srgb, var(--control-border) 55%, transparent) !important; }
+.provider-page .data-table,
+.stats-page-scroll .data-table { background: transparent !important; }
+.provider-page .data-table th,
+.stats-page-scroll .data-table th { color: var(--text-secondary); background: color-mix(in srgb, var(--control-bg) 50%, transparent) !important; }
+.provider-page .data-table td,
+.provider-page .data-table th,
+.stats-page-scroll .data-table td,
+.stats-page-scroll .data-table th { border-color: var(--glass-divider) !important; }
+.provider-page .data-table tbody tr:hover,
+.stats-page-scroll .data-table tbody tr:hover { background: color-mix(in srgb, var(--accent) 7%, var(--control-bg)) !important; }
+
+/* Usage statistics and custom date range picker. */
+.stats-page-scroll { min-width: 0; padding: 0 2px 24px !important; overflow-x: hidden !important; }
+.stats-top {
+  position: relative;
+  z-index: 3;
+  padding: 18px 0 12px !important;
+  align-items: flex-start !important;
+  gap: 16px;
+}
+.time-filters.glass-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+.glass-button--segment,
+.time-filter {
+  min-height: var(--control-height) !important;
+  height: var(--control-height) !important;
+  padding: 0 13px !important;
+  border: 1px solid var(--control-border) !important;
+  border-radius: var(--control-radius) !important;
+  background: color-mix(in srgb, var(--control-bg) 72%, transparent) !important;
+  color: var(--text-secondary) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 54%, transparent) !important;
+}
+.glass-button--segment.active,
+.time-filter.active {
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--control-border)) !important;
+  background: color-mix(in srgb, var(--accent) 14%, var(--control-bg)) !important;
+  color: var(--text-primary) !important;
+  box-shadow: inset 0 1px 0 var(--control-highlight), 0 6px 18px var(--accent-soft) !important;
+}
+.stats-kpi,
+.stats-charts,
+.stats-tables { gap: 14px !important; }
+.kpi-card,
+.chart-panel,
+.table-panel { overflow: visible !important; }
+.kpi-card { padding: 18px 19px !important; }
+.chart-panel,
+.table-panel { padding: 19px !important; }
+
+.glass-date-picker { position: relative; display: inline-flex; min-width: 154px; }
+.glass-date-native {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.glass-date-trigger {
+  width: 100%;
+  min-width: 154px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+.glass-date-trigger:not(.has-value) .glass-date-value { color: var(--text-tertiary); }
+.glass-date-icon,
+.glass-date-icon svg { width: 18px; height: 18px; }
+.glass-date-icon { display: grid; place-items: center; color: var(--text-secondary); }
+.glass-date-chevron { color: var(--text-tertiary); transition: transform .18s ease; }
+.glass-date-trigger[aria-expanded="true"] .glass-date-chevron { transform: rotate(180deg); }
+
+.glass-date-popover { z-index: 21000; overflow: hidden !important; }
+.glass-calendar-header {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 2px 8px;
+}
+.glass-calendar-title { text-align: center; font-size: 14px; font-weight: 650; }
+.glass-calendar-nav,
+.glass-calendar-action {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.glass-calendar-nav { font-size: 22px; line-height: 1; }
+.glass-calendar-nav:hover,
+.glass-calendar-action:hover { border-color: var(--control-border); background: var(--control-bg-hover); color: var(--text-primary); }
+.glass-calendar-nav:focus-visible,
+.glass-calendar-action:focus-visible,
+.glass-calendar-day:focus-visible { outline: none; box-shadow: var(--control-focus-ring); }
+.glass-calendar-weekdays,
+.glass-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.glass-calendar-weekdays { padding: 2px 0 5px; color: var(--text-tertiary); font-size: 10px; text-align: center; }
+.glass-calendar-weekdays span { padding: 4px 0; }
+.glass-calendar-day {
+  position: relative;
+  aspect-ratio: 1;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.glass-calendar-day:hover { border-color: color-mix(in srgb, var(--accent) 16%, transparent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text-primary); }
+.glass-calendar-day.is-outside { color: color-mix(in srgb, var(--text-tertiary) 58%, transparent); }
+.glass-calendar-day.is-range-middle { border-radius: 7px; background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.glass-calendar-day.is-selected,
+.glass-calendar-day.is-range-start,
+.glass-calendar-day.is-range-end {
+  border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+  background: color-mix(in srgb, var(--accent) 78%, transparent);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 6px 15px var(--accent-soft);
+}
+.glass-calendar-day.is-today::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateX(-50%);
+}
+.glass-calendar-day.is-selected.is-today::after { background: white; }
+.glass-calendar-footer { display: flex; justify-content: flex-end; gap: 6px; margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--glass-divider); }
+.glass-calendar-action { padding: 0 10px; }
+.glass-calendar-action.is-primary { border-color: color-mix(in srgb, var(--accent) 24%, transparent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: color-mix(in srgb, var(--accent) 82%, var(--text-primary)); }
+
+.token-trend-panel,
+.token-trend-controls,
+.token-trend-model-picker { position: relative; overflow: visible !important; }
+.token-trend-model-menu {
+  position: absolute !important;
+  z-index: 700 !important;
+  top: calc(100% + 8px) !important;
+  right: 0 !important;
+  left: auto !important;
+  min-width: 220px;
+  max-height: 280px;
+}
+.token-trend-tabs { padding: 3px !important; border: 1px solid var(--control-border) !important; border-radius: 14px !important; background: color-mix(in srgb, var(--control-bg) 64%, transparent) !important; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 56%, transparent) !important; }
+.token-trend-tabs button { min-height: 34px !important; border-radius: 11px !important; color: var(--text-secondary) !important; }
+.token-trend-tabs button:hover { background: color-mix(in srgb, var(--accent) 9%, transparent) !important; }
+.token-trend-tabs button.active { background: color-mix(in srgb, var(--accent) 14%, var(--control-bg)) !important; color: var(--text-primary) !important; box-shadow: inset 0 1px 0 var(--control-highlight), 0 5px 14px var(--accent-soft) !important; }
+.token-trend-legend-btn { border-radius: 999px !important; background: color-mix(in srgb, var(--control-bg) 58%, transparent) !important; border-color: var(--control-border) !important; }
+
+/* Settings: every residual field and nested editor shares the same primitives. */
+.settings-section { overflow: visible !important; }
+.settings-page .settings-section { border-radius: 22px !important; }
+.settings-page .settings-row { min-width: 0; }
+.settings-page .custom-select,
+.settings-page .custom-select-trigger { max-width: 100%; }
+.settings-page textarea.chat-search { padding: 11px 13px !important; line-height: 1.55 !important; vertical-align: top !important; }
+.settings-page input[type="color"] {
+  width: 42px !important;
+  height: 40px !important;
+  padding: 4px !important;
+  border: 1px solid var(--control-border) !important;
+  border-radius: var(--control-radius) !important;
+  background: var(--control-bg) !important;
+  box-shadow: inset 0 1px 0 var(--control-highlight), var(--control-shadow) !important;
+}
+.settings-page input[type="color"]::-webkit-color-swatch-wrapper { padding: 1px; }
+.settings-page input[type="color"]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,.74); border-radius: 9px; box-shadow: 0 4px 12px rgba(31,35,50,.14); }
+.glass-form-card { border-color: color-mix(in srgb, var(--accent) 26%, var(--glass-card-border)) !important; }
+.prompt-item { border-radius: 16px !important; }
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass-card,
+  .glass-sidebar { background: color-mix(in srgb, var(--glass-card-bg) 94%, var(--panel-primary)) !important; }
+  .glass-input,
+  .glass-textarea,
+  .glass-control,
+  .glass-button,
+  .custom-select-trigger { background: color-mix(in srgb, var(--control-bg) 94%, var(--glass-card-bg)) !important; }
+  .glass-dropdown,
+  .custom-select-menu,
+  .glass-date-popover,
+  .glass-modal { background: color-mix(in srgb, var(--dropdown-bg) 96%, var(--glass-card-bg)) !important; }
+}
+
+@media (max-width: 1180px) {
+  .stats-top { flex-direction: column; align-items: stretch !important; }
+  .time-filters.glass-segmented { justify-content: flex-start; }
+}
+
+@media (max-width: 920px) {
+  .glass-sidebar .glass-nav-item { justify-content: center !important; padding: 0 !important; }
+  .glass-sidebar .glass-nav-item span { display: none; }
+  .glass-sidebar .sidebar-brand > span:last-child { display: none; }
+  .glass-sidebar .sidebar-brand { justify-content: center; }
+  .provider-list { width: 220px !important; min-width: 220px; }
+}
+
+@media (max-width: 720px) {
+  .glass-modal-backdrop { padding: 12px !important; }
+  .provider-list { display: none; }
+  .glass-date-picker { flex: 1 1 150px; }
+  .stats-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}

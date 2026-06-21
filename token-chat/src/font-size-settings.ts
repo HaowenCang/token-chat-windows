@@ -13,10 +13,10 @@ function syncRangeProgress(input: HTMLInputElement): void {
 
 export function renderFontSizeSettings(): string {
   return `
-    <div class="settings-section">
+    <div class="settings-section glass-card">
       <div class="settings-section-heading">
         <h3 class="settings-section-title">${t('settings.fontSizes')}</h3>
-        <button class="tool-btn" id="resetFontSizes">${t('settings.fontSizeReset')}</button>
+        <button class="tool-btn glass-button glass-button--secondary" id="resetFontSizes">${t('settings.fontSizeReset')}</button>
       </div>
       <div class="font-size-grid">
         ${fontSizeOptions.map(option => {
@@ -27,6 +27,7 @@ export function renderFontSizeSettings(): string {
               <label for="fontSize-${option.key}">${t(option.labelKey)}</label>
               <input
                 id="fontSize-${option.key}"
+                class="glass-range"
                 type="range"
                 min="${option.min}"
                 max="${option.max}"
@@ -37,7 +38,7 @@ export function renderFontSizeSettings(): string {
               >
               <div class="font-size-number-wrap">
                 <input
-                  class="chat-search font-size-number"
+                  class="chat-search glass-input font-size-number"
                   type="number"
                   min="${option.min}"
                   max="${option.max}"

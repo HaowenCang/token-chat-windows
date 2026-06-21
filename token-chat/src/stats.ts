@@ -679,7 +679,7 @@ function renderTrendModelPicker(
     <div class="token-trend-model-picker" id="tokenTrendModelPicker">
       <button
         type="button"
-        class="chat-search token-trend-model-trigger"
+        class="chat-search glass-input token-trend-model-trigger"
         id="tokenTrendModelTrigger"
         aria-haspopup="listbox"
         aria-expanded="false"
@@ -688,14 +688,14 @@ function renderTrendModelPicker(
         <span class="token-trend-model-value">${escHtml(selectedLabel)}</span>
         <span class="token-trend-model-chevron" aria-hidden="true">&#9662;</span>
       </button>
-      <div class="token-trend-model-menu hidden" id="tokenTrendModelMenu" role="listbox" aria-label="${escHtml(text.selectModel)}">
+      <div class="token-trend-model-menu glass-dropdown hidden" id="tokenTrendModelMenu" role="listbox" aria-label="${escHtml(text.selectModel)}">
         ${options.length === 0 ? `<div class="token-trend-model-empty">${text.noData}</div>` : options.map(option => {
           const label = `${option.modelName}${option.providerName ? ` - ${option.providerName}` : ''}`;
           const selected = option.key === selectedTrendModelKey;
           return `
             <button
               type="button"
-              class="token-trend-model-option ${selected ? 'selected' : ''}"
+              class="token-trend-model-option glass-dropdown-option ${selected ? 'selected' : ''}"
               role="option"
               aria-selected="${selected}"
               data-trend-model-key="${escHtml(option.key)}"
@@ -717,7 +717,7 @@ function renderTokenTrendPanel(dailyCosts: DailyCost[]): string {
   const total = sumDailyTokens(trendDays);
 
   return `
-    <div class="chart-panel token-trend-panel">
+    <div class="chart-panel glass-card token-trend-panel">
       <div class="token-trend-head">
         <div class="token-trend-heading">
           <span class="token-trend-title">${title}</span>
@@ -859,39 +859,39 @@ export function renderStatsPage(): string {
     <div class="stats-page-scroll" style="flex:1;overflow-y:auto">
       <div class="stats-top">
         <h2>${t('stats.title')}</h2>
-        <div class="time-filters">
-          <button class="time-filter ${timeRange === 'all' ? 'active' : ''}" data-range="all">${t('stats.all')}</button>
-          <button class="time-filter ${timeRange === 'today' ? 'active' : ''}" data-range="today">${t('stats.today')}</button>
-          <button class="time-filter ${timeRange === 'month' ? 'active' : ''}" data-range="month">${t('stats.month')}</button>
-          <button class="time-filter ${timeRange === 'custom' ? 'active' : ''}" data-range="custom">Custom</button>
-          <input class="date-filter" id="statsStartDate" type="date" value="${escHtml(customStartDate)}">
-          <input class="date-filter" id="statsEndDate" type="date" value="${escHtml(customEndDate)}">
+        <div class="time-filters glass-segmented">
+          <button class="time-filter glass-button glass-button--segment ${timeRange === 'all' ? 'active' : ''}" data-range="all">${t('stats.all')}</button>
+          <button class="time-filter glass-button glass-button--segment ${timeRange === 'today' ? 'active' : ''}" data-range="today">${t('stats.today')}</button>
+          <button class="time-filter glass-button glass-button--segment ${timeRange === 'month' ? 'active' : ''}" data-range="month">${t('stats.month')}</button>
+          <button class="time-filter glass-button glass-button--segment ${timeRange === 'custom' ? 'active' : ''}" data-range="custom">Custom</button>
+          <input class="date-filter glass-date-input" id="statsStartDate" type="date" value="${escHtml(customStartDate)}">
+          <input class="date-filter glass-date-input" id="statsEndDate" type="date" value="${escHtml(customEndDate)}">
         </div>
       </div>
       <div class="stats-kpi">
-        <div class="kpi-card">
+        <div class="kpi-card glass-card">
           <div class="kpi-card-label">${t('stats.totalCost')}</div>
           <div class="kpi-card-value">${formatCost(summary.total_cost_nanos)}</div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card glass-card">
           <div class="kpi-card-label">${t('stats.totalRequests')}</div>
           <div class="kpi-card-value">${summary.total_requests}</div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card glass-card">
           <div class="kpi-card-label">${t('stats.cacheHitRate')}</div>
           <div class="kpi-card-value">${(summary.cache_hit_rate * 100).toFixed(1)}%</div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card glass-card">
           <div class="kpi-card-label">${t('stats.avgLatency')}</div>
           <div class="kpi-card-value">${Math.round(summary.avg_latency_ms)}ms</div>
         </div>
       </div>
       <div class="stats-charts">
-        <div class="chart-panel">
+        <div class="chart-panel glass-card">
           <h3>${t('stats.costTrend')}</h3>
           ${renderSparkline(aggregateDailyCosts)}
         </div>
-        <div class="chart-panel">
+        <div class="chart-panel glass-card">
           <h3>${t('stats.tokenBreakdown')}</h3>
           <div class="donut-wrap">
             ${renderDonut(token_breakdown)}
@@ -900,18 +900,18 @@ export function renderStatsPage(): string {
         ${renderTokenTrendPanel(daily_costs)}
       </div>
       <div class="stats-tables">
-        <div class="table-panel">
+        <div class="table-panel glass-card">
           <h3>${t('stats.byModel')}</h3>
           ${renderModelTable(by_model)}
         </div>
-        <div class="table-panel">
+        <div class="table-panel glass-card">
           <h3>${t('stats.byConversation')}</h3>
           ${renderConvTable(by_conversation)}
         </div>
       </div>
       <div class="export-bar">
-        <button class="export-btn" id="exportJson">${t('stats.export')} JSON</button>
-        <button class="export-btn" id="exportCsv">${t('stats.export')} CSV</button>
+        <button class="export-btn glass-button glass-button--secondary" id="exportJson">${t('stats.export')} JSON</button>
+        <button class="export-btn glass-button glass-button--secondary" id="exportCsv">${t('stats.export')} CSV</button>
       </div>
     </div>
   `;

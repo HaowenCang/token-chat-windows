@@ -1,5 +1,6 @@
 import './styles.css';
 import './unified-shell.css';
+import './glass-system.css';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { state, type Page } from './state';
@@ -23,6 +24,7 @@ import { bindDataTooltips } from './tooltip';
 import { applyFontSizePreferences } from './font-size';
 import { formatCurrencyAmount } from './currency';
 import { initCustomSelects } from './custom-select';
+import { initCustomDatePickers } from './custom-date-picker';
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -149,21 +151,21 @@ function renderSidebar() {
   const collapsed = state.page === 'chat' && state.sidebarCollapsed;
   const secondary = state.page !== 'chat';
   return `
-    <aside class="chat-left ${collapsed ? 'collapsed' : ''} ${secondary ? 'on-secondary-page' : ''}" id="chatLeft">
+    <aside class="chat-left glass-sidebar ${collapsed ? 'collapsed' : ''} ${secondary ? 'on-secondary-page' : ''}" id="chatLeft">
       <div class="sidebar-brand-shell">
         <div class="sidebar-brand"><span class="brand-mark">${iconSvg('sparkles')}</span><span>${t('app.title')}</span></div>
       </div>
-      <div class="sidebar-nav" aria-label="Primary navigation">
-        <button class="sidebar-nav-btn ${state.page === 'chat' ? 'active' : ''}" data-page="chat" ${state.page === 'chat' ? 'aria-current="page"' : ''}>${iconSvg('chat')}<span>${t('nav.chat')}</span></button>
-        <button class="sidebar-nav-btn ${state.page === 'provider' ? 'active' : ''}" data-page="provider" ${state.page === 'provider' ? 'aria-current="page"' : ''}>${iconSvg('cube')}<span>${t('nav.providers')}</span></button>
-        <button class="sidebar-nav-btn ${state.page === 'stats' ? 'active' : ''}" data-page="stats" ${state.page === 'stats' ? 'aria-current="page"' : ''}>${iconSvg('chart')}<span>${t('nav.stats')}</span></button>
-        <button class="sidebar-nav-btn ${state.page === 'settings' ? 'active' : ''}" data-page="settings" ${state.page === 'settings' ? 'aria-current="page"' : ''}>${iconSvg('gear')}<span>${t('nav.settings')}</span></button>
+      <div class="sidebar-nav glass-nav" aria-label="Primary navigation">
+        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'chat' ? 'active' : ''}" data-page="chat" ${state.page === 'chat' ? 'aria-current="page"' : ''}>${iconSvg('chat')}<span>${t('nav.chat')}</span></button>
+        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'provider' ? 'active' : ''}" data-page="provider" ${state.page === 'provider' ? 'aria-current="page"' : ''}>${iconSvg('cube')}<span>${t('nav.providers')}</span></button>
+        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'stats' ? 'active' : ''}" data-page="stats" ${state.page === 'stats' ? 'aria-current="page"' : ''}>${iconSvg('chart')}<span>${t('nav.stats')}</span></button>
+        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'settings' ? 'active' : ''}" data-page="settings" ${state.page === 'settings' ? 'aria-current="page"' : ''}>${iconSvg('gear')}<span>${t('nav.settings')}</span></button>
       </div>
       ${state.page === 'chat' ? `
       <div class="chat-left-header">
         <h3>${t('chat.conversations')}</h3>
-        <input class="chat-search" type="text" placeholder="${t('chat.search')}">
-        <button class="chat-new-btn">+ ${t('chat.new')}</button>
+        <input class="chat-search glass-input glass-search-input" type="text" placeholder="${t('chat.search')}">
+        <button class="chat-new-btn glass-button glass-button--primary">+ ${t('chat.new')}</button>
       </div>
       <div class="chat-list" id="chatList">
         ${renderConversationList()}
@@ -281,4 +283,5 @@ export async function render() {
 
 applyFontSizePreferences();
 initCustomSelects();
+initCustomDatePickers();
 render();

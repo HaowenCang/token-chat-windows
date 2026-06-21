@@ -614,7 +614,8 @@ function renderLatex(math: string, block: boolean): string {
   html = html.replace(/\^([A-Za-z0-9+\-=]+)/g, '<sup>$1</sup>');
 
   const cls = block ? 'math-block' : 'math-inline';
-  return `<span class="${cls}" title="${escHtml(math.trim())}">${html}</span>`;
+  const tag = block ? 'div' : 'span';
+  return `<${tag} class="${cls}" title="${escHtml(math.trim())}">${html}</${tag}>`;
 }
 
 function renderInlineMarkdown(text: string): string {
@@ -636,13 +637,13 @@ function renderInlineMarkdown(text: string): string {
   return restorePlaceholders(html, placeholders);
 }
 
-function renderMarkdown(text: string): string {
+export function renderMarkdown(text: string): string {
   const blockPlaceholders: string[] = [];
   let source = text.replace(/\r\n/g, '\n');
   source = source.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
     const label = lang ? `<span class="msg-code-lang">${escHtml(lang)}</span>` : '';
     const token = placeholderToken(blockPlaceholders.length);
-    blockPlaceholders.push(`<div class="msg-code-block">${label}<button class="msg-code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent)">Copy</button><pre><code>${escHtml(code)}</code></pre></div>`);
+    blockPlaceholders.push(`<div class="msg-code-block"><div class="msg-code-toolbar">${label}<button class="msg-code-copy" onclick="navigator.clipboard.writeText(this.closest('.msg-code-block').querySelector('code').textContent)">Copy</button></div><pre><code>${escHtml(code)}</code></pre></div>`);
     return `\n${token}\n`;
   });
   source = source.replace(/\$\$([\s\S]*?)\$\$/g, (_, math) => {
@@ -667,12 +668,14 @@ function renderMarkdown(text: string): string {
     parts.push(`<p>${paragraph.map(renderInlineMarkdown).join('<br>')}</p>`);
     paragraph = [];
   };
-  const openList = (type: 'ul' | 'ol') => {
+  const openList = (type: 'ul' | 'ol', start = 1) => {
     flushParagraph();
     if (listType === type) return;
     closeList();
     listType = type;
-    parts.push(`<${type} class="md-list">`);
+    parts.push(type === 'ol'
+      ? `<ol class="md-list" start="${start}">`
+      : '<ul class="md-list">');
   };
 
   for (const line of source.split('\n')) {
@@ -705,10 +708,11 @@ function renderMarkdown(text: string): string {
       continue;
     }
 
-    const ordered = /^\d+\.\s+(.+)$/.exec(trimmed);
+    const ordered = /^(\d+)\.\s+(.+)$/.exec(trimmed);
     if (ordered) {
-      openList('ol');
-      parts.push(`<li>${renderInlineMarkdown(ordered[1])}</li>`);
+      const ordinal = Math.max(1, Number.parseInt(ordered[1], 10) || 1);
+      openList('ol', ordinal);
+      parts.push(`<li value="${ordinal}">${renderInlineMarkdown(ordered[2])}</li>`);
       continue;
     }
 

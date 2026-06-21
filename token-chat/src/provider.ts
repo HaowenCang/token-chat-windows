@@ -96,12 +96,12 @@ export function renderProviderPage(): string {
       <div class="page-header" style="padding:20px 28px 0;display:flex;align-items:center;gap:12px">
         <h2 style="font-size:var(--fs-page-title);font-weight:700">${t('provider.title')}</h2>
         <div style="margin-left:auto;display:flex;gap:8px">
-          <button class="tool-btn" id="importConfigBtn">${t('provider.import')}</button>
-          <button class="tool-btn" id="exportConfigBtn">${t('provider.export')}</button>
-          <button class="test-btn" id="addProviderBtn">+ ${t('provider.add')}</button>
+          <button class="tool-btn glass-button glass-button--secondary" id="importConfigBtn">${t('provider.import')}</button>
+          <button class="tool-btn glass-button glass-button--secondary" id="exportConfigBtn">${t('provider.export')}</button>
+          <button class="test-btn glass-button glass-button--primary" id="addProviderBtn">+ ${t('provider.add')}</button>
         </div>
       </div>
-      <div class="provider-shell" style="flex:1;display:flex;overflow:hidden;margin:16px 28px 28px;border:1px solid var(--line);border-radius:12px;background:var(--sidebar-bg)">
+      <div class="provider-shell glass-card" style="flex:1;display:flex;overflow:hidden;margin:16px 28px 28px">
         <div class="provider-list" style="border-right:1px solid var(--line)">
           <div class="provider-list-header">${t('provider.list')} (${state.providers.length})</div>
           <div class="provider-items" id="providerItems">
@@ -131,14 +131,14 @@ function renderProviderCards(): string {
     const health = getHealthStatus(p);
     const dotClass = health === 'online' ? 'online' : health === 'degraded' ? 'degraded' : '';
     return `
-      <div class="provider-item ${isActive ? 'active' : ''}" data-provider-id="${p.id}">
+      <div class="provider-item glass-card glass-list-item ${isActive ? 'active' : ''}" data-provider-id="${p.id}">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
           <div class="status-dot ${dotClass}"></div>
           <div class="provider-item-name">${escHtml(p.name)}</div>
         </div>
         <div class="provider-item-status">
           <span>${escHtml(p.base_url)}</span>
-          <span class="tag" style="background:var(--accent-soft);color:var(--accent)">${models.length} model${models.length !== 1 ? 's' : ''}</span>
+          <span class="tag glass-chip">${models.length} model${models.length !== 1 ? 's' : ''}</span>
         </div>
       </div>
     `;
@@ -174,12 +174,12 @@ function renderProviderDetail(): string {
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="test-btn ${testLoading ? 'testing' : ''}" id="testConnBtn">
+        <button class="test-btn glass-button glass-button--primary ${testLoading ? 'testing' : ''}" id="testConnBtn">
           <span class="spinner"></span>
           Test Connection
         </button>
-        <button class="modal-footer-btn" id="editProviderBtn">Edit Provider</button>
-        <button class="modal-footer-btn" id="deleteProviderBtn" style="color:var(--danger);border-color:var(--danger)">Delete Provider</button>
+        <button class="modal-footer-btn glass-button glass-button--secondary" id="editProviderBtn">Edit Provider</button>
+        <button class="modal-footer-btn glass-button glass-button--danger" id="deleteProviderBtn">Delete Provider</button>
       </div>
       <div class="test-result ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="testResult">
         ${testResult?.success
@@ -193,8 +193,8 @@ function renderProviderDetail(): string {
       <div class="provider-models">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
           <h4 style="margin:0">Models (${models.length})</h4>
-          <button class="tool-btn" id="discoverModelsBtn">Auto Discover</button>
-          <button class="tool-btn" id="addModelBtn">+ Add Model</button>
+          <button class="tool-btn glass-button glass-button--secondary" id="discoverModelsBtn">Auto Discover</button>
+          <button class="tool-btn glass-button glass-button--secondary" id="addModelBtn">+ Add Model</button>
         </div>
       ${models.length === 0
         ? '<div class="placeholder-content" style="height:80px">No models configured</div>'
@@ -208,7 +208,7 @@ function renderProviderDetail(): string {
                   <td>${(m.context_window / 1000).toFixed(0)}K</td>
                   <td>${formatPrice(m.uncached_input_nanos_per_million, m.currency)}</td>
                   <td>${formatPrice(m.output_nanos_per_million, m.currency)}</td>
-                  <td><button class="tool-btn" data-edit-model="${m.id}" style="font-size:var(--fs-secondary)">Edit</button></td>
+                  <td><button class="tool-btn glass-button glass-button--secondary" data-edit-model="${m.id}" style="font-size:var(--fs-secondary)">Edit</button></td>
                 </tr>
               `).join('')}
             </tbody>
@@ -220,8 +220,8 @@ function renderProviderDetail(): string {
 
 function renderAddProviderModal(): string {
   return `
-    <div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:200">
-      <div class="modal-overlay" style="width:480px;height:auto;max-height:80vh">
+    <div class="modal-backdrop glass-modal-backdrop">
+      <div class="modal-overlay glass-modal" style="width:480px;height:auto;max-height:80vh">
         <div class="modal-header">
           <h2>Add Provider</h2>
           <button class="modal-close" id="closeAddProviderModal">&#10005;</button>
@@ -229,19 +229,19 @@ function renderAddProviderModal(): string {
         <div class="modal-body" style="flex-direction:column;gap:16px;padding:24px;overflow-y:auto">
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Name</label>
-            <input class="chat-search" type="text" id="providerName" placeholder="e.g. OpenAI" style="width:100%">
+            <input class="chat-search glass-input" type="text" id="providerName" placeholder="e.g. OpenAI" style="width:100%">
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Base URL</label>
-            <input class="chat-search" type="text" id="providerBaseUrl" placeholder="https://api.openai.com/v1" style="width:100%">
+            <input class="chat-search glass-input" type="text" id="providerBaseUrl" placeholder="https://api.openai.com/v1" style="width:100%">
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">API Key</label>
-            <input class="chat-search" type="password" id="providerApiKey" placeholder="sk-..." style="width:100%">
+            <input class="chat-search glass-input" type="password" id="providerApiKey" placeholder="sk-..." style="width:100%">
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Extra Headers (optional JSON)</label>
-            <textarea class="chat-search" id="providerHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;resize:vertical;font-family:var(--font-mono)"></textarea>
+            <textarea class="chat-search glass-textarea" id="providerHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;resize:vertical;font-family:var(--font-mono)"></textarea>
           </div>
           <div class="test-result ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="modalTestResult">
             ${testResult?.success
@@ -253,13 +253,13 @@ function renderAddProviderModal(): string {
           </div>
         </div>
         <div class="modal-footer">
-          <button class="test-btn ${testLoading ? 'testing' : ''}" id="modalTestBtn">
+          <button class="test-btn glass-button glass-button--secondary ${testLoading ? 'testing' : ''}" id="modalTestBtn">
             <span class="spinner"></span>
             Test
           </button>
           <div style="flex:1"></div>
-          <button class="modal-footer-btn" id="cancelAddProvider">Cancel</button>
-          <button class="test-btn" id="saveProviderBtn" style="background:var(--accent);color:#fff">Save</button>
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelAddProvider">Cancel</button>
+          <button class="test-btn glass-button glass-button--primary" id="saveProviderBtn">Save</button>
         </div>
       </div>
     </div>
@@ -268,8 +268,8 @@ function renderAddProviderModal(): string {
 
 function renderAddModelModal(): string {
   return `
-    <div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:200">
-      <div class="modal-overlay" style="width:520px;height:auto;max-height:80vh">
+    <div class="modal-backdrop glass-modal-backdrop">
+      <div class="modal-overlay glass-modal" style="width:520px;height:auto;max-height:80vh">
         <div class="modal-header">
           <h2>Add Model</h2>
           <button class="modal-close" id="closeAddModelModal">&#10005;</button>
@@ -277,47 +277,47 @@ function renderAddModelModal(): string {
         <div class="modal-body" style="flex-direction:column;gap:14px;padding:24px;overflow-y:auto">
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Model Name (API identifier)</label>
-            <input class="chat-search" type="text" id="modelName" placeholder="gpt-4o" style="width:100%">
+            <input class="chat-search glass-input" type="text" id="modelName" placeholder="gpt-4o" style="width:100%">
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Display Name</label>
-            <input class="chat-search" type="text" id="modelDisplayName" placeholder="GPT-4o" style="width:100%">
+            <input class="chat-search glass-input" type="text" id="modelDisplayName" placeholder="GPT-4o" style="width:100%">
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Context Window</label>
-            <input class="chat-search" type="number" id="modelContextWindow" placeholder="128000" style="width:100%">
+            <input class="chat-search glass-input" type="number" id="modelContextWindow" placeholder="128000" style="width:100%">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Uncached Input (per 1M tokens)</label>
-              <input class="chat-search" type="number" step="0.01" id="modelInputPrice" placeholder="2.50" style="width:100%">
+              <input class="chat-search glass-input" type="number" step="0.01" id="modelInputPrice" placeholder="2.50" style="width:100%">
             </div>
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Cache Read (per 1M tokens)</label>
-              <input class="chat-search" type="number" step="0.01" id="modelCachePrice" placeholder="1.25" style="width:100%">
+              <input class="chat-search glass-input" type="number" step="0.01" id="modelCachePrice" placeholder="1.25" style="width:100%">
             </div>
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Output (per 1M tokens)</label>
-              <input class="chat-search" type="number" step="0.01" id="modelOutputPrice" placeholder="10.00" style="width:100%">
+              <input class="chat-search glass-input" type="number" step="0.01" id="modelOutputPrice" placeholder="10.00" style="width:100%">
             </div>
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Currency</label>
-              <select class="chat-search" id="modelCurrency" style="width:100%">${renderCurrencyOptions(getDisplayCurrency())}</select>
+              <select class="chat-search glass-select" id="modelCurrency" style="width:100%">${renderCurrencyOptions(getDisplayCurrency())}</select>
             </div>
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">System Prompt (optional)</label>
-            <textarea class="chat-search" id="modelSystemPrompt" placeholder="You are a helpful assistant." style="width:100%;min-height:60px;resize:vertical"></textarea>
+            <textarea class="chat-search glass-textarea" id="modelSystemPrompt" placeholder="You are a helpful assistant." style="width:100%;min-height:60px;resize:vertical"></textarea>
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Temperature: <span id="tempValue">0.7</span></label>
-            <input type="range" id="modelTemperature" min="0" max="2" step="0.1" value="0.7" style="width:100%;accent-color:var(--accent)">
+            <input class="glass-range" type="range" id="modelTemperature" min="0" max="2" step="0.1" value="0.7" style="width:100%;accent-color:var(--accent)">
           </div>
         </div>
         <div class="modal-footer">
           <div style="flex:1"></div>
-          <button class="modal-footer-btn" id="cancelAddModel">Cancel</button>
-          <button class="test-btn" id="saveModelBtn" style="background:var(--accent);color:#fff">Save</button>
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelAddModel">Cancel</button>
+          <button class="test-btn glass-button glass-button--primary" id="saveModelBtn">Save</button>
         </div>
       </div>
     </div>
@@ -328,8 +328,8 @@ function renderEditProviderModal(): string {
   const provider = state.providers.find(p => p.id === editingProviderId);
   if (!provider) return '';
   return `
-    <div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:200">
-      <div class="modal-overlay" style="width:480px;height:auto;max-height:80vh">
+    <div class="modal-backdrop glass-modal-backdrop">
+      <div class="modal-overlay glass-modal" style="width:480px;height:auto;max-height:80vh">
         <div class="modal-header">
           <h2>Edit Provider</h2>
           <button class="modal-close" id="closeEditProviderModal">&#10005;</button>
@@ -337,19 +337,19 @@ function renderEditProviderModal(): string {
         <div class="modal-body" style="flex-direction:column;gap:16px;padding:24px;overflow-y:auto">
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Name</label>
-            <input class="chat-search" type="text" id="editProviderName" value="${escHtml(provider.name)}" style="width:100%">
+            <input class="chat-search glass-input" type="text" id="editProviderName" value="${escHtml(provider.name)}" style="width:100%">
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Base URL</label>
-            <input class="chat-search" type="text" id="editProviderBaseUrl" value="${escHtml(provider.base_url)}" style="width:100%">
+            <input class="chat-search glass-input" type="text" id="editProviderBaseUrl" value="${escHtml(provider.base_url)}" style="width:100%">
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">API Key</label>
-            <input class="chat-search" type="password" id="editProviderApiKey" placeholder="Leave empty to keep current" style="width:100%">
+            <input class="chat-search glass-input" type="password" id="editProviderApiKey" placeholder="Leave empty to keep current" style="width:100%">
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Extra Headers (optional JSON)</label>
-            <textarea class="chat-search" id="editProviderHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;resize:vertical;font-family:var(--font-mono)">${provider.extra_headers_json ?? ''}</textarea>
+            <textarea class="chat-search glass-textarea" id="editProviderHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;resize:vertical;font-family:var(--font-mono)">${provider.extra_headers_json ?? ''}</textarea>
           </div>
           <div class="test-result ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="editTestResult">
             ${testResult?.success
@@ -361,13 +361,13 @@ function renderEditProviderModal(): string {
           </div>
         </div>
         <div class="modal-footer">
-          <button class="test-btn ${testLoading ? 'testing' : ''}" id="editTestBtn">
+          <button class="test-btn glass-button glass-button--secondary ${testLoading ? 'testing' : ''}" id="editTestBtn">
             <span class="spinner"></span>
             Test
           </button>
           <div style="flex:1"></div>
-          <button class="modal-footer-btn" id="cancelEditProvider">Cancel</button>
-          <button class="test-btn" id="saveEditProviderBtn" style="background:var(--accent);color:#fff">Save</button>
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelEditProvider">Cancel</button>
+          <button class="test-btn glass-button glass-button--primary" id="saveEditProviderBtn">Save</button>
         </div>
       </div>
     </div>
@@ -376,8 +376,8 @@ function renderEditProviderModal(): string {
 
 function renderDiscoverModal(): string {
   return `
-    <div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:200">
-      <div class="modal-overlay" style="width:560px;height:auto;max-height:80vh">
+    <div class="modal-backdrop glass-modal-backdrop">
+      <div class="modal-overlay glass-modal" style="width:560px;height:auto;max-height:80vh">
         <div class="modal-header">
           <h2>Discover Models</h2>
           <button class="modal-close" id="closeDiscoverModal">&#10005;</button>
@@ -390,8 +390,8 @@ function renderDiscoverModal(): string {
             : `<div style="margin-bottom:8px;color:var(--text-muted);font-size:var(--fs-secondary)">${discoveredModels.length} models found. Select models to add:</div>
                <div style="max-height:400px;overflow-y:auto">
                  ${discoveredModels.map((m, i) => `
-                   <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer;${m.selected ? 'background:var(--accent-soft);border-color:var(--accent)' : ''}">
-                     <input type="checkbox" data-discover-idx="${i}" ${m.selected ? 'checked' : ''} style="accent-color:var(--accent)">
+                   <label class="glass-check-row ${m.selected ? 'is-selected' : ''}">
+                     <input class="glass-checkbox" type="checkbox" data-discover-idx="${i}" ${m.selected ? 'checked' : ''}>
                      <div style="flex:1">
                        <div style="font-family:var(--font-mono);font-size:var(--fs-code)">${escHtml(m.id)}</div>
                        ${m.owned_by ? `<div style="font-size:var(--fs-secondary);color:var(--text-faint)">by ${escHtml(m.owned_by)}</div>` : ''}
@@ -403,8 +403,8 @@ function renderDiscoverModal(): string {
         </div>
         <div class="modal-footer">
           <div style="flex:1"></div>
-          <button class="modal-footer-btn" id="cancelDiscover">Cancel</button>
-          <button class="test-btn" id="addDiscoveredBtn" style="background:var(--accent);color:#fff" ${discoverLoading || discoveredModels.filter(m => m.selected).length === 0 ? 'disabled' : ''}>Add Selected</button>
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelDiscover">Cancel</button>
+          <button class="test-btn glass-button glass-button--primary" id="addDiscoveredBtn" ${discoverLoading || discoveredModels.filter(m => m.selected).length === 0 ? 'disabled' : ''}>Add Selected</button>
         </div>
       </div>
     </div>
@@ -415,8 +415,8 @@ function renderEditModelModal(): string {
   const model = state.models.find(m => m.id === editingModelId);
   if (!model) return '';
   return `
-    <div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:200">
-      <div class="modal-overlay" style="width:520px;height:auto;max-height:80vh">
+    <div class="modal-backdrop glass-modal-backdrop">
+      <div class="modal-overlay glass-modal" style="width:520px;height:auto;max-height:80vh">
         <div class="modal-header">
           <h2>Edit Model</h2>
           <button class="modal-close" id="closeEditModelModal">&#10005;</button>
@@ -424,48 +424,48 @@ function renderEditModelModal(): string {
         <div class="modal-body" style="flex-direction:column;gap:14px;padding:24px;overflow-y:auto">
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Model Name (API identifier)</label>
-            <input class="chat-search" type="text" id="editModelName" value="${escHtml(model.model_name)}" style="width:100%">
+            <input class="chat-search glass-input" type="text" id="editModelName" value="${escHtml(model.model_name)}" style="width:100%">
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Display Name</label>
-            <input class="chat-search" type="text" id="editModelDisplayName" value="${escHtml(model.display_name)}" style="width:100%">
+            <input class="chat-search glass-input" type="text" id="editModelDisplayName" value="${escHtml(model.display_name)}" style="width:100%">
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Context Window</label>
-            <input class="chat-search" type="number" id="editModelContextWindow" value="${model.context_window}" style="width:100%">
+            <input class="chat-search glass-input" type="number" id="editModelContextWindow" value="${model.context_window}" style="width:100%">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Uncached Input (per 1M tokens)</label>
-              <input class="chat-search" type="number" step="0.01" id="editModelInputPrice" value="${(model.uncached_input_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
+              <input class="chat-search glass-input" type="number" step="0.01" id="editModelInputPrice" value="${(model.uncached_input_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Cache Read (per 1M tokens)</label>
-              <input class="chat-search" type="number" step="0.01" id="editModelCachePrice" value="${(model.cache_read_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
+              <input class="chat-search glass-input" type="number" step="0.01" id="editModelCachePrice" value="${(model.cache_read_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Output (per 1M tokens)</label>
-              <input class="chat-search" type="number" step="0.01" id="editModelOutputPrice" value="${(model.output_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
+              <input class="chat-search glass-input" type="number" step="0.01" id="editModelOutputPrice" value="${(model.output_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
             <div>
               <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Currency</label>
-              <select class="chat-search" id="editModelCurrency" style="width:100%">${renderCurrencyOptions(model.currency)}</select>
+              <select class="chat-search glass-select" id="editModelCurrency" style="width:100%">${renderCurrencyOptions(model.currency)}</select>
             </div>
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">System Prompt (optional)</label>
-            <textarea class="chat-search" id="editModelSystemPrompt" style="width:100%;min-height:60px;resize:vertical">${model.system_prompt ?? ''}</textarea>
+            <textarea class="chat-search glass-textarea" id="editModelSystemPrompt" style="width:100%;min-height:60px;resize:vertical">${model.system_prompt ?? ''}</textarea>
           </div>
           <div>
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Temperature: <span id="editTempValue">${model.temperature}</span></label>
-            <input type="range" id="editModelTemperature" min="0" max="2" step="0.1" value="${model.temperature}" style="width:100%;accent-color:var(--accent)">
+            <input class="glass-range" type="range" id="editModelTemperature" min="0" max="2" step="0.1" value="${model.temperature}" style="width:100%;accent-color:var(--accent)">
           </div>
         </div>
         <div class="modal-footer">
-          <button class="modal-footer-btn" id="deleteModelBtn" style="color:var(--danger);border-color:var(--danger)">Delete</button>
+          <button class="modal-footer-btn glass-button glass-button--danger" id="deleteModelBtn">Delete</button>
           <div style="flex:1"></div>
-          <button class="modal-footer-btn" id="cancelEditModel">Cancel</button>
-          <button class="test-btn" id="saveEditModelBtn" style="background:var(--accent);color:#fff">Save</button>
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelEditModel">Cancel</button>
+          <button class="test-btn glass-button glass-button--primary" id="saveEditModelBtn">Save</button>
         </div>
       </div>
     </div>
