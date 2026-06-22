@@ -6,8 +6,8 @@
 ## 生成的安装包
 
 ### 1. NSIS 安装包
-- **文件路径**: `token-chat/src-tauri/target/release/bundle/nsis/Token Chat_0.5.8_x64-setup.exe`
-- **文件大小**: 3,414,739 字节 (约 3.26 MB)
+- **文件路径**: `token-chat/src-tauri/target/release/bundle/nsis/Token Chat_0.5.9_x64-setup.exe`
+- **文件大小**: 3,415,858 字节 (约 3.26 MB)
 - **特点**:
   - 支持自定义安装路径
   - 支持创建桌面快捷方式和开始菜单
@@ -16,8 +16,8 @@
   - 包含卸载程序
 
 ### 2. MSI 安装包
-- **文件路径**: `token-chat/src-tauri/target/release/bundle/msi/Token Chat_0.5.8_x64_en-US.msi`
-- **文件大小**: 4,870,144 字节 (约 4.64 MB)
+- **文件路径**: `token-chat/src-tauri/target/release/bundle/msi/Token Chat_0.5.9_x64_en-US.msi`
+- **文件大小**: 4,874,240 字节 (约 4.65 MB)
 - **特点**:
   - 标准 Windows Installer 格式
   - 支持组策略部署
@@ -30,7 +30,7 @@
 ### NSIS 安装包使用
 
 #### 图形界面安装
-1. 双击 `Token Chat_0.5.8_x64-setup.exe`
+1. 双击 `Token Chat_0.5.9_x64-setup.exe`
 2. 选择安装语言 (中文或英文)
 3. 选择安装模式 (当前用户或所有用户)
 4. 选择安装路径
@@ -39,28 +39,28 @@
 #### 命令行静默安装
 ```bash
 # 静默安装
-Token Chat_0.5.8_x64-setup.exe /S
+Token Chat_0.5.9_x64-setup.exe /S
 
 # 指定安装路径
-Token Chat_0.5.8_x64-setup.exe /S /D=C:\Program Files\Token Chat
+Token Chat_0.5.9_x64-setup.exe /S /D=C:\Program Files\Token Chat
 ```
 
 ### MSI 安装包使用
 
 #### 图形界面安装
-1. 双击 `Token Chat_0.5.8_x64_en-US.msi`
+1. 双击 `Token Chat_0.5.9_x64_en-US.msi`
 2. 按照安装向导完成安装
 
 #### 命令行静默安装
 ```bash
 # 静默安装
-msiexec /i "Token Chat_0.5.8_x64_en-US.msi" /quiet
+msiexec /i "Token Chat_0.5.9_x64_en-US.msi" /quiet
 
 # 带日志的安装
-msiexec /i "Token Chat_0.5.8_x64_en-US.msi" /quiet /log install.log
+msiexec /i "Token Chat_0.5.9_x64_en-US.msi" /quiet /log install.log
 
 # 卸载
-msiexec /x "Token Chat_0.5.8_x64_en-US.msi" /quiet
+msiexec /x "Token Chat_0.5.9_x64_en-US.msi" /quiet
 ```
 
 ## 构建配置
@@ -82,12 +82,12 @@ msiexec /x "Token Chat_0.5.8_x64_en-US.msi" /quiet
 ## 文件校验
 
 ### NSIS 安装包
-- 文件名: `Token Chat_0.5.8_x64-setup.exe`
-- 大小: 3,414,739 字节
+- 文件名: `Token Chat_0.5.9_x64-setup.exe`
+- 大小: 3,415,858 字节
 
 ### MSI 安装包
-- 文件名: `Token Chat_0.5.8_x64_en-US.msi`
-- 大小: 4,870,144 字节
+- 文件名: `Token Chat_0.5.9_x64_en-US.msi`
+- 大小: 4,874,240 字节
 
 ## 故障排除
 

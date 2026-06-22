@@ -1,0 +1,429 @@
+/* Unified floating-surface system: tooltip, popover, dropdown, modal and dialog. */
+:root,
+[data-theme] {
+  --glass-bg: rgba(16, 22, 34, .58);
+  --glass-bg-strong: rgba(14, 20, 32, .78);
+  --glass-border: rgba(255, 255, 255, .24);
+  --glass-inner-highlight: rgba(255, 255, 255, .34);
+  --glass-inner-shadow: rgba(0, 0, 0, .20);
+  --glass-drop-shadow: rgba(0, 0, 0, .30);
+  --bubble-bg: rgba(16, 22, 34, .68);
+  --bubble-border: rgba(255, 255, 255, .28);
+  --bubble-radius: 22px;
+  --bubble-blur: 24px;
+  --bubble-saturate: 180%;
+  --bubble-inner-highlight: rgba(255, 255, 255, .38);
+  --bubble-inner-shadow: rgba(4, 9, 20, .22);
+  --bubble-caustic: color-mix(in srgb, var(--accent) 16%, rgba(255,255,255,.18));
+  --bubble-shadow:
+    inset 0 1px 0 var(--bubble-inner-highlight),
+    inset 0 -1px 0 rgba(255,255,255,.08),
+    inset 1px 0 0 rgba(255,255,255,.10),
+    inset -1px 0 0 var(--bubble-inner-shadow),
+    0 18px 48px var(--glass-drop-shadow);
+  --z-glass-modal: 1200;
+  --z-glass-dropdown: 1300;
+  --z-glass-popover: 1320;
+  --z-glass-tooltip: 1400;
+  --z-glass-dialog: 1450;
+  --z-glass-toast: 1500;
+}
+
+[data-theme="ocean"],
+[data-theme="forest"],
+[data-theme="sunset"],
+[data-theme="rose"],
+[data-theme="light"] {
+  --glass-bg: rgba(255, 255, 255, .48);
+  --glass-bg-strong: rgba(255, 255, 255, .68);
+  --glass-border: rgba(255, 255, 255, .68);
+  --glass-inner-highlight: rgba(255, 255, 255, .72);
+  --glass-inner-shadow: rgba(45, 65, 110, .10);
+  --glass-drop-shadow: rgba(31, 35, 50, .16);
+  --bubble-bg: rgba(255, 255, 255, .58);
+  --bubble-border: rgba(255, 255, 255, .76);
+  --bubble-inner-highlight: rgba(255, 255, 255, .78);
+  --bubble-inner-shadow: rgba(45, 65, 110, .10);
+  --bubble-caustic: color-mix(in srgb, var(--accent) 14%, rgba(255,255,255,.66));
+}
+
+.liquid-glass-portal-root { display: contents; }
+
+.liquid-glass {
+  --liquid-fill: var(--bubble-bg);
+  --liquid-border: var(--bubble-border);
+  --liquid-radius: var(--bubble-radius);
+  --liquid-blur: var(--bubble-blur);
+  --liquid-saturate: var(--bubble-saturate);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--liquid-border) !important;
+  border-radius: var(--liquid-radius) !important;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--glass-inner-highlight) 72%, transparent), transparent 38%),
+    linear-gradient(315deg, color-mix(in srgb, var(--bubble-caustic) 42%, transparent), transparent 46%),
+    var(--liquid-fill) !important;
+  background-clip: padding-box !important;
+  box-shadow: var(--bubble-shadow) !important;
+  -webkit-backdrop-filter: blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) !important;
+  backdrop-filter: blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) !important;
+}
+
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: -18% -10%;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 12% 4%, rgba(255,255,255,.78), transparent 27%),
+    radial-gradient(ellipse at 88% 108%, var(--bubble-caustic), transparent 34%),
+    linear-gradient(145deg, rgba(255,255,255,.24), transparent 36%, rgba(110,135,195,.08) 67%, rgba(255,255,255,.18));
+  opacity: .62;
+  transform: rotate(-1.4deg) scale(1.03);
+  filter: blur(6px);
+  mix-blend-mode: screen;
+}
+
+.liquid-glass::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 1px;
+  border-radius: calc(var(--liquid-radius) - 1px);
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 2px rgba(255,255,255,.78),
+    inset 0 0 18px color-mix(in srgb, var(--bubble-inner-highlight) 54%, transparent),
+    inset 8px 10px 22px rgba(255,255,255,.12),
+    inset -10px -12px 24px var(--bubble-inner-shadow),
+    inset 0 -3px 10px color-mix(in srgb, var(--bubble-caustic) 44%, transparent);
+}
+
+.liquid-glass__refract-layer,
+.liquid-glass__rim {
+  position: absolute !important;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.liquid-glass__refract-layer {
+  z-index: 0;
+  inset: -8px;
+  background:
+    radial-gradient(ellipse at 18% 0%, rgba(255,255,255,.54), transparent 30%),
+    radial-gradient(ellipse at 80% 112%, var(--bubble-caustic), transparent 34%);
+  opacity: .44;
+  filter: blur(8px);
+  transform: scale(1.04) skewX(-.8deg);
+}
+
+.liquid-glass__rim {
+  z-index: 1;
+  inset: 1px;
+  border: 1px solid color-mix(in srgb, var(--liquid-border) 58%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bubble-inner-highlight) 82%, transparent), inset 0 -1px 0 var(--bubble-inner-shadow);
+}
+
+.liquid-glass__content,
+.liquid-glass > :not(.liquid-glass__refract-layer):not(.liquid-glass__rim) {
+  position: relative;
+  z-index: 2;
+}
+
+.liquid-glass__content {
+  filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Data, chart and token tooltips share one sharp-content bubble. */
+.data-tooltip-bubble.liquid-glass {
+  position: fixed !important;
+  z-index: var(--z-glass-tooltip) !important;
+  width: max-content;
+  min-width: 180px;
+  max-width: min(300px, calc(100vw - 20px));
+  padding: 0 !important;
+  pointer-events: none;
+  color: var(--text-primary) !important;
+  opacity: 0;
+  transform: translateY(5px) scale(.985);
+  transform-origin: top left;
+  transition: opacity .12s ease, transform .12s ease;
+  contain: layout paint style;
+  will-change: transform, opacity;
+}
+
+.data-tooltip-bubble.liquid-glass.show { opacity: 1; transform: translateY(0) scale(1); }
+.data-tooltip-bubble .liquid-glass__content { padding: 12px 14px 13px; }
+
+.data-tooltip-bubble[data-style="dark"] {
+  --liquid-fill: rgba(15, 20, 31, .82);
+  --liquid-border: rgba(255,255,255,.24);
+  color: #f7f8fb !important;
+}
+.data-tooltip-bubble[data-style="light"] {
+  --liquid-fill: rgba(255,255,255,.84);
+  --liquid-border: rgba(255,255,255,.88);
+  color: #202631 !important;
+}
+.data-tooltip-bubble[data-style="glass"] {
+  --liquid-fill: var(--bubble-bg);
+  --liquid-border: var(--bubble-border);
+}
+.data-tooltip-bubble[data-style="compact"] {
+  --liquid-radius: 16px;
+  --liquid-fill: color-mix(in srgb, var(--bubble-bg) 88%, transparent);
+  min-width: 156px;
+}
+.data-tooltip-bubble[data-style="compact"] .liquid-glass__content { padding: 8px 10px 9px; }
+
+.data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"] {
+  --liquid-fill: color-mix(in srgb, var(--bubble-bg) 44%, transparent);
+  --liquid-border: color-mix(in srgb, var(--bubble-border) 62%, transparent);
+  --liquid-blur: 12px;
+}
+.data-tooltip-bubble[data-style="glass"][data-glass-level="clear"] {
+  --liquid-fill: color-mix(in srgb, var(--bubble-bg) 72%, transparent);
+  --liquid-blur: 20px;
+}
+.data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"] {
+  --liquid-fill: color-mix(in srgb, var(--glass-bg-strong) 84%, transparent);
+  --liquid-blur: 28px;
+}
+.data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"] {
+  --liquid-fill: color-mix(in srgb, var(--glass-bg-strong) 96%, transparent);
+  --liquid-border: color-mix(in srgb, var(--bubble-border) 92%, white 8%);
+  --liquid-blur: 34px;
+}
+
+.data-tooltip-title { margin: 0 0 8px; font-weight: 680; letter-spacing: -.01em; }
+.data-tooltip-rows { display: grid; gap: 6px; }
+.data-tooltip-row {
+  display: grid;
+  grid-template-columns: minmax(86px, 1fr) max-content !important;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding-left: 14px;
+}
+.data-tooltip-row::before {
+  width: 7px !important;
+  height: 7px !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tooltip-row-color, transparent) 18%, transparent);
+}
+.data-tooltip-label { min-width: 0; color: var(--text-secondary) !important; white-space: normal !important; }
+.data-tooltip-value { max-width: 170px; color: inherit; font-weight: 680; text-align: right; overflow-wrap: anywhere; }
+.data-tooltip-bubble[data-style="dark"] .data-tooltip-label { color: rgba(220,226,240,.68) !important; }
+.data-tooltip-bubble[data-style="light"] .data-tooltip-label { color: rgba(60,67,82,.68) !important; }
+
+/* Portal dropdowns and popovers. */
+.custom-select-menu.liquid-glass,
+.glass-dropdown.liquid-glass,
+.token-trend-model-menu.liquid-glass {
+  --liquid-radius: 18px;
+  position: fixed !important;
+  z-index: var(--z-glass-dropdown) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  padding: 7px !important;
+  pointer-events: auto;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--glass-inner-highlight) 72%, transparent), transparent 42%),
+    var(--liquid-fill) !important;
+}
+
+html[data-theme] .custom-select-menu.liquid-glass,
+html[data-theme] .token-trend-model-menu.liquid-glass {
+  border-color: var(--liquid-border) !important;
+  border-radius: var(--liquid-radius) !important;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--glass-inner-highlight) 72%, transparent), transparent 42%),
+    var(--liquid-fill) !important;
+  box-shadow: var(--bubble-shadow) !important;
+}
+
+.glass-date-popover.liquid-glass {
+  --liquid-radius: 18px;
+  position: fixed !important;
+  z-index: var(--z-glass-popover) !important;
+  pointer-events: auto;
+}
+
+.token-trend-model-menu.liquid-glass {
+  inset: auto !important;
+  max-height: min(280px, calc(100vh - 24px));
+}
+
+/* Modal and dialog layers remain sharp while their shell carries the optics. */
+.glass-modal-backdrop {
+  z-index: var(--z-glass-modal) !important;
+  pointer-events: auto;
+}
+.modal-backdrop.glass-modal-backdrop { z-index: var(--z-glass-modal) !important; }
+
+.glass-modal.liquid-glass,
+.glass-dialog.liquid-glass {
+  --liquid-fill: color-mix(in srgb, var(--glass-bg-strong) 90%, transparent);
+  --liquid-border: color-mix(in srgb, var(--bubble-border) 92%, transparent);
+  --liquid-radius: 24px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--glass-inner-highlight) 68%, transparent), transparent 40%),
+    linear-gradient(315deg, color-mix(in srgb, var(--bubble-caustic) 34%, transparent), transparent 48%),
+    var(--liquid-fill) !important;
+  border-color: var(--liquid-border) !important;
+  border-radius: var(--liquid-radius) !important;
+  box-shadow: var(--bubble-shadow) !important;
+  -webkit-backdrop-filter: blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) !important;
+  backdrop-filter: blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) !important;
+}
+
+.glass-modal-backdrop.glass-dialog-backdrop { z-index: var(--z-glass-dialog) !important; }
+.glass-dialog {
+  width: min(440px, calc(100vw - 32px));
+  color: var(--text-primary);
+}
+.glass-dialog .liquid-glass__content { display: grid; gap: 22px; padding: 24px; }
+.glass-dialog-copy { display: grid; gap: 10px; min-width: 0; }
+.glass-dialog-copy h2 { margin: 0; font-size: 19px; line-height: 1.25; letter-spacing: -.02em; }
+.glass-dialog-message { margin: 0; color: var(--text-secondary); line-height: 1.55; overflow-wrap: anywhere; }
+.glass-dialog-input { width: 100%; }
+.glass-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.test-result.liquid-glass--notice {
+  --liquid-radius: 14px;
+  --liquid-blur: 16px;
+  --liquid-fill: color-mix(in srgb, var(--control-bg-focus) 88%, transparent);
+  --liquid-border: var(--control-border-hover);
+  padding: 10px 12px;
+}
+.test-result.liquid-glass--notice.ok { --liquid-border: color-mix(in srgb, var(--success) 38%, transparent); }
+.test-result.liquid-glass--notice.fail { --liquid-border: color-mix(in srgb, var(--danger) 42%, transparent); }
+
+/* Data-detail settings use an explicit label/control/action contract. */
+.settings-tooltip-section { padding-bottom: 16px !important; }
+.settings-tooltip-form { width: min(100%, 880px); max-width: 880px; }
+.settings-tooltip-form .settings-form-row {
+  min-height: 66px;
+  grid-template-columns: minmax(160px, 220px) minmax(220px, 320px) minmax(120px, 1fr) !important;
+  align-items: center !important;
+  gap: 18px !important;
+}
+.settings-tooltip-form .settings-form-row.hidden { display: none !important; }
+.settings-tooltip-form .settings-form-row > label { align-self: center; }
+.settings-form-control { width: 100%; min-width: 0; }
+.settings-form-control > .custom-select { width: 100% !important; }
+.settings-form-action { min-width: 0; justify-self: start; }
+.settings-form-action:empty { min-height: 1px; }
+.settings-tooltip-form .tooltip-preview-trigger { width: auto !important; min-width: 92px; justify-content: center; white-space: nowrap; }
+
+.glass-input-suffix {
+  width: max-content;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(94px, 120px) auto;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  background: var(--control-bg);
+  box-shadow: inset 0 1px 0 var(--control-highlight), var(--control-shadow);
+  -webkit-backdrop-filter: var(--glass-layer-two-blur);
+  backdrop-filter: var(--glass-layer-two-blur);
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.glass-input-suffix:hover { border-color: var(--control-border-hover); background: var(--control-bg-hover); }
+.glass-input-suffix:focus-within {
+  border-color: var(--control-border-focus);
+  background: var(--control-bg-focus);
+  box-shadow: var(--control-focus-ring), inset 0 1px 0 var(--control-highlight);
+}
+.settings-page .glass-input-suffix .glass-input {
+  width: 100% !important;
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.settings-page .glass-input-suffix .glass-input:focus { box-shadow: none !important; }
+.glass-input-suffix__label {
+  height: 24px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  border-left: 1px solid var(--glass-divider);
+  color: var(--text-tertiary);
+  font-size: var(--fs-secondary);
+  white-space: nowrap;
+}
+.settings-form-help {
+  margin: 7px 2px 0;
+  color: var(--text-tertiary);
+  font-size: var(--fs-secondary);
+  line-height: 1.45;
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .liquid-glass {
+    --liquid-fill: var(--glass-bg-strong);
+    background: var(--liquid-fill) !important;
+    border-color: var(--glass-border) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .liquid-glass__refract-layer,
+  .liquid-glass::before { display: none; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .liquid-glass {
+    --liquid-fill: var(--glass-bg-strong);
+    --liquid-blur: 0px;
+    --liquid-saturate: 100%;
+    background: var(--liquid-fill) !important;
+  }
+  .liquid-glass__refract-layer,
+  .liquid-glass::before { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-tooltip-bubble.liquid-glass,
+  .custom-select-menu.liquid-glass { transition: none !important; }
+}
+
+@media (max-width: 860px) {
+  .settings-tooltip-form .settings-form-row {
+    grid-template-columns: minmax(136px, 176px) minmax(190px, 1fr) auto !important;
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .settings-tooltip-form .settings-form-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-areas: 'label label' 'control action';
+    align-items: start !important;
+  }
+  .settings-tooltip-form .settings-form-row > label { grid-area: label; }
+  .settings-tooltip-form .settings-form-control { grid-area: control; }
+  .settings-tooltip-form .settings-form-action { grid-area: action; align-self: start; }
+  .settings-tooltip-form .settings-form-action:empty { display: none; }
+  .settings-tooltip-form .settings-form-row--with-help .settings-form-control { grid-column: 1 / -1; }
+}
+
+@media (max-width: 480px) {
+  .settings-tooltip-form .settings-form-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: 'label' 'control' 'action';
+  }
+  .settings-tooltip-form .tooltip-preview-trigger { width: 100% !important; }
+  .glass-dialog .liquid-glass__content { padding: 20px; }
+}

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getLang, t } from './i18n';
 import { tooltipAttrs } from './tooltip';
 import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
+import { clearDeclaredGlassPortals, mountDeclaredGlassPortals, placeLiquidGlassLayer } from './liquid-glass';
 
 const isDev = !(window as any).__TAURI_INTERNALS__;
 
@@ -688,7 +689,7 @@ function renderTrendModelPicker(
         <span class="token-trend-model-value">${escHtml(selectedLabel)}</span>
         <span class="token-trend-model-chevron" aria-hidden="true">&#9662;</span>
       </button>
-      <div class="token-trend-model-menu glass-dropdown hidden" id="tokenTrendModelMenu" role="listbox" aria-label="${escHtml(text.selectModel)}">
+      <div class="token-trend-model-menu glass-dropdown liquid-glass liquid-glass--dropdown hidden" id="tokenTrendModelMenu" role="listbox" aria-label="${escHtml(text.selectModel)}" data-glass-portal data-glass-portal-owner="stats-model">
         ${options.length === 0 ? `<div class="token-trend-model-empty">${text.noData}</div>` : options.map(option => {
           const label = `${option.modelName}${option.providerName ? ` - ${option.providerName}` : ''}`;
           const selected = option.key === selectedTrendModelKey;
@@ -921,7 +922,10 @@ function refreshTokenTrendPanel(): void {
   if (!statsData) return;
   const panel = document.querySelector('.token-trend-panel');
   if (!panel) return;
+  clearDeclaredGlassPortals('stats-model');
   panel.outerHTML = renderTokenTrendPanel(statsData.daily_costs);
+  const nextPanel = document.querySelector('.token-trend-panel');
+  if (nextPanel) mountDeclaredGlassPortals(nextPanel, 'stats-model');
   bindTokenTrendEvents();
 }
 
@@ -969,6 +973,7 @@ function openTrendModelPicker(focusSelected = false): void {
   if (!trigger || !menu) return;
   trigger.setAttribute('aria-expanded', 'true');
   menu.classList.remove('hidden');
+  placeLiquidGlassLayer(menu, { anchor: trigger, offset: 8, margin: 12, minWidth: 220, maxWidth: 320 });
   if (focusSelected) {
     window.requestAnimationFrame(() => {
       const selected = menu.querySelector<HTMLButtonElement>('.token-trend-model-option.selected');
@@ -1028,8 +1033,12 @@ function bindTokenTrendEvents(): void {
     trendPickerOutsideBound = true;
     document.addEventListener('pointerdown', event => {
       const picker = document.getElementById('tokenTrendModelPicker');
-      if (picker && !picker.contains(event.target as Node)) closeTrendModelPicker();
+      const menu = document.getElementById('tokenTrendModelMenu');
+      const target = event.target as Node;
+      if (picker && !picker.contains(target) && !menu?.contains(target)) closeTrendModelPicker();
     });
+    window.addEventListener('resize', closeTrendModelPicker);
+    window.addEventListener('scroll', closeTrendModelPicker, true);
   }
 
   document.querySelectorAll<HTMLButtonElement>('[data-trend-series]').forEach(button => {

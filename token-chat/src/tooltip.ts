@@ -1,3 +1,10 @@
+import {
+  liquidGlassClasses,
+  liquidGlassLayers,
+  placeLiquidGlassLayer,
+  portalLiquidGlassElement,
+} from './liquid-glass';
+
 const TOOLTIP_STYLE_KEY = 'tc-tooltip-style';
 const TOOLTIP_DELAY_KEY = 'tc-tooltip-delay';
 const TOOLTIP_GLASS_LEVEL_KEY = 'tc-tooltip-glass-level';
@@ -38,6 +45,7 @@ let activeTarget: Element | null = null;
 let showTimer: number | null = null;
 let lastPointer = { x: 0, y: 0 };
 let bound = false;
+let clickPinned = false;
 
 function isTooltipStyle(value: string | null): value is TooltipStyle {
   return tooltipStyles.some(style => style.value === value);
@@ -88,9 +96,10 @@ function parsePayload(target: Element): TooltipPayload | null {
 function ensureTooltip(): HTMLDivElement {
   if (tooltipEl) return tooltipEl;
   tooltipEl = document.createElement('div');
-  tooltipEl.className = 'data-tooltip-bubble';
+  tooltipEl.className = liquidGlassClasses('tooltip', 'data-tooltip-bubble glass-tooltip');
+  tooltipEl.id = 'globalDataTooltip';
   tooltipEl.setAttribute('role', 'tooltip');
-  document.body.appendChild(tooltipEl);
+  portalLiquidGlassElement(tooltipEl, 'tooltip');
   return tooltipEl;
 }
 
@@ -105,10 +114,11 @@ function renderTooltip(payload: TooltipPayload): string {
     `;
   }).join('');
 
-  return `
+  const content = `
     <div class="data-tooltip-title">${escHtml(payload.title)}</div>
     ${rows ? `<div class="data-tooltip-rows">${rows}</div>` : ''}
   `;
+  return liquidGlassLayers(content);
 }
 
 function findTooltipTarget(event: Event): Element | null {
@@ -125,24 +135,14 @@ function clearShowTimer(): void {
 
 function positionTooltip(target: Element): void {
   const el = ensureTooltip();
-  const rect = el.getBoundingClientRect();
-  let x = lastPointer.x + 14;
-  let y = lastPointer.y + 14;
-
-  if (!lastPointer.x && !lastPointer.y) {
-    const targetRect = target.getBoundingClientRect();
-    x = targetRect.left + targetRect.width / 2 + 14;
-    y = targetRect.top + targetRect.height / 2 + 14;
-  }
-
-  const margin = 10;
-  if (x + rect.width > window.innerWidth - margin) x = window.innerWidth - rect.width - margin;
-  if (y + rect.height > window.innerHeight - margin) y = window.innerHeight - rect.height - margin;
-  if (x < margin) x = margin;
-  if (y < margin) y = margin;
-
-  el.style.left = `${x}px`;
-  el.style.top = `${y}px`;
+  placeLiquidGlassLayer(el, {
+    anchor: lastPointer.x || lastPointer.y ? undefined : target,
+    point: lastPointer.x || lastPointer.y ? lastPointer : undefined,
+    offset: 14,
+    margin: 10,
+    minWidth: 180,
+    maxWidth: 300,
+  });
 }
 
 function showTooltip(target: Element): void {
@@ -153,12 +153,15 @@ function showTooltip(target: Element): void {
   el.dataset.glassLevel = getTooltipGlassLevel();
   el.innerHTML = renderTooltip(payload);
   el.classList.add('show');
+  target.setAttribute('aria-describedby', el.id);
   positionTooltip(target);
 }
 
 function hideTooltip(): void {
   clearShowTimer();
+  if (activeTarget) activeTarget.removeAttribute('aria-describedby');
   activeTarget = null;
+  clickPinned = false;
   if (tooltipEl) {
     tooltipEl.classList.remove('show');
   }
@@ -177,9 +180,14 @@ function scheduleTooltip(target: Element): void {
   }, delay);
 }
 
-export function tooltipAttrs(title: string, rows: TooltipRow[]): string {
+export function tooltipAttrs(
+  title: string,
+  rows: TooltipRow[],
+  options: { trigger?: 'hover' | 'click' } = {},
+): string {
   const payload: TooltipPayload = { title, rows };
-  return `data-detail-tooltip="${encodeURIComponent(JSON.stringify(payload))}" tabindex="0"`;
+  const trigger = options.trigger ? ` data-tooltip-trigger="${options.trigger}"` : '';
+  return `data-detail-tooltip="${encodeURIComponent(JSON.stringify(payload))}"${trigger} tabindex="0"`;
 }
 
 export function getTooltipStyle(): TooltipStyle {
@@ -233,7 +241,7 @@ export function bindDataTooltips(): void {
 
   document.addEventListener('pointerover', (event) => {
     const target = findTooltipTarget(event);
-    if (!target) return;
+    if (!target || target.getAttribute('data-tooltip-trigger') === 'click') return;
     const pointerEvent = event as PointerEvent;
     const related = pointerEvent.relatedTarget as Node | null;
     if (related && target.contains(related)) return;
@@ -250,7 +258,7 @@ export function bindDataTooltips(): void {
 
   document.addEventListener('pointerout', (event) => {
     const target = findTooltipTarget(event);
-    if (!target || target !== activeTarget) return;
+    if (!target || target !== activeTarget || clickPinned) return;
     const pointerEvent = event as PointerEvent;
     const related = pointerEvent.relatedTarget as Node | null;
     if (related && target.contains(related)) return;
@@ -266,6 +274,23 @@ export function bindDataTooltips(): void {
 
   document.addEventListener('focusout', (event) => {
     if (findTooltipTarget(event)) hideTooltip();
+  }, true);
+
+  document.addEventListener('click', event => {
+    const target = findTooltipTarget(event);
+    if (target?.getAttribute('data-tooltip-trigger') === 'click') {
+      if (activeTarget === target && tooltipEl?.classList.contains('show')) {
+        hideTooltip();
+        return;
+      }
+      clearShowTimer();
+      activeTarget = target;
+      clickPinned = true;
+      lastPointer = { x: 0, y: 0 };
+      showTooltip(target);
+      return;
+    }
+    if (clickPinned) hideTooltip();
   }, true);
 
   document.addEventListener('keydown', (event) => {

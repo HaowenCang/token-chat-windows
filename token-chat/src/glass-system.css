@@ -319,7 +319,7 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
 .token-trend-model-menu,
 .glass-date-popover {
   position: fixed;
-  z-index: 20000;
+  z-index: var(--z-glass-dropdown, 1300);
   padding: 7px !important;
   overflow: auto;
   border: 1px solid var(--dropdown-border) !important;
@@ -368,7 +368,7 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
 .modal-backdrop.glass-modal-backdrop {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 12000 !important;
+  z-index: var(--z-glass-modal, 1200) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -533,7 +533,7 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
 .glass-date-chevron { color: var(--text-tertiary); transition: transform .18s ease; }
 .glass-date-trigger[aria-expanded="true"] .glass-date-chevron { transform: rotate(180deg); }
 
-.glass-date-popover { z-index: 21000; overflow: hidden !important; }
+.glass-date-popover { z-index: var(--z-glass-popover, 1320); overflow: hidden !important; }
 .glass-calendar-header {
   display: grid;
   grid-template-columns: 36px 1fr 36px;
@@ -602,7 +602,7 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
 .token-trend-model-picker { position: relative; overflow: visible !important; }
 .token-trend-model-menu {
   position: absolute !important;
-  z-index: 700 !important;
+  z-index: var(--z-glass-dropdown, 1300) !important;
   top: calc(100% + 8px) !important;
   right: 0 !important;
   left: auto !important;

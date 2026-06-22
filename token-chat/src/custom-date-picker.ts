@@ -1,3 +1,5 @@
+import { liquidGlassClasses, placeLiquidGlassLayer, portalLiquidGlassElement } from './liquid-glass';
+
 type PickerState = {
   input: HTMLInputElement;
   trigger: HTMLButtonElement;
@@ -43,17 +45,9 @@ function closePicker() {
 }
 
 function positionPopover(state: PickerState) {
-  const rect = state.trigger.getBoundingClientRect();
   const width = Math.min(320, window.innerWidth - 24);
-  const popoverHeight = Math.min(state.popover.scrollHeight || 400, window.innerHeight - 24);
-  const below = window.innerHeight - rect.bottom;
-  const top = below >= popoverHeight || rect.top < popoverHeight
-    ? rect.bottom + 8
-    : rect.top - popoverHeight - 8;
-  const left = Math.min(Math.max(12, rect.left), window.innerWidth - width - 12);
   state.popover.style.width = `${width}px`;
-  state.popover.style.left = `${left}px`;
-  state.popover.style.top = `${Math.max(12, top)}px`;
+  placeLiquidGlassLayer(state.popover, { anchor: state.trigger, offset: 8, margin: 12, maxWidth: 320 });
 }
 
 function getRange(input: HTMLInputElement) {
@@ -140,11 +134,11 @@ function openPicker(input: HTMLInputElement, trigger: HTMLButtonElement) {
   closePicker();
   const selected = parseDateKey(input.value) || new Date();
   const popover = document.createElement('div');
-  popover.className = 'glass-date-popover glass-dropdown';
+  popover.className = liquidGlassClasses('popover', 'glass-date-popover glass-dropdown');
   popover.setAttribute('role', 'dialog');
   popover.setAttribute('aria-modal', 'false');
   popover.setAttribute('aria-label', trigger.getAttribute('aria-label') || 'Choose date');
-  document.body.appendChild(popover);
+  portalLiquidGlassElement(popover, 'date-picker');
   activePicker = { input, trigger, popover, viewDate: new Date(selected.getFullYear(), selected.getMonth(), 1) };
   trigger.setAttribute('aria-expanded', 'true');
   renderCalendar(activePicker);

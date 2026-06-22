@@ -5,6 +5,7 @@ import { getLang, t } from './i18n';
 import { getEffectiveSystemPrompt } from './prompt';
 import { tooltipAttrs } from './tooltip';
 import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
+import { showGlassAlert, showGlassPrompt } from './glass-dialog';
 
 declare global {
   interface Window {
@@ -1051,7 +1052,7 @@ export async function renameCurrentConversation(): Promise<void> {
   if (!state.currentConversationId) return;
   const conv = state.conversations.find(c => c.id === state.currentConversationId);
   if (!conv) return;
-  const title = prompt('Conversation title', conv.title);
+  const title = await showGlassPrompt('Conversation title', conv.title);
   if (title === null) return;
   await updateConversationTitleLocal(conv.id, title);
 }
@@ -1118,7 +1119,7 @@ export async function handleSend(): Promise<void> {
         attachmentsJson: attachments.length > 0 ? JSON.stringify(attachments) : null,
       });
     } catch (e) {
-      alert('Failed to save message: ' + String(e));
+      await showGlassAlert('Failed to save message: ' + String(e));
       return;
     }
 
@@ -1248,7 +1249,7 @@ export async function handleSend(): Promise<void> {
     renderChatArea();
     renderChatInputInDom();
     renderRightPanelInDom();
-    alert('Send failed: ' + String(e));
+    await showGlassAlert('Send failed: ' + String(e));
   }
 }
 

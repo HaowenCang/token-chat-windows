@@ -92,31 +92,45 @@ export function renderSettingsPage(): string {
           <div class="settings-hint">${t('settings.exchangeRateHint')}</div>
         </div>
 
-        <div class="settings-section glass-card">
+        <div class="settings-section glass-card settings-tooltip-section">
           <h3 class="settings-section-title">${t('settings.dataDetailBubbles')}</h3>
-          <div class="settings-row">
-            <label>${t('settings.bubbleStyle')}</label>
-            <select class="chat-search glass-select" id="settingsTooltipStyle" style="width:200px">
-              ${tooltipStyles.map(style => `<option value="${style.value}" ${tooltipStyle === style.value ? 'selected' : ''}>${escHtml(t(style.labelKey))}</option>`).join('')}
-            </select>
-            <button class="tool-btn glass-button glass-button--secondary tooltip-preview-trigger" ${tooltipAttrs(t('settings.tooltipPreview'), [
-              { label: t('settings.tooltipTotal'), value: '42,000 tokens', color: 'var(--chart-line)' },
-              { label: t('settings.tooltipInput'), value: '28,000 tokens', color: 'var(--chart-input)' },
-              { label: t('settings.tooltipOutput'), value: '14,000 tokens', color: 'var(--chart-output)' },
-            ])}>${t('settings.tooltipPreview')}</button>
+          <div class="settings-tooltip-form" role="group" aria-label="${t('settings.dataDetailBubbles')}">
+            <div class="settings-row settings-form-row">
+              <label for="settingsTooltipStyle">${t('settings.bubbleStyle')}</label>
+              <div class="settings-form-control">
+                <select class="chat-search glass-select" id="settingsTooltipStyle" style="width:100%">
+                  ${tooltipStyles.map(style => `<option value="${style.value}" ${tooltipStyle === style.value ? 'selected' : ''}>${escHtml(t(style.labelKey))}</option>`).join('')}
+                </select>
+              </div>
+              <div class="settings-form-action">
+                <button class="tool-btn glass-button glass-button--secondary tooltip-preview-trigger" ${tooltipAttrs(t('settings.tooltipPreview'), [
+                  { label: t('settings.tooltipTotal'), value: '42,000 tokens', color: 'var(--chart-line)' },
+                  { label: t('settings.tooltipInput'), value: '28,000 tokens', color: 'var(--chart-input)' },
+                  { label: t('settings.tooltipOutput'), value: '14,000 tokens', color: 'var(--chart-output)' },
+                ], { trigger: 'click' })}>${t('settings.tooltipPreview')}</button>
+              </div>
+            </div>
+            <div class="settings-row settings-form-row ${tooltipStyle === 'glass' ? '' : 'hidden'}" id="settingsTooltipGlassRow">
+              <label for="settingsTooltipGlassLevel">${t('settings.tooltipGlassLevel')}</label>
+              <div class="settings-form-control">
+                <select class="chat-search glass-select" id="settingsTooltipGlassLevel" style="width:100%">
+                  ${tooltipGlassLevels.map(level => `<option value="${level.value}" ${tooltipGlassLevel === level.value ? 'selected' : ''}>${escHtml(t(level.labelKey))}</option>`).join('')}
+                </select>
+              </div>
+              <div class="settings-form-action" aria-hidden="true"></div>
+            </div>
+            <div class="settings-row settings-form-row settings-form-row--with-help">
+              <label for="settingsTooltipDelay">${t('settings.popupDelay')}</label>
+              <div class="settings-form-control">
+                <div class="glass-input-suffix">
+                  <input class="chat-search glass-input" id="settingsTooltipDelay" type="number" min="0" max="2000" step="25" value="${tooltipDelay}">
+                  <span class="glass-input-suffix__label">ms</span>
+                </div>
+                <p class="settings-form-help">${t('settings.tooltipDelayHint')}</p>
+              </div>
+              <div class="settings-form-action" aria-hidden="true"></div>
+            </div>
           </div>
-          <div class="settings-row ${tooltipStyle === 'glass' ? '' : 'hidden'}" id="settingsTooltipGlassRow">
-            <label>${t('settings.tooltipGlassLevel')}</label>
-            <select class="chat-search glass-select" id="settingsTooltipGlassLevel" style="width:200px">
-              ${tooltipGlassLevels.map(level => `<option value="${level.value}" ${tooltipGlassLevel === level.value ? 'selected' : ''}>${escHtml(t(level.labelKey))}</option>`).join('')}
-            </select>
-          </div>
-          <div class="settings-row">
-            <label>${t('settings.popupDelay')}</label>
-            <input class="chat-search glass-input" id="settingsTooltipDelay" type="number" min="0" max="2000" step="25" value="${tooltipDelay}" style="width:120px">
-            <span class="settings-unit">ms</span>
-          </div>
-          <div class="settings-hint">${t('settings.tooltipDelayHint')}</div>
         </div>
 
         ${renderFontSizeSettings()}

@@ -1,3 +1,5 @@
+import { liquidGlassClasses, placeLiquidGlassLayer, portalLiquidGlassElement } from './liquid-glass';
+
 let initialized = false;
 let selectSequence = 0;
 
@@ -33,20 +35,8 @@ function syncTrigger(select: HTMLSelectElement, trigger: HTMLButtonElement): voi
 
 function positionMenu(trigger: HTMLButtonElement, menu: HTMLDivElement): void {
   const triggerRect = trigger.getBoundingClientRect();
-  const viewportMargin = 10;
-  const width = Math.min(Math.max(triggerRect.width, 176), window.innerWidth - viewportMargin * 2);
-  menu.style.width = `${width}px`;
-  menu.style.left = `${Math.min(Math.max(viewportMargin, triggerRect.left), window.innerWidth - width - viewportMargin)}px`;
-
-  const menuHeight = Math.min(menu.scrollHeight, 320);
-  const below = window.innerHeight - triggerRect.bottom - viewportMargin;
-  const above = triggerRect.top - viewportMargin;
-  const opensAbove = below < Math.min(menuHeight, 190) && above > below;
-  menu.dataset.placement = opensAbove ? 'top' : 'bottom';
-  const top = opensAbove
-    ? Math.max(viewportMargin, triggerRect.top - menuHeight - 8)
-    : Math.min(window.innerHeight - menuHeight - viewportMargin, triggerRect.bottom + 8);
-  menu.style.top = `${top}px`;
+  menu.style.width = `${Math.min(Math.max(triggerRect.width, 176), window.innerWidth - 20)}px`;
+  placeLiquidGlassLayer(menu, { anchor: trigger, offset: 8, margin: 10, minWidth: 176 });
 }
 
 function selectableOptions(menu: HTMLDivElement): HTMLButtonElement[] {
@@ -87,7 +77,7 @@ function createOptionButton(
 
 function createMenu(select: HTMLSelectElement, trigger: HTMLButtonElement): HTMLDivElement {
   const menu = document.createElement('div');
-  menu.className = 'custom-select-menu';
+  menu.className = liquidGlassClasses('dropdown', 'custom-select-menu glass-dropdown');
   menu.id = trigger.getAttribute('aria-controls') || `custom-select-menu-${++selectSequence}`;
   menu.setAttribute('role', 'listbox');
   menu.setAttribute('aria-label', select.getAttribute('aria-label') || selectedLabel(select));
@@ -132,7 +122,7 @@ function openSelect(select: HTMLSelectElement, trigger: HTMLButtonElement, focus
   }
   closeOpenSelect();
   const menu = createMenu(select, trigger);
-  document.body.appendChild(menu);
+  portalLiquidGlassElement(menu, 'select');
   openState = { select, trigger, menu };
   trigger.setAttribute('aria-expanded', 'true');
   trigger.classList.add('open');

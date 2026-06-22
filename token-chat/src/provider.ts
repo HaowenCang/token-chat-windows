@@ -2,6 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { state, type Provider, type Model } from './state';
 import { t } from './i18n';
 import { currencyOptions, formatCurrencyAmount, getDisplayCurrency, normalizeCurrency } from './currency';
+import { showGlassConfirm } from './glass-dialog';
+import { clearDeclaredGlassPortals, mountDeclaredGlassPortals } from './liquid-glass';
 
 const isDev = !(window as any).__TAURI_INTERNALS__;
 
@@ -181,7 +183,7 @@ function renderProviderDetail(): string {
         <button class="modal-footer-btn glass-button glass-button--secondary" id="editProviderBtn">Edit Provider</button>
         <button class="modal-footer-btn glass-button glass-button--danger" id="deleteProviderBtn">Delete Provider</button>
       </div>
-      <div class="test-result ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="testResult">
+      <div class="test-result liquid-glass liquid-glass--notice ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="testResult">
         ${testResult?.success
           ? `Connection successful (${testResult.latency_ms}ms)`
           : testResult
@@ -220,8 +222,8 @@ function renderProviderDetail(): string {
 
 function renderAddProviderModal(): string {
   return `
-    <div class="modal-backdrop glass-modal-backdrop">
-      <div class="modal-overlay glass-modal" style="width:480px;height:auto;max-height:80vh">
+    <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
+      <div class="modal-overlay glass-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Add Provider" style="width:480px;height:auto;max-height:80vh">
         <div class="modal-header">
           <h2>Add Provider</h2>
           <button class="modal-close" id="closeAddProviderModal">&#10005;</button>
@@ -243,7 +245,7 @@ function renderAddProviderModal(): string {
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Extra Headers (optional JSON)</label>
             <textarea class="chat-search glass-textarea" id="providerHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;resize:vertical;font-family:var(--font-mono)"></textarea>
           </div>
-          <div class="test-result ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="modalTestResult">
+          <div class="test-result liquid-glass liquid-glass--notice ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="modalTestResult">
             ${testResult?.success
               ? `Connection successful (${testResult.latency_ms}ms)`
               : testResult
@@ -268,8 +270,8 @@ function renderAddProviderModal(): string {
 
 function renderAddModelModal(): string {
   return `
-    <div class="modal-backdrop glass-modal-backdrop">
-      <div class="modal-overlay glass-modal" style="width:520px;height:auto;max-height:80vh">
+    <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
+      <div class="modal-overlay glass-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Add Model" style="width:520px;height:auto;max-height:80vh">
         <div class="modal-header">
           <h2>Add Model</h2>
           <button class="modal-close" id="closeAddModelModal">&#10005;</button>
@@ -328,8 +330,8 @@ function renderEditProviderModal(): string {
   const provider = state.providers.find(p => p.id === editingProviderId);
   if (!provider) return '';
   return `
-    <div class="modal-backdrop glass-modal-backdrop">
-      <div class="modal-overlay glass-modal" style="width:480px;height:auto;max-height:80vh">
+    <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
+      <div class="modal-overlay glass-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Edit Provider" style="width:480px;height:auto;max-height:80vh">
         <div class="modal-header">
           <h2>Edit Provider</h2>
           <button class="modal-close" id="closeEditProviderModal">&#10005;</button>
@@ -351,7 +353,7 @@ function renderEditProviderModal(): string {
             <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Extra Headers (optional JSON)</label>
             <textarea class="chat-search glass-textarea" id="editProviderHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;resize:vertical;font-family:var(--font-mono)">${provider.extra_headers_json ?? ''}</textarea>
           </div>
-          <div class="test-result ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="editTestResult">
+          <div class="test-result liquid-glass liquid-glass--notice ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="editTestResult">
             ${testResult?.success
               ? `Connection successful (${testResult.latency_ms}ms)`
               : testResult
@@ -376,8 +378,8 @@ function renderEditProviderModal(): string {
 
 function renderDiscoverModal(): string {
   return `
-    <div class="modal-backdrop glass-modal-backdrop">
-      <div class="modal-overlay glass-modal" style="width:560px;height:auto;max-height:80vh">
+    <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
+      <div class="modal-overlay glass-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Discover Models" style="width:560px;height:auto;max-height:80vh">
         <div class="modal-header">
           <h2>Discover Models</h2>
           <button class="modal-close" id="closeDiscoverModal">&#10005;</button>
@@ -415,8 +417,8 @@ function renderEditModelModal(): string {
   const model = state.models.find(m => m.id === editingModelId);
   if (!model) return '';
   return `
-    <div class="modal-backdrop glass-modal-backdrop">
-      <div class="modal-overlay glass-modal" style="width:520px;height:auto;max-height:80vh">
+    <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
+      <div class="modal-overlay glass-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Edit Model" style="width:520px;height:auto;max-height:80vh">
         <div class="modal-header">
           <h2>Edit Model</h2>
           <button class="modal-close" id="closeEditModelModal">&#10005;</button>
@@ -690,31 +692,38 @@ export function bindProviderEvents(): void {
     });
   }
 
+  document.querySelectorAll<HTMLElement>('.glass-modal-backdrop').forEach(backdrop => {
+    backdrop.addEventListener('pointerdown', event => {
+      if (event.target === backdrop) closeTopProviderModal();
+    });
+  });
+
+  document.removeEventListener('keydown', handleModalEscape);
   document.addEventListener('keydown', handleModalEscape);
 }
 
 function handleModalEscape(e: KeyboardEvent): void {
-  if (e.key === 'Escape') {
-    if (editingModelId) {
-      editingModelId = null;
-      refreshProviderView();
-    } else if (showDiscoverModal) {
-      showDiscoverModal = false;
-      discoveredModels = [];
-      refreshProviderView();
-    } else if (showAddModelModal) {
-      showAddModelModal = false;
-      refreshProviderView();
-    } else if (editingProviderId) {
-      editingProviderId = null;
-      testResult = null;
-      refreshProviderView();
-    } else if (showAddProviderModal) {
-      showAddProviderModal = false;
-      testResult = null;
-      refreshProviderView();
-    }
+  if (e.key === 'Escape') closeTopProviderModal();
+}
+
+function closeTopProviderModal(): void {
+  if (editingModelId) {
+    editingModelId = null;
+  } else if (showDiscoverModal) {
+    showDiscoverModal = false;
+    discoveredModels = [];
+  } else if (showAddModelModal) {
+    showAddModelModal = false;
+  } else if (editingProviderId) {
+    editingProviderId = null;
+    testResult = null;
+  } else if (showAddProviderModal) {
+    showAddProviderModal = false;
+    testResult = null;
+  } else {
+    return;
   }
+  refreshProviderView();
 }
 
 async function testConnection(): Promise<void> {
@@ -818,7 +827,7 @@ async function saveProvider(): Promise<void> {
 
 async function deleteProvider(): Promise<void> {
   if (!selectedProviderId) return;
-  if (!confirm('Delete this provider and all its models?')) return;
+  if (!await showGlassConfirm('Delete this provider and all its models?', 'Delete Provider', true)) return;
 
   if (isDev) {
     state.providers = state.providers.filter(p => p.id !== selectedProviderId);
@@ -1082,7 +1091,7 @@ async function saveEditModel(): Promise<void> {
 
 async function deleteEditingModel(): Promise<void> {
   if (!editingModelId) return;
-  if (!confirm('Delete this model?')) return;
+  if (!await showGlassConfirm('Delete this model?', 'Delete Model', true)) return;
 
   if (isDev) {
     state.models = state.models.filter(m => m.id !== editingModelId);
@@ -1167,11 +1176,13 @@ function refreshProviderView(): void {
   const existing = pageBody.querySelector('.provider-page');
   if (!existing) return;
 
+  clearDeclaredGlassPortals('provider');
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = renderProviderPage();
   const newContent = tempDiv.firstElementChild;
   if (newContent) {
     existing.replaceWith(newContent);
+    mountDeclaredGlassPortals(newContent, 'provider');
     bindProviderEvents();
   }
 }

@@ -1,6 +1,7 @@
 import './styles.css';
 import './unified-shell.css';
 import './glass-system.css';
+import './liquid-glass.css';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { state, type Page } from './state';
@@ -25,6 +26,7 @@ import { applyFontSizePreferences } from './font-size';
 import { formatCurrencyAmount } from './currency';
 import { initCustomSelects } from './custom-select';
 import { initCustomDatePickers } from './custom-date-picker';
+import { clearDeclaredGlassPortals, mountDeclaredGlassPortals } from './liquid-glass';
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -156,10 +158,10 @@ function renderSidebar() {
         <div class="sidebar-brand"><span class="brand-mark">${iconSvg('sparkles')}</span><span>${t('app.title')}</span></div>
       </div>
       <div class="sidebar-nav glass-nav" aria-label="Primary navigation">
-        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'chat' ? 'active' : ''}" data-page="chat" ${state.page === 'chat' ? 'aria-current="page"' : ''}>${iconSvg('chat')}<span>${t('nav.chat')}</span></button>
-        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'provider' ? 'active' : ''}" data-page="provider" ${state.page === 'provider' ? 'aria-current="page"' : ''}>${iconSvg('cube')}<span>${t('nav.providers')}</span></button>
-        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'stats' ? 'active' : ''}" data-page="stats" ${state.page === 'stats' ? 'aria-current="page"' : ''}>${iconSvg('chart')}<span>${t('nav.stats')}</span></button>
-        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'settings' ? 'active' : ''}" data-page="settings" ${state.page === 'settings' ? 'aria-current="page"' : ''}>${iconSvg('gear')}<span>${t('nav.settings')}</span></button>
+        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'chat' ? 'active' : ''}" data-page="chat" aria-label="${t('nav.chat')}" ${state.page === 'chat' ? 'aria-current="page"' : ''}>${iconSvg('chat')}<span>${t('nav.chat')}</span></button>
+        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'provider' ? 'active' : ''}" data-page="provider" aria-label="${t('nav.providers')}" ${state.page === 'provider' ? 'aria-current="page"' : ''}>${iconSvg('cube')}<span>${t('nav.providers')}</span></button>
+        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'stats' ? 'active' : ''}" data-page="stats" aria-label="${t('nav.stats')}" ${state.page === 'stats' ? 'aria-current="page"' : ''}>${iconSvg('chart')}<span>${t('nav.stats')}</span></button>
+        <button class="sidebar-nav-btn glass-nav-item ${state.page === 'settings' ? 'active' : ''}" data-page="settings" aria-label="${t('nav.settings')}" ${state.page === 'settings' ? 'aria-current="page"' : ''}>${iconSvg('gear')}<span>${t('nav.settings')}</span></button>
       </div>
       ${state.page === 'chat' ? `
       <div class="chat-left-header">
@@ -242,6 +244,7 @@ export async function render() {
   applyThemePreferences();
   applyFontSizePreferences();
   bindDataTooltips();
+  clearDeclaredGlassPortals();
   app.innerHTML = `
     ${renderWindowTitlebar()}
     ${false ? `
@@ -278,6 +281,7 @@ export async function render() {
       ${state.page === 'settings' ? renderSettingsPage() : ''}
     </div>
   `;
+  mountDeclaredGlassPortals(app);
   bindEvents();
 }
 
