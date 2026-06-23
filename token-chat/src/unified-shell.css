@@ -429,6 +429,13 @@ body,
   -webkit-backdrop-filter: blur(24px) saturate(135%);
   backdrop-filter: blur(24px) saturate(135%);
 }
+[data-page-body="chat"] .chat-right.collapsed {
+  width: 0;
+  min-width: 0;
+  flex: 0 0 0px;
+  opacity: 0;
+  pointer-events: none;
+}
 
 .settings-page { display: flex; flex-direction: column; }
 .settings-scroll {
