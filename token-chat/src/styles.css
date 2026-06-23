@@ -771,11 +771,10 @@ body {
   overflow: hidden;
 }
 .chat-right.collapsed {
-  width: var(--right-panel-width);
-  min-width: var(--right-panel-width);
+  width: 0;
+  min-width: 0;
   opacity: 0;
   pointer-events: none;
-  visibility: hidden;
 }
 .chat-right-header {
   padding: 16px;
@@ -2272,7 +2271,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 
 .chat-left { width: var(--sidebar-width); }
 .chat-right { width: var(--right-panel-width); }
-.chat-left.collapsed { margin-left: -12px; }
+.chat-left.collapsed,
+.chat-right.collapsed { margin-left: -12px; }
 
 .chat-left-header {
   padding: 18px 16px 14px;
