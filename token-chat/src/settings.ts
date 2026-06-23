@@ -149,7 +149,7 @@ export function renderSettingsPage(): string {
           <h3 class="settings-section-title">${t('settings.sendKey')}</h3>
           <div class="settings-row">
             <label>${t('settings.sendKey')}</label>
-            <select class="chat-search glass-select" id="settingsSendKey" style="width:200px">
+            <select class="chat-search glass-select" id="settingsSendKey" style="width:280px">
               <option value="enter" ${sendKey === 'enter' ? 'selected' : ''}>${t('settings.enterToSend')}</option>
               <option value="shift-enter" ${sendKey === 'shift-enter' ? 'selected' : ''}>${t('settings.shiftEnterToSend')}</option>
             </select>

@@ -703,6 +703,8 @@ html[data-theme] .custom-select-menu {
   min-height: 38px;
   border-radius: 11px;
   color: var(--text-secondary);
+  white-space: normal;
+  word-break: break-word;
 }
 .custom-select-option:hover,
 .custom-select-option:focus-visible {

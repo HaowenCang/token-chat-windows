@@ -1863,9 +1863,9 @@ body {
 }
 .font-size-setting {
   display: grid;
-  grid-template-columns: minmax(112px, 1fr) minmax(100px, 1.4fr) 76px;
+  grid-template-columns: minmax(80px, 0.8fr) minmax(100px, 1.4fr) 76px;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-height: 44px;
   border-bottom: 1px solid var(--line);
 }
