@@ -773,6 +773,7 @@ body {
 .chat-right.collapsed {
   width: 0;
   min-width: 0;
+  flex: 0 0 0px;
   opacity: 0;
   pointer-events: none;
 }
