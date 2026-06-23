@@ -464,6 +464,7 @@ body {
   display: flex;
   flex-direction: column;
   max-width: 85%;
+  width: fit-content;
 }
 .msg.user { align-self: flex-end; }
 .msg.assistant { align-self: flex-start; }
@@ -2494,7 +2495,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   filter: blur(25px);
 }
 
-.msg { width: min(100%, 760px); max-width: 86%; position: relative; z-index: 1; }
+.msg { width: fit-content; max-width: 86%; position: relative; z-index: 1; }
 .msg-bubble {
   padding: 0;
   border-radius: 20px;
