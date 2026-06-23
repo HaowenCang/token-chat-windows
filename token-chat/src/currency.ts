@@ -95,3 +95,47 @@ export function formatCurrencyNanos(
 ): string {
   return formatCurrencyAmount(nanos / 1_000_000_000, fractionDigits, currency);
 }
+
+const DEFAULT_RATES: ExchangeRateStore = {
+  CNY: { USD: 0.14, EUR: 0.13, GBP: 0.11, JPY: 20.5 },
+  USD: { CNY: 7.25, EUR: 0.92, GBP: 0.79, JPY: 149.5 },
+  EUR: { CNY: 7.85, USD: 1.09, GBP: 0.86, JPY: 162.0 },
+  GBP: { CNY: 9.15, USD: 1.27, EUR: 1.16, JPY: 189.0 },
+  JPY: { CNY: 0.049, USD: 0.0067, EUR: 0.0062, GBP: 0.0053 },
+};
+
+export async function fetchExchangeRates(): Promise<void> {
+  const store = readRateStore();
+  const hasAnyRate = Object.keys(store).some(base => Object.keys(store[base] ?? {}).length > 0);
+  if (hasAnyRate) return;
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/CNY');
+    if (!res.ok) throw new Error('fetch failed');
+    const data = await res.json();
+    if (data?.rates && typeof data.rates === 'object') {
+      const cnyRates: Record<string, number> = {};
+      for (const code of currencyOptions) {
+        if (code.value !== 'CNY' && typeof data.rates[code.value] === 'number') {
+          cnyRates[code.value] = data.rates[code.value];
+        }
+      }
+      if (Object.keys(cnyRates).length > 0) {
+        store['CNY'] = cnyRates;
+        for (const base of currencyOptions) {
+          if (base.value !== 'CNY' && cnyRates[base.value]) {
+            store[base.value] = store[base.value] ?? {};
+            store[base.value]['CNY'] = 1 / cnyRates[base.value];
+            for (const src of currencyOptions) {
+              if (src.value !== base.value && src.value !== 'CNY' && cnyRates[src.value]) {
+                store[base.value][src.value] = cnyRates[src.value] / cnyRates[base.value];
+              }
+            }
+          }
+        }
+        localStorage.setItem(EXCHANGE_RATE_KEY, JSON.stringify(store));
+        return;
+      }
+    }
+  } catch {}
+  localStorage.setItem(EXCHANGE_RATE_KEY, JSON.stringify(DEFAULT_RATES));
+}

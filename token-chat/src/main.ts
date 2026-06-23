@@ -24,7 +24,7 @@ import { loadBuiltinPrompt } from './prompt';
 import { applyThemePreferences } from './theme';
 import { bindDataTooltips } from './tooltip';
 import { applyFontSizePreferences } from './font-size';
-import { formatCurrencyAmount } from './currency';
+import { formatCurrencyAmount, fetchExchangeRates } from './currency';
 import { initCustomSelects } from './custom-select';
 import { initCustomDatePickers } from './custom-date-picker';
 import { clearDeclaredGlassPortals, mountDeclaredGlassPortals } from './liquid-glass';
@@ -153,9 +153,8 @@ function renderWindowTitlebar(): string {
 
 function renderSidebar() {
   const collapsed = state.page === 'chat' && state.sidebarCollapsed;
-  const secondary = state.page !== 'chat';
   return `
-    <aside class="chat-left glass-sidebar ${collapsed ? 'collapsed' : ''} ${secondary ? 'on-secondary-page' : ''}" id="chatLeft">
+    <aside class="chat-left glass-sidebar ${collapsed ? 'collapsed' : ''}" id="chatLeft">
       <div class="sidebar-brand-shell">
         <div class="sidebar-brand"><span class="brand-mark">${iconSvg('sparkles')}</span><span>${t('app.title')}</span></div>
       </div>
@@ -165,7 +164,6 @@ function renderSidebar() {
         <button class="sidebar-nav-btn glass-nav-item ${state.page === 'stats' ? 'active' : ''}" data-page="stats" aria-label="${t('nav.stats')}" ${state.page === 'stats' ? 'aria-current="page"' : ''}>${iconSvg('chart')}<span>${t('nav.stats')}</span></button>
         <button class="sidebar-nav-btn glass-nav-item ${state.page === 'settings' ? 'active' : ''}" data-page="settings" aria-label="${t('nav.settings')}" ${state.page === 'settings' ? 'aria-current="page"' : ''}>${iconSvg('gear')}<span>${t('nav.settings')}</span></button>
       </div>
-      ${state.page === 'chat' ? `
       <div class="chat-left-header">
         <h3>${t('chat.conversations')}</h3>
         <input class="chat-search glass-input glass-search-input" type="text" placeholder="${t('chat.search')}">
@@ -174,7 +172,6 @@ function renderSidebar() {
       <div class="chat-list" id="chatList">
         ${renderConversationList()}
       </div>
-      ` : '<div class="sidebar-secondary-fill"></div>'}
     </aside>
   `;
 }
@@ -295,4 +292,5 @@ applyFontSizePreferences();
 injectGlassRefractionFilters();
 initCustomSelects();
 initCustomDatePickers();
+fetchExchangeRates();
 render();
