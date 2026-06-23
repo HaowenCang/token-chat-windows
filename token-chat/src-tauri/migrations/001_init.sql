@@ -55,8 +55,15 @@ CREATE TABLE IF NOT EXISTS messages (
     status TEXT NOT NULL DEFAULT 'completed' CHECK(status IN ('completed', 'streaming', 'cancelled', 'failed')),
     attachments_json TEXT,
     tool_calls_json TEXT,
+    search_metadata_json TEXT,
     error TEXT,
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
 CREATE TABLE IF NOT EXISTS generation_runs (

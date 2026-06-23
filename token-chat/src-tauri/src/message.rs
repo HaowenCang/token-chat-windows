@@ -19,6 +19,7 @@ pub struct Message {
     pub status: String,
     pub attachments_json: Option<String>,
     pub tool_calls_json: Option<String>,
+    pub search_metadata_json: Option<String>,
     pub error: Option<String>,
     pub created_at: i64,
 }
@@ -30,7 +31,7 @@ pub fn list_messages(
 ) -> Result<Vec<Message>, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, conversation_id, parent_message_id, role, content_json, reasoning_content, provider_id, provider_name, model_id, model_name, status, attachments_json, tool_calls_json, error, created_at FROM messages WHERE conversation_id = ?1 ORDER BY created_at")
+        .prepare("SELECT id, conversation_id, parent_message_id, role, content_json, reasoning_content, provider_id, provider_name, model_id, model_name, status, attachments_json, tool_calls_json, search_metadata_json, error, created_at FROM messages WHERE conversation_id = ?1 ORDER BY created_at")
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(params![conversation_id], |row| {
@@ -48,8 +49,9 @@ pub fn list_messages(
                 status: row.get(10)?,
                 attachments_json: row.get(11)?,
                 tool_calls_json: row.get(12)?,
-                error: row.get(13)?,
-                created_at: row.get(14)?,
+                search_metadata_json: row.get(13)?,
+                error: row.get(14)?,
+                created_at: row.get(15)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -62,14 +64,15 @@ pub fn save_user_message(
     conversation_id: String,
     content: String,
     attachments_json: Option<String>,
+    search_metadata_json: Option<String>,
 ) -> Result<Message, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
     let content_json = serde_json::json!({"text": content}).to_string();
     conn.execute(
-        "INSERT INTO messages (id, conversation_id, role, content_json, status, attachments_json, created_at) VALUES (?1, ?2, 'user', ?3, 'completed', ?4, ?5)",
-        params![id, conversation_id, content_json, attachments_json, now],
+        "INSERT INTO messages (id, conversation_id, role, content_json, status, attachments_json, search_metadata_json, created_at) VALUES (?1, ?2, 'user', ?3, 'completed', ?4, ?5, ?6)",
+        params![id, conversation_id, content_json, attachments_json, search_metadata_json, now],
     )
     .map_err(|e| e.to_string())?;
     conn.execute(
@@ -91,6 +94,7 @@ pub fn save_user_message(
         status: "completed".to_string(),
         attachments_json,
         tool_calls_json: None,
+        search_metadata_json,
         error: None,
         created_at: now,
     })
@@ -107,14 +111,15 @@ pub fn save_assistant_message(
     model_id: String,
     model_name: String,
     status: String,
+    search_metadata_json: Option<String>,
 ) -> Result<Message, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
     let content_json = serde_json::json!({"text": content}).to_string();
     conn.execute(
-        "INSERT INTO messages (id, conversation_id, role, content_json, reasoning_content, provider_id, provider_name, model_id, model_name, status, created_at) VALUES (?1, ?2, 'assistant', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        params![id, conversation_id, content_json, reasoning, provider_id, provider_name, model_id, model_name, status, now],
+        "INSERT INTO messages (id, conversation_id, role, content_json, reasoning_content, provider_id, provider_name, model_id, model_name, status, search_metadata_json, created_at) VALUES (?1, ?2, 'assistant', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        params![id, conversation_id, content_json, reasoning, provider_id, provider_name, model_id, model_name, status, search_metadata_json, now],
     )
     .map_err(|e| e.to_string())?;
     conn.execute(
@@ -136,6 +141,7 @@ pub fn save_assistant_message(
         status,
         attachments_json: None,
         tool_calls_json: None,
+        search_metadata_json,
         error: None,
         created_at: now,
     })

@@ -1,11 +1,21 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { state, type Conversation, type Message, type Model } from './state';
 import { getLang, t } from './i18n';
 import { getEffectiveSystemPrompt } from './prompt';
 import { tooltipAttrs } from './tooltip';
 import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
 import { showGlassAlert, showGlassPrompt } from './glass-dialog';
+import {
+  buildSearchAugmentedPrompt,
+  cancelWebSearch,
+  getSearchConfigSnapshot,
+  getSearchProvider,
+  isSafeSourceUrl,
+  parseSearchMetadata,
+  type MessageSearchMetadata,
+} from './web-search';
 
 declare global {
   interface Window {
@@ -142,6 +152,7 @@ interface LiveTokenUsage {
 }
 
 interface StreamCapture {
+  sendId: number;
   conversationId: string;
   messagesForApi: ApiMessage[];
   model: Model;
@@ -153,12 +164,27 @@ let currentTokenUsage: ConversationTokenUsage | null = null;
 let liveTokenUsage: LiveTokenUsage | null = null;
 let selectedAttachments: MessageAttachment[] = [];
 let selectionCopyFallbackBound = false;
+let sendSequence = 0;
+let activeSendId = 0;
+const cancelledSendIds = new Set<number>();
+let sendPreparationInProgress = false;
+let webSearchPhase: 'idle' | 'searching' | 'success' | 'error' = 'idle';
+let webSearchStatusText = '';
 
 const MAX_TEXT_ATTACHMENT_BYTES = 180_000;
 const MAX_IMAGE_ATTACHMENT_BYTES = 4_000_000;
 
 function escHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function isChatWebSearchEnabled(): boolean {
+  return getSearchConfigSnapshot().config.enabled && localStorage.getItem('tc-chat-web-search-enabled') === 'true';
+}
+
+function setWebSearchPhase(phase: typeof webSearchPhase, text = ''): void {
+  webSearchPhase = phase;
+  webSearchStatusText = text;
 }
 
 function formatFileSize(size: number): string {
@@ -783,6 +809,7 @@ function renderMessage(msg: Message): string {
   }
   bubbleInner += `<div class="msg-content">${renderMarkdown(content)}</div>`;
   bubbleInner += renderMessageAttachments(attachments);
+  bubbleInner += renderMessageSearchMetadata(msg, isUser);
 
   let statusHtml = '';
   if (msg.status === 'streaming') {
@@ -803,6 +830,52 @@ function renderMessage(msg: Message): string {
       </div>
     </div>
   `;
+}
+
+function renderMessageSearchMetadata(msg: Message, isUser: boolean): string {
+  const metadata = parseSearchMetadata(msg.search_metadata_json);
+  if (!metadata) return '';
+  if (metadata.error) {
+    if (!isUser) return '';
+    const brief = metadata.error.length > 140 ? `${metadata.error.slice(0, 139)}…` : metadata.error;
+    return `<div class="message-search-state is-error" title="${escHtml(brief)}"><span aria-hidden="true">!</span> 搜索失败，已降级为普通对话</div>`;
+  }
+  if (metadata.results.length === 0) {
+    return isUser ? '<div class="message-search-state is-empty">未检索到可用网络结果</div>' : '';
+  }
+  if (isUser) {
+    return `<div class="message-search-state is-success"><span class="search-pulse-dot"></span>已检索 ${metadata.results.length} 条结果</div>`;
+  }
+  const sources = metadata.results
+    .filter(result => isSafeSourceUrl(result.url))
+    .map((result, index) => `
+      <li class="message-source-item">
+        <span class="message-source-index">${index + 1}</span>
+        <div class="message-source-copy">
+          <button class="message-source-title" type="button" data-open-source-url="${escHtml(result.url)}">${escHtml(result.title)}</button>
+          <div class="message-source-meta">
+            <span>${escHtml(result.source || sourceHost(result.url))}</span>
+            <span class="message-source-url">${escHtml(result.url)}</span>
+            ${result.publishedAt ? `<span>${escHtml(result.publishedAt)}</span>` : ''}
+          </div>
+        </div>
+        <button class="message-source-open" type="button" data-open-source-url="${escHtml(result.url)}" aria-label="用系统浏览器打开来源">↗</button>
+      </li>`)
+    .join('');
+  if (!sources) return '';
+  return `
+    <details class="message-sources">
+      <summary><span>来源</span><span class="glass-chip">${metadata.results.length}</span></summary>
+      <ol>${sources}</ol>
+    </details>`;
+}
+
+function sourceHost(value: string): string {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return '网页来源';
+  }
 }
 
 function parseContent(contentJson: string): string {
@@ -858,9 +931,21 @@ function bindSelectionCopyFallback(): void {
 
 export function renderChatInput(): string {
   const streaming = state.isStreaming;
+  const searchFeatureEnabled = getSearchConfigSnapshot().config.enabled;
+  const searchEnabled = isChatWebSearchEnabled();
+  const searchStatus = webSearchPhase !== 'idle' && webSearchStatusText
+    ? `<span class="web-search-live-status is-${webSearchPhase}" aria-live="polite">${webSearchPhase === 'searching' ? '<span class="spinner"></span>' : ''}${escHtml(webSearchStatusText)}</span>`
+    : '';
   return `
     <div class="chat-input-area">
       ${renderAttachmentDrafts()}
+      <div class="chat-input-tools">
+        <button class="web-search-toggle ${searchEnabled ? 'is-on' : ''}" id="webSearchToggle" type="button" role="switch" aria-checked="${searchEnabled}" ${!searchFeatureEnabled || streaming ? 'disabled' : ''} title="${searchFeatureEnabled ? '发送前检索网络资料' : '请先在设置中配置并启用网络搜索'}">
+          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/><path d="M3.8 12h16.4M12 3.5c2.2 2.3 3.4 5.1 3.4 8.5S14.2 18.2 12 20.5M12 3.5C9.8 5.8 8.6 8.6 8.6 12s1.2 6.2 3.4 8.5"/></svg>
+          <span>联网搜索</span>
+        </button>
+        ${searchStatus}
+      </div>
       <div class="chat-input-wrap">
         <input type="file" id="attachmentInput" multiple class="hidden">
         <button class="attach-btn" id="attachBtn" title="${t('chat.attach')}" aria-label="${t('chat.attach')}">
@@ -1059,15 +1144,24 @@ export async function renameCurrentConversation(): Promise<void> {
 
 export async function handleSend(): Promise<void> {
   let pendingAssistantMsg: Message | null = null;
+  let ownsPreparation = false;
   try {
     if (state.isStreaming) {
-      try { await invoke('cancel_generation'); } catch {}
+      cancelledSendIds.add(activeSendId);
+      const streamingMessage = state.messages.find(message => message.status === 'streaming');
+      if (streamingMessage) streamingMessage.status = 'cancelled';
+      await Promise.allSettled([invoke('cancel_generation'), cancelWebSearch()]);
       state.isStreaming = false;
+      setWebSearchPhase('idle');
       liveTokenUsage = null;
+      renderChatArea();
       renderChatInputInDom();
       renderRightPanelInDom();
       return;
     }
+    if (sendPreparationInProgress) return;
+    sendPreparationInProgress = true;
+    ownsPreparation = true;
 
     const input = document.getElementById('chatInput') as HTMLTextAreaElement | null;
     if (!input) return;
@@ -1111,14 +1205,78 @@ export async function handleSend(): Promise<void> {
     selectedAttachments = [];
     autoResizeTextarea(input);
 
+    const sendId = ++sendSequence;
+    activeSendId = sendId;
+    let searchMetadata: MessageSearchMetadata | null = null;
+    let augmentedUserText = text;
+    const shouldSearch = isChatWebSearchEnabled() && Boolean(text);
+
+    if (shouldSearch) {
+      const searchConfig = getSearchConfigSnapshot().config;
+      const searchProvider = getSearchProvider(searchConfig.providerId);
+      state.isStreaming = true;
+      setWebSearchPhase('searching', '正在搜索网络…');
+      renderChatInputInDom();
+
+      searchMetadata = {
+        enabled: true,
+        query: text,
+        results: [],
+        searchedAt: new Date().toISOString(),
+        providerId: searchConfig.providerId,
+      };
+
+      if (!searchProvider) {
+        searchMetadata.error = '未配置可用的 Search Provider';
+        setWebSearchPhase('error', '搜索 Provider 不可用，已使用普通对话继续');
+      } else {
+        try {
+          const response = await searchProvider.search(text, {
+            maxResults: searchConfig.defaultMaxResults,
+            freshness: 'any',
+            language: searchConfig.defaultLanguage === 'auto' ? getLang() : searchConfig.defaultLanguage,
+            region: searchConfig.defaultRegion,
+            safeSearch: searchConfig.safeSearch,
+          });
+          searchMetadata.results = response.results;
+          searchMetadata.searchedAt = response.searchedAt;
+          searchMetadata.providerId = response.providerId;
+          augmentedUserText = buildSearchAugmentedPrompt(text, response.results, { language: getLang() });
+          setWebSearchPhase('success', `已检索 ${response.results.length} 条结果`);
+        } catch (error) {
+          const message = String(error);
+          if (cancelledSendIds.has(sendId) || message.includes('SEARCH_CANCELLED')) {
+            state.isStreaming = false;
+            setWebSearchPhase('idle');
+            selectedAttachments = attachments;
+            renderChatInputInDom();
+            const restoredInput = document.getElementById('chatInput') as HTMLTextAreaElement | null;
+            if (restoredInput) {
+              restoredInput.value = text;
+              autoResizeTextarea(restoredInput);
+            }
+            cancelledSendIds.delete(sendId);
+            return;
+          }
+          searchMetadata.error = message.length > 300 ? `${message.slice(0, 299)}…` : message;
+          setWebSearchPhase('error', '搜索失败，已使用普通对话继续');
+          console.warn('Web Search failed; continuing without search:', searchMetadata.error);
+        }
+      }
+    }
+
     let savedUserMessage: Message;
     try {
       savedUserMessage = await invoke<Message>('save_user_message', {
         conversationId,
         content: text,
         attachmentsJson: attachments.length > 0 ? JSON.stringify(attachments) : null,
+        searchMetadataJson: searchMetadata ? JSON.stringify(searchMetadata) : null,
       });
     } catch (e) {
+      state.isStreaming = false;
+      setWebSearchPhase('idle');
+      renderChatInputInDom();
       await showGlassAlert('Failed to save message: ' + String(e));
       return;
     }
@@ -1136,6 +1294,7 @@ export async function handleSend(): Promise<void> {
       model_name: model.model_name,
       status: 'streaming',
       attachments_json: null,
+      search_metadata_json: searchMetadata ? JSON.stringify(searchMetadata) : null,
       created_at: Math.floor(Date.now() / 1000),
     };
     state.messages.push(assistantMsg);
@@ -1155,13 +1314,15 @@ export async function handleSend(): Promise<void> {
     state.messages
       .filter(m => m.id !== assistantMsg.id)
       .forEach(m => {
+        const messageText = m.id === savedUserMessage.id ? augmentedUserText : parseContent(m.content_json);
         messagesForApi.push({
           role: m.role,
-          content: buildApiContent(parseContent(m.content_json), parseAttachments(m.attachments_json)),
+          content: buildApiContent(messageText, parseAttachments(m.attachments_json)),
         });
       });
 
     const capture: StreamCapture = {
+      sendId,
       conversationId,
       messagesForApi,
       model,
@@ -1193,6 +1354,10 @@ export async function handleSend(): Promise<void> {
     });
     cleanupStreamListeners();
 
+    if (cancelledSendIds.has(sendId)) {
+      assistantMsg.status = 'cancelled';
+    }
+
     const assistantContent = parseContent(assistantMsg.content_json);
     let savedAssistant: Message | null = null;
     try {
@@ -1204,7 +1369,8 @@ export async function handleSend(): Promise<void> {
         providerName: provider.name,
         modelId: model.id,
         modelName: model.model_name,
-        status: assistantMsg.status === 'failed' ? 'failed' : 'completed',
+        status: assistantMsg.status === 'failed' ? 'failed' : assistantMsg.status === 'cancelled' ? 'cancelled' : 'completed',
+        searchMetadataJson: searchMetadata ? JSON.stringify(searchMetadata) : null,
       });
       assistantMsg.id = savedAssistant.id;
       assistantMsg.status = savedAssistant.status;
@@ -1222,7 +1388,7 @@ export async function handleSend(): Promise<void> {
           assistant_message_id: savedAssistant?.id ?? null,
           provider_id: provider.id,
           model_id: model.id,
-          status: assistantMsg.status === 'failed' ? 'failed' : 'completed',
+          status: assistantMsg.status === 'failed' ? 'failed' : assistantMsg.status === 'cancelled' ? 'cancelled' : 'completed',
           uncached_input_tokens: parts.uncachedInput,
           cache_read_input_tokens: parts.cachedInput,
           cache_write_input_tokens: parts.cacheWriteInput,
@@ -1239,6 +1405,9 @@ export async function handleSend(): Promise<void> {
     } catch (e) {
       console.error('Failed to record token usage:', e);
     }
+    cancelledSendIds.delete(sendId);
+    setWebSearchPhase('idle');
+    renderChatInputInDom();
   } catch (e) {
     state.isStreaming = false;
     if (pendingAssistantMsg) {
@@ -1250,6 +1419,8 @@ export async function handleSend(): Promise<void> {
     renderChatInputInDom();
     renderRightPanelInDom();
     await showGlassAlert('Send failed: ' + String(e));
+  } finally {
+    if (ownsPreparation) sendPreparationInProgress = false;
   }
 }
 
@@ -1275,7 +1446,7 @@ async function setupStreamListeners(assistantMsgId: string, capture: StreamCaptu
     updateLiveTokenUsage(capture, parseContent(assistantMsg.content_json));
     renderRightPanelInDom();
     if (chunk.done) {
-      assistantMsg.status = 'completed';
+      assistantMsg.status = cancelledSendIds.has(capture.sendId) ? 'cancelled' : 'completed';
       state.isStreaming = false;
       renderChatInputInDom();
     }
@@ -1402,6 +1573,18 @@ export function renderRightPanelInDom(): void {
 }
 
 function bindMessageEvents(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-open-source-url]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const url = button.dataset.openSourceUrl ?? '';
+      if (!isSafeSourceUrl(url)) return;
+      try {
+        await openUrl(url);
+      } catch (error) {
+        console.error('Failed to open source URL:', error);
+      }
+    });
+  });
+
   document.querySelectorAll<HTMLButtonElement>('[data-copy-msg-id]').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -1464,6 +1647,14 @@ export function bindChatInputEvents(): void {
   if (sendBtn) {
     sendBtn.addEventListener('click', () => handleSend());
   }
+
+  const webSearchToggle = document.getElementById('webSearchToggle') as HTMLButtonElement | null;
+  webSearchToggle?.addEventListener('click', () => {
+    if (webSearchToggle.disabled || state.isStreaming) return;
+    const next = webSearchToggle.getAttribute('aria-checked') !== 'true';
+    localStorage.setItem('tc-chat-web-search-enabled', String(next));
+    rerenderChatInputPreservingDraft();
+  });
 
   const attachBtn = document.getElementById('attachBtn');
   const attachmentInput = document.getElementById('attachmentInput') as HTMLInputElement | null;

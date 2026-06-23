@@ -5,6 +5,7 @@ mod message;
 mod prompt;
 mod provider;
 mod stats;
+mod web_search;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -37,6 +38,11 @@ pub fn run() {
             provider::discover_models,
             chat::send_message,
             chat::cancel_generation,
+            web_search::get_search_config,
+            web_search::save_search_config,
+            web_search::test_search_connection,
+            web_search::search_web,
+            web_search::cancel_search,
             prompt::get_builtin_prompt,
             stats::record_generation_run,
             stats::get_conversation_token_usage,

@@ -1,4 +1,4 @@
-export type LiquidGlassLayer = 'dropdown' | 'popover' | 'tooltip' | 'modal' | 'dialog' | 'notice';
+export type LiquidGlassLayer = 'dropdown' | 'popover' | 'tooltip' | 'modal' | 'dialog' | 'notice' | 'date-picker';
 
 export interface FloatingPlacementOptions {
   anchor?: Element;

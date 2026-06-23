@@ -22,6 +22,14 @@ import {
   setDisplayCurrency,
   setExchangeRate,
 } from './currency';
+import {
+  getSearchConfigSnapshot,
+  saveSearchConfig,
+  testSearchConnection,
+  type SearchProviderConfig,
+} from './web-search';
+
+let clearSearchApiKeyRequested = false;
 
 export function renderSettingsPage(): string {
   const sendKey = localStorage.getItem('tc-send-key') || 'enter';
@@ -133,6 +141,8 @@ export function renderSettingsPage(): string {
           </div>
         </div>
 
+        ${renderWebSearchSettings()}
+
         ${renderFontSizeSettings()}
 
         <div class="settings-section glass-card">
@@ -191,7 +201,119 @@ function renderPromptList(): string {
 }
 
 function escHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function renderSwitch(id: string, checked: boolean, label: string): string {
+  return `
+    <button class="glass-switch ${checked ? 'is-on' : ''}" id="${id}" type="button" role="switch" aria-checked="${checked}" aria-label="${escHtml(label)}">
+      <span class="glass-switch-track"><span class="glass-switch-thumb"></span></span>
+      <span class="glass-switch-label">${escHtml(checked ? '已开启' : '已关闭')}</span>
+    </button>`;
+}
+
+function renderWebSearchSettings(): string {
+  const { config, hasApiKey } = getSearchConfigSnapshot();
+  return `
+    <div class="settings-section glass-card web-search-settings">
+      <div class="settings-section-heading">
+        <div>
+          <h3 class="settings-section-title">网络搜索</h3>
+          <p class="settings-section-copy">通过可配置的 HTTP JSON Search Provider 检索资料，并在桌面端后端代理请求。</p>
+        </div>
+        <span class="glass-chip">Web Search</span>
+      </div>
+      <div class="settings-row">
+        <label>启用网络搜索</label>
+        ${renderSwitch('searchFeatureEnabled', config.enabled, '启用网络搜索')}
+      </div>
+      <div class="settings-row">
+        <label for="searchProviderId">默认 Provider</label>
+        <select class="chat-search glass-select" id="searchProviderId" style="width:260px">
+          <option value="http-json" ${config.providerId === 'http-json' ? 'selected' : ''}>HTTP JSON Search</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <label for="searchBaseUrl">Search API Base URL</label>
+        <input class="chat-search glass-input web-search-wide-input" id="searchBaseUrl" type="url" spellcheck="false" placeholder="https://search.example.com/api/search" value="${escHtml(config.baseUrl)}">
+      </div>
+      <div class="settings-row">
+        <label for="searchApiKey">Search API Key</label>
+        <div class="secret-input-row">
+          <input class="chat-search glass-input" id="searchApiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="${hasApiKey ? '已保存；留空则保留' : '可选'}">
+          <button class="tool-btn glass-button glass-button--secondary" id="toggleSearchApiKey" type="button" aria-label="显示 API Key">显示</button>
+          ${hasApiKey ? '<button class="tool-btn glass-button glass-button--danger" id="clearSearchApiKey" type="button">清除已保存 Key</button>' : ''}
+        </div>
+      </div>
+      <div class="settings-row">
+        <label for="searchMaxResults">默认结果数量</label>
+        <select class="chat-search glass-select" id="searchMaxResults" style="width:180px">
+          ${[3, 5, 8, 10].map(count => `<option value="${count}" ${config.defaultMaxResults === count ? 'selected' : ''}>${count} 条</option>`).join('')}
+        </select>
+      </div>
+      <div class="settings-row">
+        <label for="searchLanguage">默认语言</label>
+        <select class="chat-search glass-select" id="searchLanguage" style="width:220px">
+          <option value="auto" ${config.defaultLanguage === 'auto' ? 'selected' : ''}>跟随应用语言</option>
+          <option value="zh" ${config.defaultLanguage === 'zh' ? 'selected' : ''}>中文</option>
+          <option value="en" ${config.defaultLanguage === 'en' ? 'selected' : ''}>English</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <label for="searchRegion">默认地区</label>
+        <input class="chat-search glass-input" id="searchRegion" type="text" placeholder="例如 CN、US；可留空" value="${escHtml(config.defaultRegion)}">
+      </div>
+      <div class="settings-row">
+        <label>Safe Search</label>
+        ${renderSwitch('searchSafeSearch', config.safeSearch, 'Safe Search')}
+      </div>
+      <div class="settings-row">
+        <label for="searchTimeout">搜索超时</label>
+        <div class="glass-input-suffix web-search-timeout">
+          <input class="chat-search glass-input" id="searchTimeout" type="number" min="1000" max="120000" step="500" value="${config.timeoutMs}">
+          <span class="glass-input-suffix__label">ms</span>
+        </div>
+      </div>
+      <details class="web-search-advanced">
+        <summary>高级 HTTP 适配器设置</summary>
+        <p class="settings-form-help">可配置鉴权、查询参数与响应 JSON 字段映射，便于接入 Bing、Brave、Tavily、SerpAPI、SearXNG 或自建服务。</p>
+        <div class="web-search-advanced-grid">
+          ${renderSearchTextField('searchApiKeyHeader', 'API Key Header', config.apiKeyHeader, 'Authorization')}
+          ${renderSearchTextField('searchApiKeyPrefix', 'API Key Prefix', config.apiKeyPrefix, 'Bearer ')}
+          ${renderSearchTextField('searchApiKeyQueryParam', 'API Key Query 参数', config.apiKeyQueryParam, '可留空')}
+          ${renderSearchTextField('searchQueryParam', '搜索词参数', config.queryParam, 'q')}
+          ${renderSearchTextField('searchCountParam', '结果数量参数', config.resultCountParam, 'count')}
+          ${renderSearchTextField('searchLanguageParam', '语言参数', config.languageParam, 'language')}
+          ${renderSearchTextField('searchRegionParam', '地区参数', config.regionParam, 'region')}
+          ${renderSearchTextField('searchSafeParam', 'Safe Search 参数', config.safeSearchParam, 'safeSearch')}
+          ${renderSearchTextField('searchFreshnessParam', '时效参数', config.freshnessParam, 'freshness')}
+          ${renderSearchTextField('searchResultsPath', '结果数组路径', config.resultsPath, 'results / web.results')}
+          ${renderSearchTextField('searchTitleField', '标题字段', config.titleField, 'title')}
+          ${renderSearchTextField('searchUrlField', 'URL 字段', config.urlField, 'url')}
+          ${renderSearchTextField('searchSnippetField', '摘要字段', config.snippetField, 'snippet')}
+          ${renderSearchTextField('searchSourceField', '来源字段', config.sourceField, 'source')}
+          ${renderSearchTextField('searchPublishedField', '发布时间字段', config.publishedAtField, 'publishedAt')}
+        </div>
+        <div class="glass-form-field web-search-headers-field">
+          <label for="searchExtraHeaders">额外请求头（JSON，不要在此填写 API Key）</label>
+          <textarea class="chat-search glass-textarea" id="searchExtraHeaders" rows="3" spellcheck="false">${escHtml(config.extraHeadersJson)}</textarea>
+        </div>
+      </details>
+      <div class="web-search-actions">
+        <button class="test-btn glass-button glass-button--primary" id="saveSearchSettings" type="button">保存网络搜索设置</button>
+        <button class="tool-btn glass-button glass-button--secondary" id="testSearchConnection" type="button">测试搜索连接</button>
+        <span class="settings-form-help">测试会使用 “OpenAI” 作为示例查询，不显示或记录完整 API Key。</span>
+      </div>
+      <div class="test-result liquid-glass liquid-glass--notice" id="searchTestResult" aria-live="polite"></div>
+    </div>`;
+}
+
+function renderSearchTextField(id: string, label: string, value: string, placeholder: string): string {
+  return `
+    <div class="glass-form-field">
+      <label for="${id}">${escHtml(label)}</label>
+      <input class="chat-search glass-input" id="${id}" type="text" spellcheck="false" placeholder="${escHtml(placeholder)}" value="${escHtml(value)}">
+    </div>`;
 }
 
 function renderExchangeRateFields(baseCurrency: CurrencyCode): string {
@@ -223,8 +345,144 @@ function bindExchangeRateInputs(): void {
   });
 }
 
+function getInputValue(id: string): string {
+  return (document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null)?.value.trim() ?? '';
+}
+
+function getSwitchValue(id: string): boolean {
+  return document.getElementById(id)?.getAttribute('aria-checked') === 'true';
+}
+
+function bindGlassSwitch(id: string): void {
+  const button = document.getElementById(id) as HTMLButtonElement | null;
+  if (!button) return;
+  button.addEventListener('click', () => {
+    const checked = button.getAttribute('aria-checked') !== 'true';
+    button.setAttribute('aria-checked', String(checked));
+    button.classList.toggle('is-on', checked);
+    const label = button.querySelector<HTMLElement>('.glass-switch-label');
+    if (label) label.textContent = checked ? '已开启' : '已关闭';
+  });
+}
+
+function readSearchConfigForm(): SearchProviderConfig {
+  const previous = getSearchConfigSnapshot().config;
+  return {
+    enabled: getSwitchValue('searchFeatureEnabled'),
+    providerId: getInputValue('searchProviderId') || 'http-json',
+    baseUrl: getInputValue('searchBaseUrl'),
+    apiKeyHeader: getInputValue('searchApiKeyHeader'),
+    apiKeyPrefix: (document.getElementById('searchApiKeyPrefix') as HTMLInputElement | null)?.value ?? '',
+    apiKeyQueryParam: getInputValue('searchApiKeyQueryParam'),
+    queryParam: getInputValue('searchQueryParam') || 'q',
+    resultCountParam: getInputValue('searchCountParam'),
+    languageParam: getInputValue('searchLanguageParam'),
+    regionParam: getInputValue('searchRegionParam'),
+    safeSearchParam: getInputValue('searchSafeParam'),
+    freshnessParam: getInputValue('searchFreshnessParam'),
+    resultsPath: getInputValue('searchResultsPath'),
+    titleField: getInputValue('searchTitleField') || 'title',
+    urlField: getInputValue('searchUrlField') || 'url',
+    snippetField: getInputValue('searchSnippetField') || 'snippet',
+    sourceField: getInputValue('searchSourceField'),
+    publishedAtField: getInputValue('searchPublishedField'),
+    extraHeadersJson: getInputValue('searchExtraHeaders') || '{}',
+    defaultMaxResults: Number(getInputValue('searchMaxResults')) || previous.defaultMaxResults,
+    defaultLanguage: getInputValue('searchLanguage') || 'auto',
+    defaultRegion: getInputValue('searchRegion'),
+    safeSearch: getSwitchValue('searchSafeSearch'),
+    timeoutMs: Number(getInputValue('searchTimeout')) || previous.timeoutMs,
+  };
+}
+
+function setSearchResultNotice(kind: 'idle' | 'loading' | 'ok' | 'fail', html: string): void {
+  const result = document.getElementById('searchTestResult');
+  if (!result) return;
+  result.classList.toggle('show', kind !== 'idle');
+  result.classList.toggle('ok', kind === 'ok');
+  result.classList.toggle('fail', kind === 'fail');
+  result.innerHTML = html;
+}
+
+async function persistSearchSettings(): Promise<void> {
+  const apiKeyInput = document.getElementById('searchApiKey') as HTMLInputElement | null;
+  const view = await saveSearchConfig(
+    readSearchConfigForm(),
+    apiKeyInput?.value,
+    clearSearchApiKeyRequested,
+  );
+  clearSearchApiKeyRequested = false;
+  if (apiKeyInput) {
+    apiKeyInput.value = '';
+    apiKeyInput.placeholder = view.hasApiKey ? '已保存；留空则保留' : '可选';
+  }
+}
+
+function bindWebSearchSettings(): void {
+  bindGlassSwitch('searchFeatureEnabled');
+  bindGlassSwitch('searchSafeSearch');
+
+  const apiKeyInput = document.getElementById('searchApiKey') as HTMLInputElement | null;
+  const revealButton = document.getElementById('toggleSearchApiKey') as HTMLButtonElement | null;
+  revealButton?.addEventListener('click', () => {
+    if (!apiKeyInput) return;
+    const showing = apiKeyInput.type === 'text';
+    apiKeyInput.type = showing ? 'password' : 'text';
+    revealButton.textContent = showing ? '显示' : '隐藏';
+    revealButton.setAttribute('aria-label', showing ? '显示 API Key' : '隐藏 API Key');
+  });
+
+  document.getElementById('clearSearchApiKey')?.addEventListener('click', event => {
+    clearSearchApiKeyRequested = true;
+    if (apiKeyInput) {
+      apiKeyInput.value = '';
+      apiKeyInput.placeholder = '保存后清除';
+    }
+    const button = event.currentTarget as HTMLButtonElement;
+    button.textContent = '待保存清除';
+    button.disabled = true;
+  });
+
+  const saveButton = document.getElementById('saveSearchSettings') as HTMLButtonElement | null;
+  saveButton?.addEventListener('click', async () => {
+    saveButton.disabled = true;
+    setSearchResultNotice('loading', '正在保存网络搜索设置…');
+    try {
+      await persistSearchSettings();
+      setSearchResultNotice('ok', '网络搜索设置已保存。API Key 不会回传到设置页。');
+    } catch (error) {
+      setSearchResultNotice('fail', `保存失败：${escHtml(String(error))}`);
+    } finally {
+      saveButton.disabled = false;
+    }
+  });
+
+  const testButton = document.getElementById('testSearchConnection') as HTMLButtonElement | null;
+  testButton?.addEventListener('click', async () => {
+    testButton.disabled = true;
+    setSearchResultNotice('loading', '<span class="spinner"></span> 正在测试搜索连接…');
+    try {
+      await persistSearchSettings();
+      const result = await testSearchConnection();
+      if (result.success) {
+        const examples = result.results.slice(0, 3)
+          .map(item => `<li><strong>${escHtml(item.title)}</strong><span>${escHtml(item.source || '')}</span></li>`)
+          .join('');
+        setSearchResultNotice('ok', `连接成功 · ${result.latencyMs} ms · ${result.resultCount} 条结果${examples ? `<ul class="search-test-examples">${examples}</ul>` : ''}`);
+      } else {
+        setSearchResultNotice('fail', `连接失败：${escHtml(result.error || '未知错误')}`);
+      }
+    } catch (error) {
+      setSearchResultNotice('fail', `连接失败：${escHtml(String(error))}`);
+    } finally {
+      testButton.disabled = false;
+    }
+  });
+}
+
 export function bindSettingsEvents(): void {
   bindFontSizeSettings();
+  bindWebSearchSettings();
 
   const langSelect = document.getElementById('settingsLang') as HTMLSelectElement | null;
   if (langSelect) {

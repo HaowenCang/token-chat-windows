@@ -134,7 +134,7 @@ function openPicker(input: HTMLInputElement, trigger: HTMLButtonElement) {
   closePicker();
   const selected = parseDateKey(input.value) || new Date();
   const popover = document.createElement('div');
-  popover.className = liquidGlassClasses('popover', 'glass-date-popover glass-dropdown');
+  popover.className = liquidGlassClasses('date-picker', 'glass-date-popover');
   popover.setAttribute('role', 'dialog');
   popover.setAttribute('aria-modal', 'false');
   popover.setAttribute('aria-label', trigger.getAttribute('aria-label') || 'Choose date');

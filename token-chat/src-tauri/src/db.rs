@@ -16,6 +16,23 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
     conn.execute_batch(include_str!("../migrations/001_init.sql"))?;
 
+    // Existing installations predate structured web-search metadata. SQLite does
+    // not support `ADD COLUMN IF NOT EXISTS`, so inspect the schema first.
+    let has_search_metadata = {
+        let mut stmt = conn.prepare("PRAGMA table_info(messages)")?;
+        let columns: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .collect();
+        columns.iter().any(|name| name == "search_metadata_json")
+    };
+    if !has_search_metadata {
+        conn.execute(
+            "ALTER TABLE messages ADD COLUMN search_metadata_json TEXT",
+            [],
+        )?;
+    }
+
     app.manage(DbConn(Mutex::new(conn)));
     Ok(())
 }

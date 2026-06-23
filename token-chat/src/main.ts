@@ -2,6 +2,7 @@ import './styles.css';
 import './unified-shell.css';
 import './glass-system.css';
 import './liquid-glass.css';
+import { injectGlassRefractionFilters } from './glass-caustics';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { state, type Page } from './state';
@@ -27,6 +28,7 @@ import { formatCurrencyAmount } from './currency';
 import { initCustomSelects } from './custom-select';
 import { initCustomDatePickers } from './custom-date-picker';
 import { clearDeclaredGlassPortals, mountDeclaredGlassPortals } from './liquid-glass';
+import { loadSearchConfig } from './web-search';
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -228,6 +230,7 @@ export async function render() {
   const app = document.getElementById('app')!;
   await loadBuiltinPrompt();
   if (state.page === 'chat') {
+    await loadSearchConfig();
     if (state.conversations.length === 0) await loadConversations();
     if (state.providers.length === 0) await loadProviders();
     if (state.conversations.length > 0 && !state.currentConversationId) {
@@ -239,6 +242,9 @@ export async function render() {
   }
   if (state.page === 'stats') {
     await loadStats();
+  }
+  if (state.page === 'settings') {
+    await loadSearchConfig();
   }
   const currentTheme = localStorage.getItem('tc-theme') || 'midnight';
   applyThemePreferences();
@@ -286,6 +292,7 @@ export async function render() {
 }
 
 applyFontSizePreferences();
+injectGlassRefractionFilters();
 initCustomSelects();
 initCustomDatePickers();
 render();

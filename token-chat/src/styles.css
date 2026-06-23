@@ -1,5 +1,5 @@
-/* ══════════════════════════════════════════════════�?   Token Chat �?Design System & Styles
-   ══════════════════════════════════════════════════�?*/
+/* ══════════════════════════════════════════════════�?   Token Chat �?Design System & Styles
+   ══════════════════════════════════════════════════�?*/
 
 /* ── 1. CSS Custom Properties ── */
 :root, [data-theme="midnight"] {
@@ -222,7 +222,7 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 
-/* ── 3. Layout �?Three-Panel Grid ── */
+/* ── 3. Layout �?Three-Panel Grid ── */
 #app {
   display: flex;
   flex-direction: column;
@@ -1023,39 +1023,24 @@ body {
     inset 0 -1px rgba(255, 255, 255, .10);
 }
 .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"] {
-  --glass-fill: rgba(18, 24, 32, .012);
-  --glass-border: rgba(255, 255, 255, .24);
-  --glass-sheen: rgba(255, 255, 255, .06);
+  --glass-fill: rgba(18, 24, 32, .006);
+  --glass-border: rgba(255, 255, 255, .16);
+  --glass-sheen: rgba(255, 255, 255, .03);
   --glass-blur: 1px;
-  --glass-saturation: 1.04;
+  --glass-saturation: 1.01;
 }
 .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"] {
-  --glass-fill: rgba(18, 24, 32, .24);
-  --glass-border: rgba(255, 255, 255, .54);
-  --glass-sheen: rgba(255, 255, 255, .32);
   --glass-blur: 18px;
-  --glass-saturation: 1.5;
 }
 .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"] {
-  --glass-fill: rgba(18, 24, 32, .52);
-  --glass-border: rgba(255, 255, 255, .62);
-  --glass-sheen: rgba(255, 255, 255, .38);
   --glass-blur: 30px;
-  --glass-saturation: 1.7;
 }
 [data-theme="ocean"] .data-tooltip-bubble[data-style="glass"],
 [data-theme="forest"] .data-tooltip-bubble[data-style="glass"],
 [data-theme="sunset"] .data-tooltip-bubble[data-style="glass"],
 [data-theme="rose"] .data-tooltip-bubble[data-style="glass"],
 [data-theme="light"] .data-tooltip-bubble[data-style="glass"] {
-  --glass-fill: rgba(255, 255, 255, .10);
-  --glass-border: rgba(255, 255, 255, .76);
-  --glass-sheen: rgba(255, 255, 255, .72);
   color: #202631;
-  box-shadow:
-    0 18px 48px rgba(31, 42, 68, .16),
-    inset 0 1px rgba(255, 255, 255, .88),
-    inset 0 -1px rgba(255, 255, 255, .24);
 }
 [data-theme="ocean"] .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"],
 [data-theme="forest"] .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"],
@@ -1066,22 +1051,7 @@ body {
   --glass-border: rgba(255, 255, 255, .36);
   --glass-sheen: rgba(255, 255, 255, .09);
 }
-[data-theme="ocean"] .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"],
-[data-theme="forest"] .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"],
-[data-theme="sunset"] .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"],
-[data-theme="rose"] .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"],
-[data-theme="light"] .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"] {
-  --glass-fill: rgba(255, 255, 255, .36);
-  --glass-border: rgba(255, 255, 255, .86);
-}
-[data-theme="ocean"] .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"],
-[data-theme="forest"] .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"],
-[data-theme="sunset"] .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"],
-[data-theme="rose"] .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"],
-[data-theme="light"] .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"] {
-  --glass-fill: rgba(255, 255, 255, .74);
-  --glass-border: rgba(255, 255, 255, .94);
-}
+/* balanced/frosted light theme: blur only, fill inherited from ultra-clear */
 .data-tooltip-bubble[data-style="compact"] {
   background: #0b1020;
   border: 1px solid rgba(47,115,255,.35);
@@ -2037,7 +2007,7 @@ body {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Liquid Glass 2026 �?optical chrome, open content
+   Liquid Glass 2026 �?optical chrome, open content
    ───────────────────────────────────────────────────────────── */
 [data-theme="midnight"] {
   color-scheme: dark;
@@ -2942,35 +2912,23 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 }
 
 .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"] {
-  --tooltip-glass-fill: rgba(18, 24, 34, .035);
-  --tooltip-glass-border: rgba(255, 255, 255, .20);
-  --tooltip-glass-sheen: rgba(255, 255, 255, .055);
-  --tooltip-glass-blur: 2px;
-  --tooltip-glass-saturation: 1.03;
+  --tooltip-glass-fill: rgba(18, 24, 34, .018);
+  --tooltip-glass-border: rgba(255, 255, 255, .14);
+  --tooltip-glass-sheen: rgba(255, 255, 255, .03);
+  --tooltip-glass-blur: 1px;
+  --tooltip-glass-saturation: 1.01;
 }
 
 .data-tooltip-bubble[data-style="glass"][data-glass-level="clear"] {
-  --tooltip-glass-fill: rgba(18, 24, 34, .16);
-  --tooltip-glass-border: rgba(255, 255, 255, .34);
-  --tooltip-glass-sheen: rgba(255, 255, 255, .16);
   --tooltip-glass-blur: 10px;
-  --tooltip-glass-saturation: 1.25;
 }
 
 .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"] {
-  --tooltip-glass-fill: rgba(18, 24, 34, .34);
-  --tooltip-glass-border: rgba(255, 255, 255, .46);
-  --tooltip-glass-sheen: rgba(255, 255, 255, .25);
-  --tooltip-glass-blur: 20px;
-  --tooltip-glass-saturation: 1.45;
+  --tooltip-glass-blur: 22px;
 }
 
 .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"] {
-  --tooltip-glass-fill: rgba(18, 24, 34, .62);
-  --tooltip-glass-border: rgba(255, 255, 255, .58);
-  --tooltip-glass-sheen: rgba(255, 255, 255, .33);
   --tooltip-glass-blur: 34px;
-  --tooltip-glass-saturation: 1.62;
 }
 
 [data-theme="ocean"] .data-tooltip-bubble[data-style="glass"],
@@ -2992,40 +2950,14 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 [data-theme="sunset"] .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"],
 [data-theme="rose"] .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"],
 [data-theme="light"] .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"] {
-  --tooltip-glass-fill: rgba(255, 255, 255, .07);
-  --tooltip-glass-border: rgba(255, 255, 255, .38);
-  --tooltip-glass-sheen: rgba(255, 255, 255, .14);
+  --tooltip-glass-fill: rgba(255, 255, 255, .04);
+  --tooltip-glass-border: rgba(255, 255, 255, .28);
+  --tooltip-glass-sheen: rgba(255, 255, 255, .08);
 }
 
-[data-theme="ocean"] .data-tooltip-bubble[data-style="glass"][data-glass-level="clear"],
-[data-theme="forest"] .data-tooltip-bubble[data-style="glass"][data-glass-level="clear"],
-[data-theme="sunset"] .data-tooltip-bubble[data-style="glass"][data-glass-level="clear"],
-[data-theme="rose"] .data-tooltip-bubble[data-style="glass"][data-glass-level="clear"],
-[data-theme="light"] .data-tooltip-bubble[data-style="glass"][data-glass-level="clear"] {
-  --tooltip-glass-fill: rgba(255, 255, 255, .28);
-  --tooltip-glass-border: rgba(255, 255, 255, .64);
-  --tooltip-glass-sheen: rgba(255, 255, 255, .46);
-}
+/* clear/balanced/frosted: blur only, fill inherited from ultra-clear */
 
-[data-theme="ocean"] .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"],
-[data-theme="forest"] .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"],
-[data-theme="sunset"] .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"],
-[data-theme="rose"] .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"],
-[data-theme="light"] .data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"] {
-  --tooltip-glass-fill: rgba(255, 255, 255, .52);
-  --tooltip-glass-border: rgba(255, 255, 255, .82);
-  --tooltip-glass-sheen: rgba(255, 255, 255, .68);
-}
-
-[data-theme="ocean"] .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"],
-[data-theme="forest"] .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"],
-[data-theme="sunset"] .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"],
-[data-theme="rose"] .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"],
-[data-theme="light"] .data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"] {
-  --tooltip-glass-fill: rgba(255, 255, 255, .78);
-  --tooltip-glass-border: rgba(255, 255, 255, .95);
-  --tooltip-glass-sheen: rgba(255, 255, 255, .84);
-}
+/* frosted light theme: blur only, fill inherited from ultra-clear */
 
 .data-tooltip-row { grid-template-columns: minmax(0, 1fr) minmax(0, max-content); }
 .data-tooltip-label { min-width: 0; white-space: normal; }
@@ -3215,9 +3147,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   .tooltip-preview-trigger { width: 100%; justify-content: center; }
 }
 
-/* �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
+/* �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
    UI Consistency Fixes v0.5.4
-   �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T */
+   �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T */
 
 /* Issue 8: Unified glass-style scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -3260,7 +3192,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   height: 18px;
 }
 
-/* Issue 9: Chat page �� differentiated panel hierarchy */
+/* Issue 9: Chat page �� differentiated panel hierarchy */
 [data-page-body="chat"] .chat-left {
   background: var(--glass-bg-strong);
   backdrop-filter: blur(32px) saturate(160%);
@@ -3281,7 +3213,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   -webkit-backdrop-filter: blur(18px) saturate(120%);
 }
 
-/* Issue 10: Input box �� stable bottom positioning */
+/* Issue 10: Input box �� stable bottom positioning */
 .chat-input-area {
   position: relative;
   flex-shrink: 0;
@@ -3298,7 +3230,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
 }
 
-/* Issue 3: Settings page �� left-align, wider max-width */
+/* Issue 3: Settings page �� left-align, wider max-width */
 .settings-scroll {
   padding: 14px 24px 28px !important;
   overflow-x: hidden;
@@ -3312,7 +3244,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   padding: 10px 24px 10px;
 }
 
-/* Issue 4: Settings card �� stronger glass hierarchy */
+/* Issue 4: Settings card �� stronger glass hierarchy */
 .settings-section {
   background: var(--glass-bg);
   border: 1px solid var(--glass-line);
@@ -3329,7 +3261,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   text-transform: none;
 }
 
-/* Issue 5: Form controls �� unified sizing */
+/* Issue 5: Form controls �� unified sizing */
 .settings-row {
   min-height: 48px;
   padding: 8px 0;
@@ -3344,7 +3276,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
   color: var(--text);
 }
 
-/* Issue 5: Exchange rate �� 3-column layout */
+/* Issue 5: Exchange rate �� 3-column layout */
 .settings-rate-setting {
   align-items: flex-start !important;
   flex-direction: column !important;
@@ -3413,7 +3345,7 @@ textarea.chat-search {
   background: rgba(255,255,255,.065);
 }
 
-/* Issue 7: Textarea �� fix vertical alignment */
+/* Issue 7: Textarea �� fix vertical alignment */
 textarea.chat-search {
   vertical-align: top;
   line-height: 1.55;
@@ -3422,7 +3354,7 @@ textarea.chat-search {
   padding-bottom: 10px;
 }
 
-/* Issue 6: Custom select �� settings context */
+/* Issue 6: Custom select �� settings context */
 .custom-select--field .custom-select-trigger {
   min-height: 38px;
   border-radius: 12px;
@@ -3435,7 +3367,7 @@ textarea.chat-search {
   background: rgba(255,255,255,.065);
 }
 
-/* Issue 6: Dropdown menu �� ensure glass consistency */
+/* Issue 6: Dropdown menu �� ensure glass consistency */
 .custom-select-menu {
   background:
     linear-gradient(145deg, rgba(255,255,255,.11), transparent 34%),
@@ -3464,7 +3396,7 @@ textarea.chat-search {
     inset 0 1px 0 rgba(255,255,255,.90) !important;
 }
 
-/* Issue 5: Theme color control �� better alignment */
+/* Issue 5: Theme color control �� better alignment */
 .theme-color-control {
   display: flex;
   align-items: center;
@@ -3481,7 +3413,7 @@ textarea.chat-search {
   cursor: pointer;
 }
 
-/* Issue 5: Font size settings �� consistent control sizes */
+/* Issue 5: Font size settings �� consistent control sizes */
 .font-size-number {
   min-height: 34px;
   border-radius: 10px;
@@ -3489,7 +3421,7 @@ textarea.chat-search {
   border: 1px solid rgba(255,255,255,.09);
 }
 
-/* Issue 3: Page title �� align with settings content */
+/* Issue 3: Page title �� align with settings content */
 .settings-page .page-header h2 {
   padding-left: 2px;
 }

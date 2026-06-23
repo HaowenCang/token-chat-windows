@@ -223,27 +223,27 @@ function renderProviderDetail(): string {
 function renderAddProviderModal(): string {
   return `
     <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
-      <div class="modal-overlay glass-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Add Provider" style="width:480px;height:auto;max-height:80vh">
+      <div class="modal-overlay glass-modal provider-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Add Provider" style="width:min(480px,calc(100vw - 48px))">
         <div class="modal-header">
           <h2>Add Provider</h2>
           <button class="modal-close" id="closeAddProviderModal">&#10005;</button>
         </div>
-        <div class="modal-body" style="flex-direction:column;gap:16px;padding:24px;overflow-y:auto">
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Name</label>
-            <input class="chat-search glass-input" type="text" id="providerName" placeholder="e.g. OpenAI" style="width:100%">
+        <div class="modal-body" style="flex-direction:column;gap:14px;padding:20px 24px">
+          <div class="glass-form-field">
+            <label>Name</label>
+            <input class="glass-input" type="text" id="providerName" placeholder="e.g. OpenAI" style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Base URL</label>
-            <input class="chat-search glass-input" type="text" id="providerBaseUrl" placeholder="https://api.openai.com/v1" style="width:100%">
+          <div class="glass-form-field">
+            <label>Base URL</label>
+            <input class="glass-input" type="text" id="providerBaseUrl" placeholder="https://api.openai.com/v1" style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">API Key</label>
-            <input class="chat-search glass-input" type="password" id="providerApiKey" placeholder="sk-..." style="width:100%">
+          <div class="glass-form-field">
+            <label>API Key</label>
+            <input class="glass-input" type="password" id="providerApiKey" placeholder="sk-..." style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Extra Headers (optional JSON)</label>
-            <textarea class="chat-search glass-textarea" id="providerHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;resize:vertical;font-family:var(--font-mono)"></textarea>
+          <div class="glass-form-field">
+            <label>Extra Headers (optional JSON)</label>
+            <textarea class="glass-textarea" id="providerHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;font-family:var(--font-mono)"></textarea>
           </div>
           <div class="test-result liquid-glass liquid-glass--notice ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="modalTestResult">
             ${testResult?.success
@@ -271,48 +271,48 @@ function renderAddProviderModal(): string {
 function renderAddModelModal(): string {
   return `
     <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
-      <div class="modal-overlay glass-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Add Model" style="width:520px;height:auto;max-height:80vh">
+      <div class="modal-overlay glass-modal provider-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Add Model" style="width:min(520px,calc(100vw - 48px))">
         <div class="modal-header">
           <h2>Add Model</h2>
           <button class="modal-close" id="closeAddModelModal">&#10005;</button>
         </div>
-        <div class="modal-body" style="flex-direction:column;gap:14px;padding:24px;overflow-y:auto">
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Model Name (API identifier)</label>
-            <input class="chat-search glass-input" type="text" id="modelName" placeholder="gpt-4o" style="width:100%">
+        <div class="modal-body" style="flex-direction:column;gap:14px;padding:20px 24px">
+          <div class="glass-form-field">
+            <label>Model Name (API identifier)</label>
+            <input class="glass-input" type="text" id="modelName" placeholder="gpt-4o" style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Display Name</label>
-            <input class="chat-search glass-input" type="text" id="modelDisplayName" placeholder="GPT-4o" style="width:100%">
+          <div class="glass-form-field">
+            <label>Display Name</label>
+            <input class="glass-input" type="text" id="modelDisplayName" placeholder="GPT-4o" style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Context Window</label>
-            <input class="chat-search glass-input" type="number" id="modelContextWindow" placeholder="128000" style="width:100%">
+          <div class="glass-form-field">
+            <label>Context Window</label>
+            <input class="glass-input" type="number" id="modelContextWindow" placeholder="128000" style="width:100%">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Uncached Input (per 1M tokens)</label>
-              <input class="chat-search glass-input" type="number" step="0.01" id="modelInputPrice" placeholder="2.50" style="width:100%">
+            <div class="glass-form-field">
+              <label>Uncached Input (per 1M tokens)</label>
+              <input class="glass-input" type="number" step="0.01" id="modelInputPrice" placeholder="2.50" style="width:100%">
             </div>
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Cache Read (per 1M tokens)</label>
-              <input class="chat-search glass-input" type="number" step="0.01" id="modelCachePrice" placeholder="1.25" style="width:100%">
+            <div class="glass-form-field">
+              <label>Cache Read (per 1M tokens)</label>
+              <input class="glass-input" type="number" step="0.01" id="modelCachePrice" placeholder="1.25" style="width:100%">
             </div>
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Output (per 1M tokens)</label>
-              <input class="chat-search glass-input" type="number" step="0.01" id="modelOutputPrice" placeholder="10.00" style="width:100%">
+            <div class="glass-form-field">
+              <label>Output (per 1M tokens)</label>
+              <input class="glass-input" type="number" step="0.01" id="modelOutputPrice" placeholder="10.00" style="width:100%">
             </div>
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Currency</label>
-              <select class="chat-search glass-select" id="modelCurrency" style="width:100%">${renderCurrencyOptions(getDisplayCurrency())}</select>
+            <div class="glass-form-field">
+              <label>Currency</label>
+              <select class="glass-select" id="modelCurrency" style="width:100%">${renderCurrencyOptions(getDisplayCurrency())}</select>
             </div>
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">System Prompt (optional)</label>
-            <textarea class="chat-search glass-textarea" id="modelSystemPrompt" placeholder="You are a helpful assistant." style="width:100%;min-height:60px;resize:vertical"></textarea>
+          <div class="glass-form-field">
+            <label>System Prompt (optional)</label>
+            <textarea class="glass-textarea" id="modelSystemPrompt" placeholder="You are a helpful assistant." style="width:100%;min-height:60px"></textarea>
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Temperature: <span id="tempValue">0.7</span></label>
+          <div class="glass-form-field">
+            <label>Temperature: <span id="tempValue">0.7</span></label>
             <input class="glass-range" type="range" id="modelTemperature" min="0" max="2" step="0.1" value="0.7" style="width:100%;accent-color:var(--accent)">
           </div>
         </div>
@@ -331,27 +331,27 @@ function renderEditProviderModal(): string {
   if (!provider) return '';
   return `
     <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
-      <div class="modal-overlay glass-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Edit Provider" style="width:480px;height:auto;max-height:80vh">
+      <div class="modal-overlay glass-modal provider-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Edit Provider" style="width:min(480px,calc(100vw - 48px))">
         <div class="modal-header">
           <h2>Edit Provider</h2>
           <button class="modal-close" id="closeEditProviderModal">&#10005;</button>
         </div>
-        <div class="modal-body" style="flex-direction:column;gap:16px;padding:24px;overflow-y:auto">
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Name</label>
-            <input class="chat-search glass-input" type="text" id="editProviderName" value="${escHtml(provider.name)}" style="width:100%">
+        <div class="modal-body" style="flex-direction:column;gap:14px;padding:20px 24px">
+          <div class="glass-form-field">
+            <label>Name</label>
+            <input class="glass-input" type="text" id="editProviderName" value="${escHtml(provider.name)}" style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Base URL</label>
-            <input class="chat-search glass-input" type="text" id="editProviderBaseUrl" value="${escHtml(provider.base_url)}" style="width:100%">
+          <div class="glass-form-field">
+            <label>Base URL</label>
+            <input class="glass-input" type="text" id="editProviderBaseUrl" value="${escHtml(provider.base_url)}" style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">API Key</label>
-            <input class="chat-search glass-input" type="password" id="editProviderApiKey" placeholder="Leave empty to keep current" style="width:100%">
+          <div class="glass-form-field">
+            <label>API Key</label>
+            <input class="glass-input" type="password" id="editProviderApiKey" placeholder="Leave empty to keep current" style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Extra Headers (optional JSON)</label>
-            <textarea class="chat-search glass-textarea" id="editProviderHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;resize:vertical;font-family:var(--font-mono)">${provider.extra_headers_json ?? ''}</textarea>
+          <div class="glass-form-field">
+            <label>Extra Headers (optional JSON)</label>
+            <textarea class="glass-textarea" id="editProviderHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;font-family:var(--font-mono)">${provider.extra_headers_json ?? ''}</textarea>
           </div>
           <div class="test-result liquid-glass liquid-glass--notice ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="editTestResult">
             ${testResult?.success
@@ -379,12 +379,12 @@ function renderEditProviderModal(): string {
 function renderDiscoverModal(): string {
   return `
     <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
-      <div class="modal-overlay glass-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Discover Models" style="width:560px;height:auto;max-height:80vh">
+      <div class="modal-overlay glass-modal provider-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Discover Models" style="width:min(560px,calc(100vw - 48px))">
         <div class="modal-header">
           <h2>Discover Models</h2>
           <button class="modal-close" id="closeDiscoverModal">&#10005;</button>
         </div>
-        <div class="modal-body" style="flex-direction:column;gap:12px;padding:24px;overflow-y:auto">
+        <div class="modal-body" style="flex-direction:column;gap:12px;padding:20px 24px">
           ${discoverLoading
             ? '<div style="text-align:center;padding:40px;color:var(--text-muted)"><div class="spinner" style="display:inline-block;width:24px;height:24px;margin-bottom:8px"></div><br>Discovering models...</div>'
             : discoveredModels.length === 0
@@ -418,48 +418,48 @@ function renderEditModelModal(): string {
   if (!model) return '';
   return `
     <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
-      <div class="modal-overlay glass-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Edit Model" style="width:520px;height:auto;max-height:80vh">
+      <div class="modal-overlay glass-modal provider-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Edit Model" style="width:min(520px,calc(100vw - 48px))">
         <div class="modal-header">
           <h2>Edit Model</h2>
           <button class="modal-close" id="closeEditModelModal">&#10005;</button>
         </div>
-        <div class="modal-body" style="flex-direction:column;gap:14px;padding:24px;overflow-y:auto">
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Model Name (API identifier)</label>
-            <input class="chat-search glass-input" type="text" id="editModelName" value="${escHtml(model.model_name)}" style="width:100%">
+        <div class="modal-body" style="flex-direction:column;gap:14px;padding:20px 24px">
+          <div class="glass-form-field">
+            <label>Model Name (API identifier)</label>
+            <input class="glass-input" type="text" id="editModelName" value="${escHtml(model.model_name)}" style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Display Name</label>
-            <input class="chat-search glass-input" type="text" id="editModelDisplayName" value="${escHtml(model.display_name)}" style="width:100%">
+          <div class="glass-form-field">
+            <label>Display Name</label>
+            <input class="glass-input" type="text" id="editModelDisplayName" value="${escHtml(model.display_name)}" style="width:100%">
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Context Window</label>
-            <input class="chat-search glass-input" type="number" id="editModelContextWindow" value="${model.context_window}" style="width:100%">
+          <div class="glass-form-field">
+            <label>Context Window</label>
+            <input class="glass-input" type="number" id="editModelContextWindow" value="${model.context_window}" style="width:100%">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Uncached Input (per 1M tokens)</label>
-              <input class="chat-search glass-input" type="number" step="0.01" id="editModelInputPrice" value="${(model.uncached_input_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
+            <div class="glass-form-field">
+              <label>Uncached Input (per 1M tokens)</label>
+              <input class="glass-input" type="number" step="0.01" id="editModelInputPrice" value="${(model.uncached_input_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Cache Read (per 1M tokens)</label>
-              <input class="chat-search glass-input" type="number" step="0.01" id="editModelCachePrice" value="${(model.cache_read_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
+            <div class="glass-form-field">
+              <label>Cache Read (per 1M tokens)</label>
+              <input class="glass-input" type="number" step="0.01" id="editModelCachePrice" value="${(model.cache_read_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Output (per 1M tokens)</label>
-              <input class="chat-search glass-input" type="number" step="0.01" id="editModelOutputPrice" value="${(model.output_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
+            <div class="glass-form-field">
+              <label>Output (per 1M tokens)</label>
+              <input class="glass-input" type="number" step="0.01" id="editModelOutputPrice" value="${(model.output_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Currency</label>
-              <select class="chat-search glass-select" id="editModelCurrency" style="width:100%">${renderCurrencyOptions(model.currency)}</select>
+            <div class="glass-form-field">
+              <label>Currency</label>
+              <select class="glass-select" id="editModelCurrency" style="width:100%">${renderCurrencyOptions(model.currency)}</select>
             </div>
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">System Prompt (optional)</label>
-            <textarea class="chat-search glass-textarea" id="editModelSystemPrompt" style="width:100%;min-height:60px;resize:vertical">${model.system_prompt ?? ''}</textarea>
+          <div class="glass-form-field">
+            <label>System Prompt (optional)</label>
+            <textarea class="glass-textarea" id="editModelSystemPrompt" style="width:100%;min-height:60px">${model.system_prompt ?? ''}</textarea>
           </div>
-          <div>
-            <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:6px">Temperature: <span id="editTempValue">${model.temperature}</span></label>
+          <div class="glass-form-field">
+            <label>Temperature: <span id="editTempValue">${model.temperature}</span></label>
             <input class="glass-range" type="range" id="editModelTemperature" min="0" max="2" step="0.1" value="${model.temperature}" style="width:100%;accent-color:var(--accent)">
           </div>
         </div>

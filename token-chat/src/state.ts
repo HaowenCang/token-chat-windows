@@ -41,6 +41,8 @@ export interface Message {
   model_name: string | null;
   status: string;
   attachments_json: string | null;
+  search_metadata_json?: string | null;
+  error?: string | null;
   created_at: number;
 }
 

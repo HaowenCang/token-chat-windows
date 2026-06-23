@@ -113,6 +113,7 @@
 .glass-control,
 .glass-input,
 .glass-textarea,
+select.glass-select,
 .custom-select--field .custom-select-trigger,
 .custom-select--model .custom-select-trigger,
 .token-trend-model-trigger {
@@ -128,6 +129,7 @@
 
 .glass-input,
 .glass-control,
+select.glass-select,
 .custom-select--field .custom-select-trigger,
 .custom-select--model .custom-select-trigger,
 .token-trend-model-trigger {
@@ -177,6 +179,7 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
 .glass-input:disabled,
 .glass-textarea:disabled,
 .glass-control:disabled,
+select.glass-select:disabled,
 .custom-select-trigger:disabled,
 .glass-button:disabled {
   cursor: not-allowed !important;
@@ -280,6 +283,49 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 68%, transparent) !important;
 }
 
+.glass-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  padding: 5px 10px 5px 6px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--control-bg) 72%, transparent);
+  color: var(--text-secondary);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 72%, transparent);
+  cursor: pointer;
+  transition: border-color .18s, background .18s, color .18s, transform .18s;
+}
+.glass-switch:hover { border-color: var(--control-border-hover); color: var(--text-primary); }
+.glass-switch:active { transform: scale(.98); }
+.glass-switch:focus-visible { outline: none; box-shadow: var(--control-focus-ring), inset 0 1px 0 var(--control-highlight); }
+.glass-switch-track {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex: 0 0 auto;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-tertiary) 18%, transparent);
+  transition: background .2s, border-color .2s;
+}
+.glass-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-primary) 82%, white);
+  box-shadow: 0 3px 8px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.5);
+  transition: transform .2s cubic-bezier(.2,.8,.2,1), background .2s;
+}
+.glass-switch.is-on { color: color-mix(in srgb, var(--accent) 84%, var(--text-primary)); border-color: color-mix(in srgb, var(--accent) 34%, var(--control-border)); }
+.glass-switch.is-on .glass-switch-track { background: color-mix(in srgb, var(--accent) 72%, transparent); border-color: color-mix(in srgb, var(--accent) 66%, white 12%); }
+.glass-switch.is-on .glass-switch-thumb { transform: translateX(16px); background: white; }
+.glass-switch-label { font-size: var(--fs-secondary); white-space: nowrap; }
+
 .glass-range,
 .settings-page input[type="range"],
 .provider-page input[type="range"] {
@@ -313,22 +359,72 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
   background: color-mix(in srgb, var(--accent) 10%, var(--control-bg-hover));
 }
 
+/* Semantic form field layout for modals and settings. */
+.glass-form-field { display: flex; flex-direction: column; gap: 4px; }
+.glass-form-field > label {
+  font-size: var(--fs-secondary);
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+/* Select control styled like .glass-control. */
+select.glass-select {
+  appearance: none;
+  min-height: var(--control-height);
+  height: var(--control-height);
+  padding: 0 32px 0 13px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  background: var(--control-bg);
+  color: var(--text-primary);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' fill='%23888' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+  box-shadow: inset 0 1px 0 var(--control-highlight), var(--control-shadow);
+  -webkit-backdrop-filter: var(--glass-layer-two-blur);
+  backdrop-filter: var(--glass-layer-two-blur);
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+select.glass-select:hover { border-color: var(--control-border-hover); background-color: var(--control-bg-hover); }
+select.glass-select:focus-visible { outline: none; border-color: var(--control-border-focus); background-color: var(--control-bg-focus); box-shadow: var(--control-focus-ring), inset 0 1px 0 var(--control-highlight); }
+
 /* Layer 3: dropdowns, calendars and modals. */
 .glass-dropdown,
 .custom-select-menu,
-.token-trend-model-menu,
-.glass-date-popover {
+.token-trend-model-menu {
   position: fixed;
   z-index: var(--z-glass-dropdown, 1300);
-  padding: 7px !important;
-  overflow: auto;
-  border: 1px solid var(--dropdown-border) !important;
+  padding: 6px !important;
+  overflow-x: hidden;
+  overflow-y: auto;
   border-radius: 18px !important;
-  background: var(--dropdown-bg) !important;
   color: var(--text-primary) !important;
-  box-shadow: var(--dropdown-shadow), inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 84%, transparent) !important;
-  -webkit-backdrop-filter: var(--glass-layer-three-blur) !important;
-  backdrop-filter: var(--glass-layer-three-blur) !important;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--glass-inner-highlight) 72%, transparent), transparent 42%),
+    linear-gradient(315deg, color-mix(in srgb, var(--bubble-caustic) 36%, transparent), transparent 46%),
+    var(--bubble-bg) !important;
+  border: 1px solid var(--bubble-border) !important;
+  box-shadow: 0 14px 36px rgba(31, 35, 50, .16), inset 0 1px 0 color-mix(in srgb, var(--bubble-inner-highlight) 72%, transparent) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(170%) !important;
+  backdrop-filter: blur(22px) saturate(170%) !important;
+}
+
+.glass-date-popover {
+  position: fixed;
+  z-index: var(--z-glass-popover, 1320);
+  padding: 10px !important;
+  overflow: hidden !important;
+  border-radius: 20px !important;
+  color: var(--text-primary) !important;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--glass-inner-highlight) 72%, transparent), transparent 42%),
+    linear-gradient(315deg, color-mix(in srgb, var(--bubble-caustic) 36%, transparent), transparent 46%),
+    var(--bubble-bg) !important;
+  border: 1px solid var(--bubble-border) !important;
+  box-shadow: 0 18px 48px rgba(31, 35, 50, .18), inset 0 1px 0 color-mix(in srgb, var(--bubble-inner-highlight) 72%, transparent) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
 }
 
 .custom-select-menu { max-height: min(320px, calc(100vh - 24px)); }
@@ -358,10 +454,10 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
 .token-trend-model-option.selected,
 .glass-dropdown-option[aria-selected="true"],
 .custom-select-option[aria-selected="true"] {
-  border-color: color-mix(in srgb, var(--accent) 23%, transparent) !important;
-  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 14%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 13%, transparent) !important;
   color: color-mix(in srgb, var(--accent) 84%, var(--text-primary)) !important;
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 76%, transparent) !important;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 54%, transparent) !important;
 }
 
 .glass-modal-backdrop,
@@ -384,13 +480,16 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
   max-height: min(82vh, 760px) !important;
   overflow: hidden !important;
   border: 1px solid var(--dropdown-border) !important;
-  border-radius: 24px !important;
+  border-radius: var(--glass-radius-modal, 28px) !important;
   background: var(--glass-modal-bg) !important;
   color: var(--text-primary) !important;
   box-shadow: 0 28px 80px rgba(16, 22, 38, .24), inset 0 1px 0 color-mix(in srgb, var(--control-highlight) 90%, transparent) !important;
   -webkit-backdrop-filter: blur(30px) saturate(180%) !important;
   backdrop-filter: blur(30px) saturate(180%) !important;
 }
+
+.glass-modal .modal-header { padding: 20px 24px 16px !important; }
+.glass-modal .modal-header h2 { font-size: 22px; font-weight: 660; letter-spacing: -.015em; }
 
 .glass-modal .modal-header,
 .glass-modal .modal-footer {
@@ -414,6 +513,12 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
 }
 .glass-modal .modal-close:hover { background: var(--control-bg-hover) !important; color: var(--text-primary) !important; }
 .glass-modal .modal-close:focus-visible { outline: none; box-shadow: var(--control-focus-ring) !important; }
+
+/* Provider/model modals — semantic classes, tighter form density. */
+.glass-modal.provider-modal { max-width: min(560px, calc(100vw - 48px)) !important; }
+.glass-modal .modal-body textarea { resize: none !important; }
+.glass-modal .modal-body label { margin-bottom: 4px !important; }
+.glass-modal .modal-body > div { margin-bottom: 0; }
 
 /* Provider management. */
 .provider-page { min-width: 0; padding: 0 0 0; }
@@ -533,7 +638,6 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
 .glass-date-chevron { color: var(--text-tertiary); transition: transform .18s ease; }
 .glass-date-trigger[aria-expanded="true"] .glass-date-chevron { transform: rotate(180deg); }
 
-.glass-date-popover { z-index: var(--z-glass-popover, 1320); overflow: hidden !important; }
 .glass-calendar-header {
   display: grid;
   grid-template-columns: 36px 1fr 36px;
@@ -647,7 +751,8 @@ textarea.chat-search::placeholder { color: var(--text-tertiary) !important; opac
   .glass-dropdown,
   .custom-select-menu,
   .glass-date-popover,
-  .glass-modal { background: color-mix(in srgb, var(--dropdown-bg) 96%, var(--glass-card-bg)) !important; }
+  .glass-modal,
+  .liquid-glass--date-picker { background: color-mix(in srgb, var(--dropdown-bg) 96%, var(--glass-card-bg)) !important; }
 }
 
 @media (max-width: 1180px) {
