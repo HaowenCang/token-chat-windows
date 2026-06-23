@@ -92,6 +92,8 @@ pub struct TokenUsageRun {
     pub output_tokens: i64,
     pub cost_nanos: i64,
     pub currency: String,
+    pub first_event_latency_ms: Option<i64>,
+    pub first_token_latency_ms: Option<i64>,
     pub created_at: i64,
 }
 
@@ -275,6 +277,8 @@ pub fn get_conversation_token_usage(
                 output_tokens,
                 cost_nanos,
                 COALESCE(currency, 'CNY'),
+                first_event_latency_ms,
+                first_token_latency_ms,
                 created_at
             FROM generation_runs
             WHERE conversation_id = ?1
@@ -289,7 +293,9 @@ pub fn get_conversation_token_usage(
                 output_tokens: row.get(1)?,
                 cost_nanos: row.get(2)?,
                 currency: row.get(3)?,
-                created_at: row.get(4)?,
+                first_event_latency_ms: row.get(4)?,
+                first_token_latency_ms: row.get(5)?,
+                created_at: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?;

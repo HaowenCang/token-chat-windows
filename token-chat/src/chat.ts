@@ -127,6 +127,8 @@ interface TokenUsageRun {
   output_tokens: number;
   cost_nanos: number;
   currency?: string;
+  first_event_latency_ms?: number | null;
+  first_token_latency_ms?: number | null;
   created_at: number;
 }
 
@@ -1005,7 +1007,12 @@ export function renderRightPanelContent(): string {
         <div><div class="model-info-stat-label">${t('chat.inputPerM')}</div><div class="model-info-stat-value">${formatCurrencyAmount(model.uncached_input_nanos_per_million / 1e9, 2, model.currency)}</div></div>
         <div><div class="model-info-stat-label">${t('chat.outputPerM')}</div><div class="model-info-stat-value">${formatCurrencyAmount(model.output_nanos_per_million / 1e9, 2, model.currency)}</div></div>
         <div><div class="model-info-stat-label">${t('chat.maxCtx')}</div><div class="model-info-stat-value">${(model.context_window / 1000).toFixed(0)}K</div></div>
-        <div><div class="model-info-stat-label">${t('chat.latency')}</div><div class="model-info-stat-value">-</div></div>
+        <div><div class="model-info-stat-label">${t('chat.latency')}</div><div class="model-info-stat-value">${(() => {
+          const latencyRuns = usage.recent_runs.filter(r => r.first_token_latency_ms != null && r.first_token_latency_ms > 0);
+          if (latencyRuns.length === 0) return '-';
+          const avg = Math.round(latencyRuns.reduce((s, r) => s + (r.first_token_latency_ms ?? 0), 0) / latencyRuns.length);
+          return `${avg}ms`;
+        })()}</div></div>
       </div>
     </div>` : `
     <div class="model-info-card">
