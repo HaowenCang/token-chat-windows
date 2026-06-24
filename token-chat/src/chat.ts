@@ -1716,6 +1716,24 @@ export function bindChatInputEvents(): void {
       }
     });
     input.addEventListener('input', () => autoResizeTextarea(input));
+    input.addEventListener('paste', async (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const imageFiles: File[] = [];
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        const dt = new DataTransfer();
+        imageFiles.forEach(f => dt.items.add(f));
+        await addAttachmentFiles(dt.files);
+        rerenderChatInputPreservingDraft();
+      }
+    });
     input.focus();
   }
   const sendBtn = document.getElementById('sendBtn');
