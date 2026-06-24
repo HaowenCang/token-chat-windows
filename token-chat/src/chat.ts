@@ -1664,7 +1664,10 @@ function bindMessageEvents(): void {
   });
 
   document.querySelectorAll<HTMLElement>('[data-toggle-thinking]').forEach(el => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', (e) => {
+      if (e.detail > 1) return;
+      const sel = window.getSelection();
+      if (sel && sel.toString().length > 0) return;
       const body = el.querySelector('.msg-thinking-body') as HTMLElement | null;
       if (body) {
         body.style.display = body.style.display === 'none' ? '' : 'none';
