@@ -6,7 +6,7 @@ import { getLang, t } from './i18n';
 import { getEffectiveSystemPrompt } from './prompt';
 import { tooltipAttrs } from './tooltip';
 import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
-import { showGlassAlert, showGlassPrompt } from './glass-dialog';
+import { showGlassAlert, showGlassConfirm, showGlassPrompt } from './glass-dialog';
 import {
   buildSearchAugmentedPrompt,
   cancelWebSearch,
@@ -765,11 +765,14 @@ export function renderConversationList(): string {
     const modelName = model?.display_name ?? model?.model_name ?? '';
     return `
       <div class="chat-item ${isActive ? 'active' : ''}" data-conv-id="${c.id}">
-        <div class="chat-item-title">${escHtml(c.title)}</div>
-        <div class="chat-item-meta">
-          ${modelName ? `<span class="chat-item-model">${escHtml(modelName)}</span>` : ''}
-          <span>${relativeTime(c.updated_at)}</span>
+        <div class="chat-item-content">
+          <div class="chat-item-title">${escHtml(c.title)}</div>
+          <div class="chat-item-meta">
+            ${modelName ? `<span class="chat-item-model">${escHtml(modelName)}</span>` : ''}
+            <span>${relativeTime(c.updated_at)}</span>
+          </div>
         </div>
+        <button class="chat-item-delete" data-delete-conv="${c.id}" title="${t('common.delete')}">&#10005;</button>
       </div>
     `;
   }).join('');
@@ -1121,6 +1124,37 @@ export async function createConversation(): Promise<void> {
   } catch (e) {
     console.error('Failed to create conversation:', e);
   }
+}
+
+async function deleteConversation(id: string): Promise<void> {
+  if (!await showGlassConfirm(t('chat.confirmDeleteConv'), t('common.delete'), true)) return;
+  if (isDev) {
+    state.conversations = state.conversations.filter(c => c.id !== id);
+    if (state.currentConversationId === id) {
+      state.currentConversationId = state.conversations[0]?.id ?? null;
+      state.messages = [];
+    }
+  } else {
+    try {
+      await invoke('delete_conversation', { id });
+      state.conversations = state.conversations.filter(c => c.id !== id);
+      if (state.currentConversationId === id) {
+        state.currentConversationId = state.conversations[0]?.id ?? null;
+        if (state.currentConversationId) {
+          state.messages = await invoke<Message[]>('list_messages', { conversationId: state.currentConversationId });
+          await loadTokenUsage(state.currentConversationId);
+        } else {
+          state.messages = [];
+        }
+      }
+    } catch (e) {
+      console.error('Failed to delete conversation:', e);
+      return;
+    }
+  }
+  renderChatArea();
+  renderConversationListInDom();
+  renderRightPanelInDom();
 }
 
 async function updateConversationTitleLocal(conversationId: string, title: string): Promise<void> {
@@ -1634,6 +1668,13 @@ export function bindConversationListEvents(): void {
     el.addEventListener('click', () => {
       const id = el.dataset.convId;
       if (id) selectConversation(id);
+    });
+  });
+  document.querySelectorAll<HTMLElement>('[data-delete-conv]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = el.dataset.deleteConv;
+      if (id) deleteConversation(id);
     });
   });
 }
