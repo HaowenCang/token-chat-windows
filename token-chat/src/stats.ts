@@ -28,6 +28,7 @@ interface ModelStats {
   uncached_tokens: number;
   output_tokens: number;
   total_cost_nanos: number;
+  avg_token_rate: number;
 }
 
 interface DailyCost {
@@ -119,9 +120,9 @@ const mockStats: StatsData = {
   ],
   token_breakdown: { cached: 45000, input: 28000, output: 15000 },
   by_model: [
-    { model_name: 'gpt-4.1', provider_name: 'OpenAI', currency: 'CNY', request_count: 45, cached_tokens: 12000, uncached_tokens: 8000, output_tokens: 5000, total_cost_nanos: 5200000000 },
-    { model_name: 'deepseek-chat', provider_name: 'DeepSeek', currency: 'USD', request_count: 60, cached_tokens: 20000, uncached_tokens: 12000, output_tokens: 6000, total_cost_nanos: 3800000000 },
-    { model_name: 'claude-sonnet-4', provider_name: 'Claude Gateway', currency: 'EUR', request_count: 30, cached_tokens: 8000, uncached_tokens: 5000, output_tokens: 2500, total_cost_nanos: 2100000000 },
+    { model_name: 'gpt-4.1', provider_name: 'OpenAI', currency: 'CNY', request_count: 45, cached_tokens: 12000, uncached_tokens: 8000, output_tokens: 5000, total_cost_nanos: 5200000000, avg_token_rate: 62.5 },
+    { model_name: 'deepseek-chat', provider_name: 'DeepSeek', currency: 'USD', request_count: 60, cached_tokens: 20000, uncached_tokens: 12000, output_tokens: 6000, total_cost_nanos: 3800000000, avg_token_rate: 45.2 },
+    { model_name: 'claude-sonnet-4', provider_name: 'Claude Gateway', currency: 'EUR', request_count: 30, cached_tokens: 8000, uncached_tokens: 5000, output_tokens: 2500, total_cost_nanos: 2100000000, avg_token_rate: 78.1 },
   ],
   by_conversation: [
     { conversation_id: 'c1', title: 'Python optimization', model: 'gpt-4.1', currency: 'CNY', requests: 12, tokens: 8500, total_cost_nanos: 2100000000, updated_at: 1781770000 },
@@ -800,6 +801,7 @@ function renderModelTable(models: ModelStats[]): string {
     { key: 'uncached_tokens', label: '非缓存输入' },
     { key: 'output_tokens', label: '输出' },
     { key: 'total_tokens', label: '总Token' },
+    { key: 'avg_token_rate', label: '速率 (t/s)' },
     { key: 'total_cost_nanos', label: '费用' },
   ];
 
@@ -809,6 +811,7 @@ function renderModelTable(models: ModelStats[]): string {
 
   const rows = sorted.map(m => {
     const totalTokens = m.cached_tokens + m.uncached_tokens + m.output_tokens;
+    const rate = m.avg_token_rate > 0 ? `${Math.round(m.avg_token_rate)} t/s` : '-';
     return `<tr>
       <td>${escHtml(m.model_name)}</td>
       <td>${escHtml(m.provider_name)}</td>
@@ -817,6 +820,7 @@ function renderModelTable(models: ModelStats[]): string {
       <td>${m.uncached_tokens.toLocaleString()}</td>
       <td>${m.output_tokens.toLocaleString()}</td>
       <td>${totalTokens.toLocaleString()}</td>
+      <td>${rate}</td>
       <td>${formatCost(m.total_cost_nanos)}</td>
     </tr>`;
   }).join('');

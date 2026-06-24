@@ -30,6 +30,7 @@ pub struct ModelStats {
     pub uncached_tokens: i64,
     pub output_tokens: i64,
     pub total_cost_nanos: i64,
+    pub avg_token_rate: f64,
 }
 
 #[derive(Deserialize)]
@@ -94,6 +95,7 @@ pub struct TokenUsageRun {
     pub currency: String,
     pub first_event_latency_ms: Option<i64>,
     pub first_token_latency_ms: Option<i64>,
+    pub duration_ms: Option<i64>,
     pub created_at: i64,
 }
 
@@ -279,6 +281,7 @@ pub fn get_conversation_token_usage(
                 COALESCE(currency, 'CNY'),
                 first_event_latency_ms,
                 first_token_latency_ms,
+                duration_ms,
                 created_at
             FROM generation_runs
             WHERE conversation_id = ?1
@@ -295,7 +298,8 @@ pub fn get_conversation_token_usage(
                 currency: row.get(3)?,
                 first_event_latency_ms: row.get(4)?,
                 first_token_latency_ms: row.get(5)?,
-                created_at: row.get(6)?,
+                duration_ms: row.get(6)?,
+                created_at: row.get(7)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -518,7 +522,8 @@ pub fn get_stats_by_model(
                 COALESCE(SUM(gr.cache_read_input_tokens), 0) AS cached,
                 COALESCE(SUM(gr.uncached_input_tokens), 0) AS uncached,
                 COALESCE(SUM(gr.output_tokens), 0) AS output,
-                COALESCE(SUM(gr.cost_nanos), 0) AS cost
+                COALESCE(SUM(gr.cost_nanos), 0) AS cost,
+                COALESCE(AVG(CASE WHEN gr.duration_ms > 0 THEN CAST(gr.output_tokens AS REAL) / gr.duration_ms * 1000 END), 0) AS avg_rate
             FROM generation_runs gr
             LEFT JOIN messages m ON gr.assistant_message_id = m.id
             WHERE (?1 IS NULL OR gr.created_at >= ?1)
@@ -538,6 +543,7 @@ pub fn get_stats_by_model(
                 uncached_tokens: row.get(5)?,
                 output_tokens: row.get(6)?,
                 total_cost_nanos: row.get(7)?,
+                avg_token_rate: row.get(8)?,
             })
         })
         .map_err(|e| e.to_string())?;

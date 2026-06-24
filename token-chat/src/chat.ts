@@ -129,6 +129,7 @@ interface TokenUsageRun {
   currency?: string;
   first_event_latency_ms?: number | null;
   first_token_latency_ms?: number | null;
+  duration_ms?: number | null;
   created_at: number;
 }
 
@@ -1012,6 +1013,15 @@ export function renderRightPanelContent(): string {
           if (latencyRuns.length === 0) return '-';
           const avg = Math.round(latencyRuns.reduce((s, r) => s + (r.first_token_latency_ms ?? 0), 0) / latencyRuns.length);
           return `${avg}ms`;
+        })()}</div></div>
+        <div><div class="model-info-stat-label">${t('chat.tokenRate')}</div><div class="model-info-stat-value">${(() => {
+          const rateRuns = usage.recent_runs.filter(r => r.duration_ms != null && r.duration_ms > 0 && r.output_tokens > 0);
+          if (rateRuns.length === 0) return '-';
+          const totalOutput = rateRuns.reduce((s, r) => s + r.output_tokens, 0);
+          const totalDuration = rateRuns.reduce((s, r) => s + (r.duration_ms ?? 0), 0);
+          if (totalDuration <= 0) return '-';
+          const rate = Math.round(totalOutput / totalDuration * 1000);
+          return `${rate} t/s`;
         })()}</div></div>
       </div>
     </div>` : `
