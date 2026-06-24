@@ -1739,6 +1739,31 @@ export function bindChatInputEvents(): void {
     });
     input.focus();
   }
+
+  const chatInputArea = document.querySelector('.chat-input-area') as HTMLElement | null;
+  if (chatInputArea) {
+    chatInputArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      chatInputArea.classList.add('drag-over');
+    });
+    chatInputArea.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      chatInputArea.classList.remove('drag-over');
+    });
+    chatInputArea.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      chatInputArea.classList.remove('drag-over');
+      const files = (e as DragEvent).dataTransfer?.files;
+      if (files && files.length > 0) {
+        await addAttachmentFiles(files);
+        rerenderChatInputPreservingDraft();
+      }
+    });
+  }
+
   const sendBtn = document.getElementById('sendBtn');
   if (sendBtn) {
     sendBtn.addEventListener('click', () => handleSend());
