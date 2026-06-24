@@ -1015,12 +1015,12 @@ export function renderRightPanelContent(): string {
           return `${avg}ms`;
         })()}</div></div>
         <div><div class="model-info-stat-label">${t('chat.tokenRate')}</div><div class="model-info-stat-value">${(() => {
-          const rateRuns = usage.recent_runs.filter(r => r.duration_ms != null && r.duration_ms > 0 && r.output_tokens > 0);
+          const rateRuns = usage.recent_runs.filter(r => r.duration_ms != null && r.duration_ms > 0 && r.output_tokens > 0 && r.first_token_latency_ms != null && (r.duration_ms - (r.first_token_latency_ms ?? 0)) > 0);
           if (rateRuns.length === 0) return '-';
           const totalOutput = rateRuns.reduce((s, r) => s + r.output_tokens, 0);
-          const totalDuration = rateRuns.reduce((s, r) => s + (r.duration_ms ?? 0), 0);
-          if (totalDuration <= 0) return '-';
-          const rate = Math.round(totalOutput / totalDuration * 1000);
+          const totalGenTime = rateRuns.reduce((s, r) => s + (r.duration_ms ?? 0) - (r.first_token_latency_ms ?? 0), 0);
+          if (totalGenTime <= 0) return '-';
+          const rate = Math.round(totalOutput / totalGenTime * 1000);
           return `${rate} t/s`;
         })()}</div></div>
       </div>

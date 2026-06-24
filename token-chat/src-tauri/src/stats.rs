@@ -523,7 +523,7 @@ pub fn get_stats_by_model(
                 COALESCE(SUM(gr.uncached_input_tokens), 0) AS uncached,
                 COALESCE(SUM(gr.output_tokens), 0) AS output,
                 COALESCE(SUM(gr.cost_nanos), 0) AS cost,
-                COALESCE(AVG(CASE WHEN gr.duration_ms > 0 THEN CAST(gr.output_tokens AS REAL) / gr.duration_ms * 1000 END), 0) AS avg_rate
+                COALESCE(AVG(CASE WHEN gr.duration_ms > 0 AND gr.first_token_latency_ms IS NOT NULL AND gr.duration_ms > gr.first_token_latency_ms THEN CAST(gr.output_tokens AS REAL) / (gr.duration_ms - gr.first_token_latency_ms) * 1000 END), 0) AS avg_rate
             FROM generation_runs gr
             LEFT JOIN messages m ON gr.assistant_message_id = m.id
             WHERE (?1 IS NULL OR gr.created_at >= ?1)
