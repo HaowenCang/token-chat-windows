@@ -1740,22 +1740,22 @@ export function bindChatInputEvents(): void {
     input.focus();
   }
 
-  const chatInputArea = document.querySelector('.chat-input-area') as HTMLElement | null;
-  if (chatInputArea) {
-    chatInputArea.addEventListener('dragover', (e) => {
+  const chatCenter = document.querySelector('.chat-center') as HTMLElement | null;
+  if (chatCenter) {
+    chatCenter.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      chatInputArea.classList.add('drag-over');
+      chatCenter.classList.add('drag-over');
     });
-    chatInputArea.addEventListener('dragleave', (e) => {
+    chatCenter.addEventListener('dragleave', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      chatInputArea.classList.remove('drag-over');
+      chatCenter.classList.remove('drag-over');
     });
-    chatInputArea.addEventListener('drop', async (e) => {
+    chatCenter.addEventListener('drop', async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      chatInputArea.classList.remove('drag-over');
+      chatCenter.classList.remove('drag-over');
       const files = (e as DragEvent).dataTransfer?.files;
       if (files && files.length > 0) {
         await addAttachmentFiles(files);
