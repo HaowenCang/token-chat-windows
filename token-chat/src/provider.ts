@@ -44,7 +44,7 @@ function renderCurrencyOptions(selectedCurrency: string): string {
 
 function formatPrice(nanos: number, currency: string): string {
   const amount = nanos / 1e9;
-  if (amount === 0) return 'Free';
+  if (amount === 0) return t('provider.free');
   return formatCurrencyAmount(amount, 2, currency);
 }
 
@@ -128,7 +128,7 @@ export function renderProviderPage(): string {
 
 function renderProviderCards(): string {
   if (state.providers.length === 0) {
-    return '<div class="placeholder-content" style="height:200px">No providers configured</div>';
+    return `<div class="placeholder-content" style="height:200px">${t('provider.noProviders')}</div>`;
   }
   return state.providers.map(p => {
     const isActive = p.id === selectedProviderId;
@@ -142,7 +142,7 @@ function renderProviderCards(): string {
           <div class="provider-item-name">${escHtml(p.name)}</div>
         </div>
         <div class="provider-item-status">
-          <span class="tag glass-chip">${models.length} model${models.length !== 1 ? 's' : ''}</span>
+          <span class="tag glass-chip">${models.length} ${t('provider.models')}</span>
         </div>
       </div>
     `;
@@ -151,14 +151,14 @@ function renderProviderCards(): string {
 
 function renderProviderDetail(): string {
   if (!selectedProviderId) {
-    return '<div class="placeholder-content">Select a provider to view details</div>';
+    return `<div class="placeholder-content">${t('provider.selectProvider')}</div>`;
   }
   const provider = state.providers.find(p => p.id === selectedProviderId);
-  if (!provider) return '<div class="placeholder-content">Provider not found</div>';
+  if (!provider) return `<div class="placeholder-content">${t('provider.noProviders')}</div>`;
 
   const models = getProviderModels(provider.id);
   const health = getHealthStatus(provider);
-  const healthLabel = health === 'online' ? 'Healthy' : health === 'degraded' ? 'Degraded' : 'Offline';
+  const healthLabel = health === 'online' ? t('provider.online') : health === 'degraded' ? t('provider.degraded') : t('provider.offline');
   const healthColor = health === 'online' ? 'var(--success)' : health === 'degraded' ? 'var(--warning)' : 'var(--danger)';
 
   return `
@@ -167,10 +167,10 @@ function renderProviderDetail(): string {
       <p>${escHtml(provider.base_url)}</p>
     </div>
     <div class="health-section">
-      <h4>Health Status</h4>
+      <h4>${t('provider.health')}</h4>
       <div class="health-bar-wrap">
         <div class="health-bar-label">
-          <span>Connectivity</span>
+          <span>${t('provider.test')}</span>
           <span style="color:${healthColor}">${healthLabel}</span>
         </div>
         <div class="health-bar">
@@ -180,30 +180,30 @@ function renderProviderDetail(): string {
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="test-btn glass-button glass-button--primary ${testLoading ? 'testing' : ''}" id="testConnBtn">
           <span class="spinner"></span>
-          Test Connection
+          ${t('provider.test')}
         </button>
-        <button class="modal-footer-btn glass-button glass-button--secondary" id="editProviderBtn">Edit Provider</button>
-        <button class="modal-footer-btn glass-button glass-button--danger" id="deleteProviderBtn">Delete Provider</button>
+        <button class="modal-footer-btn glass-button glass-button--secondary" id="editProviderBtn">${t('provider.editProvider')}</button>
+        <button class="modal-footer-btn glass-button glass-button--danger" id="deleteProviderBtn">${t('provider.deleteProvider')}</button>
       </div>
       <div class="test-result liquid-glass liquid-glass--notice ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="testResult">
         ${testResult?.success
-          ? `Connection successful (${testResult.latency_ms}ms)`
+          ? `${t('provider.connectionSuccess')} (${testResult.latency_ms}ms)`
           : testResult
-          ? `Connection failed: ${escHtml(testResult.error ?? 'Unknown error')}`
+          ? `${t('provider.connectionFail')}: ${escHtml(testResult.error ?? t('provider.unknownError'))}`
           : ''
         }
       </div>
     </div>
       <div class="provider-models">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-          <h4 style="margin:0">Models (${models.length})</h4>
-          <button class="tool-btn glass-button glass-button--secondary" id="discoverModelsBtn">Auto Discover</button>
-          <button class="tool-btn glass-button glass-button--secondary" id="addModelBtn">+ Add Model</button>
+          <h4 style="margin:0">${t('provider.models')} (${models.length})</h4>
+          <button class="tool-btn glass-button glass-button--secondary" id="discoverModelsBtn">${t('provider.discover')}</button>
+          <button class="tool-btn glass-button glass-button--secondary" id="addModelBtn">+ ${t('provider.addModel')}</button>
         </div>
       ${models.length === 0
-        ? '<div class="placeholder-content" style="height:80px">No models configured</div>'
+        ? `<div class="placeholder-content" style="height:80px">${t('provider.noModels')}</div>`
         : `<table class="data-table">
-            <thead><tr><th>Name</th><th>API Name</th><th>Context</th><th>Input / 1M</th><th>Output / 1M</th><th></th></tr></thead>
+            <thead><tr><th>${t('provider.thName')}</th><th>${t('provider.thApiName')}</th><th>${t('provider.thContext')}</th><th>${t('provider.thInput')}</th><th>${t('provider.thOutput')}</th><th></th></tr></thead>
             <tbody>
               ${models.map(m => `
                 <tr>
@@ -227,31 +227,31 @@ function renderAddProviderModal(): string {
     <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
       <div class="modal-overlay glass-modal provider-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Add Provider" style="width:min(480px,calc(100vw - 48px))">
         <div class="modal-header">
-          <h2>Add Provider</h2>
+          <h2>${t('provider.add')}</h2>
           <button class="modal-close" id="closeAddProviderModal">&#10005;</button>
         </div>
         <div class="modal-body" style="flex-direction:column;gap:14px;padding:20px 24px">
           <div class="glass-form-field">
-            <label>Name</label>
+            <label>${t('provider.name')}</label>
             <input class="glass-input" type="text" id="providerName" placeholder="e.g. OpenAI" style="width:100%">
           </div>
           <div class="glass-form-field">
-            <label>Base URL</label>
+            <label>${t('provider.baseUrl')}</label>
             <input class="glass-input" type="text" id="providerBaseUrl" placeholder="https://api.openai.com/v1" style="width:100%">
           </div>
           <div class="glass-form-field">
-            <label>API Key</label>
+            <label>${t('provider.apiKey')}</label>
             <input class="glass-input" type="password" id="providerApiKey" placeholder="sk-..." style="width:100%">
           </div>
           <div class="glass-form-field">
-            <label>Extra Headers (optional JSON)</label>
+            <label>${t('provider.extraHeaders')}</label>
             <textarea class="glass-textarea" id="providerHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;font-family:var(--font-mono)"></textarea>
           </div>
           <div class="test-result liquid-glass liquid-glass--notice ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="modalTestResult">
             ${testResult?.success
-              ? `Connection successful (${testResult.latency_ms}ms)`
+              ? `${t('provider.connectionSuccess')} (${testResult.latency_ms}ms)`
               : testResult
-              ? `Connection failed: ${escHtml(testResult.error ?? 'Unknown error')}`
+              ? `${t('provider.connectionFail')}: ${escHtml(testResult.error ?? t('provider.unknownError'))}`
               : ''
             }
           </div>
@@ -259,11 +259,11 @@ function renderAddProviderModal(): string {
         <div class="modal-footer">
           <button class="test-btn glass-button glass-button--secondary ${testLoading ? 'testing' : ''}" id="modalTestBtn">
             <span class="spinner"></span>
-            Test
+            ${t('provider.test')}
           </button>
           <div style="flex:1"></div>
-          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelAddProvider">Cancel</button>
-          <button class="test-btn glass-button glass-button--primary" id="saveProviderBtn">Save</button>
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelAddProvider">${t('common.cancel')}</button>
+          <button class="test-btn glass-button glass-button--primary" id="saveProviderBtn">${t('common.save')}</button>
         </div>
       </div>
     </div>
@@ -275,53 +275,53 @@ function renderAddModelModal(): string {
     <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
       <div class="modal-overlay glass-modal provider-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Add Model" style="width:min(520px,calc(100vw - 48px))">
         <div class="modal-header">
-          <h2>Add Model</h2>
+          <h2>${t('provider.addModel')}</h2>
           <button class="modal-close" id="closeAddModelModal">&#10005;</button>
         </div>
         <div class="modal-body" style="flex-direction:column;gap:14px;padding:20px 24px">
           <div class="glass-form-field">
-            <label>Model Name (API identifier)</label>
+            <label>${t('provider.apiIdentifier')}</label>
             <input class="glass-input" type="text" id="modelName" placeholder="gpt-4o" style="width:100%">
           </div>
           <div class="glass-form-field">
-            <label>Display Name</label>
+            <label>${t('provider.displayName')}</label>
             <input class="glass-input" type="text" id="modelDisplayName" placeholder="GPT-4o" style="width:100%">
           </div>
           <div class="glass-form-field">
-            <label>Context Window</label>
+            <label>${t('provider.contextWindow')}</label>
             <input class="glass-input" type="number" id="modelContextWindow" placeholder="128000" style="width:100%">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div class="glass-form-field">
-              <label>Uncached Input (per 1M tokens)</label>
+              <label>${t('provider.uncachedInput')}</label>
               <input class="glass-input" type="number" step="0.01" id="modelInputPrice" placeholder="2.50" style="width:100%">
             </div>
             <div class="glass-form-field">
-              <label>Cache Read (per 1M tokens)</label>
+              <label>${t('provider.cachePrice')}</label>
               <input class="glass-input" type="number" step="0.01" id="modelCachePrice" placeholder="1.25" style="width:100%">
             </div>
             <div class="glass-form-field">
-              <label>Output (per 1M tokens)</label>
+              <label>${t('provider.outputPrice')}</label>
               <input class="glass-input" type="number" step="0.01" id="modelOutputPrice" placeholder="10.00" style="width:100%">
             </div>
             <div class="glass-form-field">
-              <label>Currency</label>
+              <label>${t('provider.currency')}</label>
               <select class="glass-select" id="modelCurrency" style="width:100%">${renderCurrencyOptions(getDisplayCurrency())}</select>
             </div>
           </div>
           <div class="glass-form-field">
-            <label>System Prompt (optional)</label>
+            <label>${t('provider.systemPrompt')} (${t('provider.optional')})</label>
             <textarea class="glass-textarea" id="modelSystemPrompt" placeholder="You are a helpful assistant." style="width:100%;min-height:60px"></textarea>
           </div>
           <div class="glass-form-field">
-            <label>Temperature: <span id="tempValue">0.7</span></label>
+            <label>${t('provider.temperature')}: <span id="tempValue">0.7</span></label>
             <input class="glass-range" type="range" id="modelTemperature" min="0" max="2" step="0.1" value="0.7" style="width:100%;accent-color:var(--accent)">
           </div>
         </div>
         <div class="modal-footer">
           <div style="flex:1"></div>
-          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelAddModel">Cancel</button>
-          <button class="test-btn glass-button glass-button--primary" id="saveModelBtn">Save</button>
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelAddModel">${t('common.cancel')}</button>
+          <button class="test-btn glass-button glass-button--primary" id="saveModelBtn">${t('common.save')}</button>
         </div>
       </div>
     </div>
@@ -335,31 +335,31 @@ function renderEditProviderModal(): string {
     <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
       <div class="modal-overlay glass-modal provider-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Edit Provider" style="width:min(480px,calc(100vw - 48px))">
         <div class="modal-header">
-          <h2>Edit Provider</h2>
+          <h2>${t('provider.editProvider')}</h2>
           <button class="modal-close" id="closeEditProviderModal">&#10005;</button>
         </div>
         <div class="modal-body" style="flex-direction:column;gap:14px;padding:20px 24px">
           <div class="glass-form-field">
-            <label>Name</label>
+            <label>${t('provider.name')}</label>
             <input class="glass-input" type="text" id="editProviderName" value="${escHtml(provider.name)}" style="width:100%">
           </div>
           <div class="glass-form-field">
-            <label>Base URL</label>
+            <label>${t('provider.baseUrl')}</label>
             <input class="glass-input" type="text" id="editProviderBaseUrl" value="${escHtml(provider.base_url)}" style="width:100%">
           </div>
           <div class="glass-form-field">
-            <label>API Key</label>
-            <input class="glass-input" type="password" id="editProviderApiKey" placeholder="Leave empty to keep current" style="width:100%">
+            <label>${t('provider.apiKey')}</label>
+            <input class="glass-input" type="password" id="editProviderApiKey" placeholder="${t('provider.leaveEmpty')}" style="width:100%">
           </div>
           <div class="glass-form-field">
-            <label>Extra Headers (optional JSON)</label>
+            <label>${t('provider.extraHeaders')}</label>
             <textarea class="glass-textarea" id="editProviderHeaders" placeholder='{"X-Custom": "value"}' style="width:100%;min-height:60px;font-family:var(--font-mono)">${provider.extra_headers_json ?? ''}</textarea>
           </div>
           <div class="test-result liquid-glass liquid-glass--notice ${testResult ? 'show' : ''} ${testResult?.success ? 'ok' : testResult ? 'fail' : ''}" id="editTestResult">
             ${testResult?.success
-              ? `Connection successful (${testResult.latency_ms}ms)`
+              ? `${t('provider.connectionSuccess')} (${testResult.latency_ms}ms)`
               : testResult
-              ? `Connection failed: ${escHtml(testResult.error ?? 'Unknown error')}`
+              ? `${t('provider.connectionFail')}: ${escHtml(testResult.error ?? t('provider.unknownError'))}`
               : ''
             }
           </div>
@@ -367,11 +367,11 @@ function renderEditProviderModal(): string {
         <div class="modal-footer">
           <button class="test-btn glass-button glass-button--secondary ${testLoading ? 'testing' : ''}" id="editTestBtn">
             <span class="spinner"></span>
-            Test
+            ${t('provider.test')}
           </button>
           <div style="flex:1"></div>
-          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelEditProvider">Cancel</button>
-          <button class="test-btn glass-button glass-button--primary" id="saveEditProviderBtn">Save</button>
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelEditProvider">${t('common.cancel')}</button>
+          <button class="test-btn glass-button glass-button--primary" id="saveEditProviderBtn">${t('common.save')}</button>
         </div>
       </div>
     </div>
@@ -383,15 +383,15 @@ function renderDiscoverModal(): string {
     <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
       <div class="modal-overlay glass-modal provider-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Discover Models" style="width:min(560px,calc(100vw - 48px))">
         <div class="modal-header">
-          <h2>Discover Models</h2>
+          <h2>${t('provider.discover')}</h2>
           <button class="modal-close" id="closeDiscoverModal">&#10005;</button>
         </div>
         <div class="modal-body" style="flex-direction:column;gap:12px;padding:20px 24px">
           ${discoverLoading
-            ? '<div style="text-align:center;padding:40px;color:var(--text-muted)"><div class="spinner" style="display:inline-block;width:24px;height:24px;margin-bottom:8px"></div><br>Discovering models...</div>'
+            ? `<div style="text-align:center;padding:40px;color:var(--text-muted)"><div class="spinner" style="display:inline-block;width:24px;height:24px;margin-bottom:8px"></div><br>${t('provider.discovering')}</div>`
             : discoveredModels.length === 0
-            ? '<div style="text-align:center;padding:40px;color:var(--text-muted)">No models found</div>'
-            : `<div style="margin-bottom:8px;color:var(--text-muted);font-size:var(--fs-secondary)">${discoveredModels.length} models found. Select models to add:</div>
+            ? `<div style="text-align:center;padding:40px;color:var(--text-muted)">${t('provider.noModelsFound')}</div>`
+            : `<div style="margin-bottom:8px;color:var(--text-muted);font-size:var(--fs-secondary)">${discoveredModels.length} ${t('provider.modelsFound')}</div>
                <div style="max-height:400px;overflow-y:auto">
                  ${discoveredModels.map((m, i) => `
                    <label class="glass-check-row ${m.selected ? 'is-selected' : ''}">
@@ -407,8 +407,8 @@ function renderDiscoverModal(): string {
         </div>
         <div class="modal-footer">
           <div style="flex:1"></div>
-          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelDiscover">Cancel</button>
-          <button class="test-btn glass-button glass-button--primary" id="addDiscoveredBtn" ${discoverLoading || discoveredModels.filter(m => m.selected).length === 0 ? 'disabled' : ''}>Add Selected</button>
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelDiscover">${t('common.cancel')}</button>
+          <button class="test-btn glass-button glass-button--primary" id="addDiscoveredBtn" ${discoverLoading || discoveredModels.filter(m => m.selected).length === 0 ? 'disabled' : ''}>${t('provider.addSelected')}</button>
         </div>
       </div>
     </div>
@@ -422,54 +422,54 @@ function renderEditModelModal(): string {
     <div class="modal-backdrop glass-modal-backdrop" data-glass-portal data-glass-portal-owner="provider">
       <div class="modal-overlay glass-modal provider-modal liquid-glass liquid-glass--modal" role="dialog" aria-modal="true" aria-label="Edit Model" style="width:min(520px,calc(100vw - 48px))">
         <div class="modal-header">
-          <h2>Edit Model</h2>
+          <h2>${t('provider.edit')} ${t('provider.models').replace(/s$/, '')}</h2>
           <button class="modal-close" id="closeEditModelModal">&#10005;</button>
         </div>
         <div class="modal-body" style="flex-direction:column;gap:14px;padding:20px 24px">
           <div class="glass-form-field">
-            <label>Model Name (API identifier)</label>
+            <label>${t('provider.apiIdentifier')}</label>
             <input class="glass-input" type="text" id="editModelName" value="${escHtml(model.model_name)}" style="width:100%">
           </div>
           <div class="glass-form-field">
-            <label>Display Name</label>
+            <label>${t('provider.displayName')}</label>
             <input class="glass-input" type="text" id="editModelDisplayName" value="${escHtml(model.display_name)}" style="width:100%">
           </div>
           <div class="glass-form-field">
-            <label>Context Window</label>
+            <label>${t('provider.contextWindow')}</label>
             <input class="glass-input" type="number" id="editModelContextWindow" value="${model.context_window}" style="width:100%">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div class="glass-form-field">
-              <label>Uncached Input (per 1M tokens)</label>
+              <label>${t('provider.uncachedInput')}</label>
               <input class="glass-input" type="number" step="0.01" id="editModelInputPrice" value="${(model.uncached_input_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
             <div class="glass-form-field">
-              <label>Cache Read (per 1M tokens)</label>
+              <label>${t('provider.cachePrice')}</label>
               <input class="glass-input" type="number" step="0.01" id="editModelCachePrice" value="${(model.cache_read_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
             <div class="glass-form-field">
-              <label>Output (per 1M tokens)</label>
+              <label>${t('provider.outputPrice')}</label>
               <input class="glass-input" type="number" step="0.01" id="editModelOutputPrice" value="${(model.output_nanos_per_million / 1e9).toFixed(2)}" style="width:100%">
             </div>
             <div class="glass-form-field">
-              <label>Currency</label>
+              <label>${t('provider.currency')}</label>
               <select class="glass-select" id="editModelCurrency" style="width:100%">${renderCurrencyOptions(model.currency)}</select>
             </div>
           </div>
           <div class="glass-form-field">
-            <label>System Prompt (optional)</label>
+            <label>${t('provider.systemPrompt')} (${t('provider.optional')})</label>
             <textarea class="glass-textarea" id="editModelSystemPrompt" style="width:100%;min-height:60px">${model.system_prompt ?? ''}</textarea>
           </div>
           <div class="glass-form-field">
-            <label>Temperature: <span id="editTempValue">${model.temperature}</span></label>
+            <label>${t('provider.temperature')}: <span id="editTempValue">${model.temperature}</span></label>
             <input class="glass-range" type="range" id="editModelTemperature" min="0" max="2" step="0.1" value="${model.temperature}" style="width:100%;accent-color:var(--accent)">
           </div>
         </div>
         <div class="modal-footer">
-          <button class="modal-footer-btn glass-button glass-button--danger" id="deleteModelBtn">Delete</button>
+          <button class="modal-footer-btn glass-button glass-button--danger" id="deleteModelBtn">${t('common.delete')}</button>
           <div style="flex:1"></div>
-          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelEditModel">Cancel</button>
-          <button class="test-btn glass-button glass-button--primary" id="saveEditModelBtn">Save</button>
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelEditModel">${t('common.cancel')}</button>
+          <button class="test-btn glass-button glass-button--primary" id="saveEditModelBtn">${t('common.save')}</button>
         </div>
       </div>
     </div>
@@ -829,7 +829,7 @@ async function saveProvider(): Promise<void> {
 
 async function deleteProvider(): Promise<void> {
   if (!selectedProviderId) return;
-  if (!await showGlassConfirm('Delete this provider and all its models?', 'Delete Provider', true)) return;
+  if (!await showGlassConfirm(t('provider.confirmDelete'), t('provider.deleteProvider'), true)) return;
 
   if (isDev) {
     state.providers = state.providers.filter(p => p.id !== selectedProviderId);
@@ -1093,7 +1093,7 @@ async function saveEditModel(): Promise<void> {
 
 async function deleteEditingModel(): Promise<void> {
   if (!editingModelId) return;
-  if (!await showGlassConfirm('Delete this model?', 'Delete Model', true)) return;
+  if (!await showGlassConfirm(t('provider.confirmDeleteModel'), t('common.delete'), true)) return;
 
   if (isDev) {
     state.models = state.models.filter(m => m.id !== editingModelId);
