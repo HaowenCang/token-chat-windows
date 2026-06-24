@@ -77,9 +77,12 @@ async function loadModels(providerId: string): Promise<void> {
   }
   try {
     const models = await invoke<Model[]>('list_models', { providerId });
-    state.models = models;
+    state.models = [
+      ...state.models.filter(m => m.provider_id !== providerId),
+      ...models,
+    ];
   } catch {
-    state.models = [];
+    state.models = state.models.filter(m => m.provider_id !== providerId);
   }
 }
 
@@ -139,7 +142,6 @@ function renderProviderCards(): string {
           <div class="provider-item-name">${escHtml(p.name)}</div>
         </div>
         <div class="provider-item-status">
-          <span>${escHtml(p.base_url)}</span>
           <span class="tag glass-chip">${models.length} model${models.length !== 1 ? 's' : ''}</span>
         </div>
       </div>
