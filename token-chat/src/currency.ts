@@ -47,7 +47,9 @@ export function getExchangeRate(sourceCurrency: string, baseCurrency = getDispla
   const base = normalizeCurrency(baseCurrency);
   if (source === base) return 1;
   const rate = readRateStore()[base]?.[source];
-  return typeof rate === 'number' && Number.isFinite(rate) && rate > 0 ? rate : 1;
+  if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) return rate;
+  const fallback = DEFAULT_RATES[base]?.[source];
+  return typeof fallback === 'number' && Number.isFinite(fallback) && fallback > 0 ? fallback : 1;
 }
 
 export function setExchangeRate(sourceCurrency: string, value: number | string): number {
@@ -97,11 +99,11 @@ export function formatCurrencyNanos(
 }
 
 const DEFAULT_RATES: ExchangeRateStore = {
-  CNY: { USD: 0.14, EUR: 0.13, GBP: 0.11, JPY: 20.5 },
-  USD: { CNY: 7.25, EUR: 0.92, GBP: 0.79, JPY: 149.5 },
-  EUR: { CNY: 7.85, USD: 1.09, GBP: 0.86, JPY: 162.0 },
-  GBP: { CNY: 9.15, USD: 1.27, EUR: 1.16, JPY: 189.0 },
-  JPY: { CNY: 0.049, USD: 0.0067, EUR: 0.0062, GBP: 0.0053 },
+  CNY: { USD: 0.1471, EUR: 0.1292, GBP: 0.1114, JPY: 23.76 },
+  USD: { CNY: 6.80, EUR: 0.8783, GBP: 0.7575, JPY: 161.56 },
+  EUR: { CNY: 7.74, USD: 1.1386, GBP: 0.8627, JPY: 183.97 },
+  GBP: { CNY: 8.98, USD: 1.3202, EUR: 1.1591, JPY: 213.26 },
+  JPY: { CNY: 0.0421, USD: 0.0062, EUR: 0.0054, GBP: 0.0047 },
 };
 
 export async function fetchExchangeRates(): Promise<void> {
