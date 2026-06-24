@@ -1004,19 +1004,21 @@ export function renderRightPanelContent(): string {
         <div class="metric-card-sub">${t('chat.tokens')}</div>
       </div>
     </div>
-    <div class="metric-card">
-      <div class="metric-card-label">${t('chat.sessionCost')}</div>
-      <div class="metric-card-value">${costLabel}</div>
-      <div class="metric-card-sub">${usage.request_count} ${t('chat.messages')}</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-card-label">${t('chat.cacheHitRate')}</div>
-      <div class="metric-card-value">${(() => {
-        const totalCacheable = usage.cached_input_tokens + usage.uncached_input_tokens;
-        if (totalCacheable === 0) return '-';
-        return `${Math.round(usage.cached_input_tokens / totalCacheable * 100)}%`;
-      })()}</div>
-      <div class="metric-card-sub">${usage.cached_input_tokens.toLocaleString()} / ${totalInput.toLocaleString()}</div>
+    <div class="metric-row">
+      <div class="metric-card">
+        <div class="metric-card-label">${t('chat.cacheHitRate')}</div>
+        <div class="metric-card-value">${(() => {
+          const totalCacheable = usage.cached_input_tokens + usage.uncached_input_tokens;
+          if (totalCacheable === 0) return '-';
+          return `${Math.round(usage.cached_input_tokens / totalCacheable * 100)}%`;
+        })()}</div>
+        <div class="metric-card-sub">${usage.cached_input_tokens.toLocaleString()} / ${totalInput.toLocaleString()}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">${t('chat.sessionCost')}</div>
+        <div class="metric-card-value">${costLabel}</div>
+        <div class="metric-card-sub">${usage.request_count} ${t('chat.messages')}</div>
+      </div>
     </div>
     <div class="mini-chart">
       <div class="mini-chart-title">${tokenChartText.title}</div>
@@ -1027,6 +1029,7 @@ export function renderRightPanelContent(): string {
       <div class="model-info-name">${escHtml(model.display_name || model.model_name)}</div>
       <div class="model-info-provider">${escHtml(model.provider_id)}</div>
       <div class="model-info-stats">
+        <div><div class="model-info-stat-label">${t('chat.cacheReadPerM')}</div><div class="model-info-stat-value">${formatCurrencyAmount(model.cache_read_nanos_per_million / 1e9, 2, model.currency)}</div></div>
         <div><div class="model-info-stat-label">${t('chat.inputPerM')}</div><div class="model-info-stat-value">${formatCurrencyAmount(model.uncached_input_nanos_per_million / 1e9, 2, model.currency)}</div></div>
         <div><div class="model-info-stat-label">${t('chat.outputPerM')}</div><div class="model-info-stat-value">${formatCurrencyAmount(model.output_nanos_per_million / 1e9, 2, model.currency)}</div></div>
         <div><div class="model-info-stat-label">${t('chat.maxCtx')}</div><div class="model-info-stat-value">${(model.context_window / 1000).toFixed(0)}K</div></div>
