@@ -74,11 +74,11 @@ export function renderSettingsPage(): string {
             </select>
           </div>
           <div class="settings-row">
-            <label>Accent color</label>
+            <label>${t('settings.accentColor')}</label>
             <div class="theme-color-control">
               <input type="color" id="settingsAccentColor" value="${escHtml(customAccent)}">
               <input class="chat-search glass-input" id="settingsAccentText" value="${escHtml(customAccent)}" style="width:120px">
-              <button class="tool-btn glass-button glass-button--secondary" id="resetAccentColor">Reset</button>
+              <button class="tool-btn glass-button glass-button--secondary" id="resetAccentColor">${t('settings.reset')}</button>
             </div>
           </div>
         </div>
@@ -162,7 +162,7 @@ export function renderSettingsPage(): string {
           <div class="settings-row settings-row--stacked">
             <label>${t('settings.globalPromptDesc')}</label>
             <textarea class="chat-search glass-textarea" id="settingsGlobalPrompt" style="width:100%;min-height:120px;resize:vertical;font-family:var(--font-mono);font-size:var(--fs-code)">${escHtml(globalPrompt)}</textarea>
-            <div class="settings-hint">Default source: prompt.txt. Editing this field overrides the built-in prompt.</div>
+            <div class="settings-hint">${t('settings.searchHint')}</div>
           </div>
         </div>
 
@@ -208,7 +208,7 @@ function renderSwitch(id: string, checked: boolean, label: string): string {
   return `
     <button class="glass-switch ${checked ? 'is-on' : ''}" id="${id}" type="button" role="switch" aria-checked="${checked}" aria-label="${escHtml(label)}">
       <span class="glass-switch-track"><span class="glass-switch-thumb"></span></span>
-      <span class="glass-switch-label">${escHtml(checked ? '已开启' : '已关闭')}</span>
+      <span class="glass-switch-label">${escHtml(checked ? t('common.enabled') : t('common.disabled'))}</span>
     </button>`;
 }
 
@@ -218,10 +218,10 @@ function renderWebSearchSettings(): string {
     <div class="settings-section glass-card web-search-settings">
       <div class="settings-section-heading">
         <div>
-          <h3 class="settings-section-title">网络搜索</h3>
+          <h3 class="settings-section-title">${t('settings.webSearch')}</h3>
           <p class="settings-section-copy">通过可配置的 HTTP JSON Search Provider 检索资料，并在桌面端后端代理请求。</p>
         </div>
-        <span class="glass-chip">Web Search</span>
+        <span class="glass-chip">${t('settings.webSearch')}</span>
       </div>
       <div class="settings-row">
         <label>启用网络搜索</label>
@@ -234,15 +234,15 @@ function renderWebSearchSettings(): string {
         </select>
       </div>
       <div class="settings-row">
-        <label for="searchBaseUrl">Search API Base URL</label>
+        <label for="searchBaseUrl">${t('settings.searchBaseUrl')}</label>
         <input class="chat-search glass-input web-search-wide-input" id="searchBaseUrl" type="url" spellcheck="false" placeholder="https://search.example.com/api/search" value="${escHtml(config.baseUrl)}">
       </div>
       <div class="settings-row">
-        <label for="searchApiKey">Search API Key</label>
+        <label>${t('settings.searchApiKey')}</label>
         <div class="secret-input-row">
-          <input class="chat-search glass-input" id="searchApiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="${hasApiKey ? '已保存；留空则保留' : '可选'}">
-          <button class="tool-btn glass-button glass-button--secondary" id="toggleSearchApiKey" type="button" aria-label="显示 API Key">显示</button>
-          ${hasApiKey ? '<button class="tool-btn glass-button glass-button--danger" id="clearSearchApiKey" type="button">清除已保存 Key</button>' : ''}
+          <input class="chat-search glass-input" id="searchApiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="${hasApiKey ? t('provider.leaveEmpty') : t('provider.optional')}">
+          <button class="tool-btn glass-button glass-button--secondary" id="toggleSearchApiKey" type="button" aria-label="${t('settings.showKey')}">${t('settings.showKey')}</button>
+          ${hasApiKey ? `<button class="tool-btn glass-button glass-button--danger" id="clearSearchApiKey" type="button">${t('settings.clearKey')}</button>` : ''}
         </div>
       </div>
       <div class="settings-row">
@@ -264,8 +264,8 @@ function renderWebSearchSettings(): string {
         <input class="chat-search glass-input" id="searchRegion" type="text" placeholder="例如 CN、US；可留空" value="${escHtml(config.defaultRegion)}">
       </div>
       <div class="settings-row">
-        <label>Safe Search</label>
-        ${renderSwitch('searchSafeSearch', config.safeSearch, 'Safe Search')}
+        <label>${t('settings.safeSearch')}</label>
+        ${renderSwitch('searchSafeSearch', config.safeSearch, t('settings.safeSearch'))}
       </div>
       <div class="settings-row">
         <label for="searchTimeout">搜索超时</label>
@@ -278,21 +278,21 @@ function renderWebSearchSettings(): string {
         <summary>高级 HTTP 适配器设置</summary>
         <p class="settings-form-help">可配置鉴权、查询参数与响应 JSON 字段映射，便于接入 Bing、Brave、Tavily、SerpAPI、SearXNG 或自建服务。</p>
         <div class="web-search-advanced-grid">
-          ${renderSearchTextField('searchApiKeyHeader', 'API Key Header', config.apiKeyHeader, 'Authorization')}
-          ${renderSearchTextField('searchApiKeyPrefix', 'API Key Prefix', config.apiKeyPrefix, 'Bearer ')}
-          ${renderSearchTextField('searchApiKeyQueryParam', 'API Key Query 参数', config.apiKeyQueryParam, '可留空')}
-          ${renderSearchTextField('searchQueryParam', '搜索词参数', config.queryParam, 'q')}
-          ${renderSearchTextField('searchCountParam', '结果数量参数', config.resultCountParam, 'count')}
-          ${renderSearchTextField('searchLanguageParam', '语言参数', config.languageParam, 'language')}
-          ${renderSearchTextField('searchRegionParam', '地区参数', config.regionParam, 'region')}
-          ${renderSearchTextField('searchSafeParam', 'Safe Search 参数', config.safeSearchParam, 'safeSearch')}
-          ${renderSearchTextField('searchFreshnessParam', '时效参数', config.freshnessParam, 'freshness')}
-          ${renderSearchTextField('searchResultsPath', '结果数组路径', config.resultsPath, 'results / web.results')}
-          ${renderSearchTextField('searchTitleField', '标题字段', config.titleField, 'title')}
-          ${renderSearchTextField('searchUrlField', 'URL 字段', config.urlField, 'url')}
-          ${renderSearchTextField('searchSnippetField', '摘要字段', config.snippetField, 'snippet')}
-          ${renderSearchTextField('searchSourceField', '来源字段', config.sourceField, 'source')}
-          ${renderSearchTextField('searchPublishedField', '发布时间字段', config.publishedAtField, 'publishedAt')}
+          ${renderSearchTextField('searchApiKeyHeader', t('settings.apiKeyHeader'), config.apiKeyHeader, 'Authorization')}
+          ${renderSearchTextField('searchApiKeyPrefix', t('settings.apiKeyPrefix'), config.apiKeyPrefix, 'Bearer ')}
+          ${renderSearchTextField('searchApiKeyQueryParam', t('settings.apiKeyQueryParam'), config.apiKeyQueryParam, '')}
+          ${renderSearchTextField('searchQueryParam', t('settings.queryParam'), config.queryParam, 'q')}
+          ${renderSearchTextField('searchCountParam', t('settings.countParam'), config.resultCountParam, 'count')}
+          ${renderSearchTextField('searchLanguageParam', t('settings.languageParam'), config.languageParam, 'language')}
+          ${renderSearchTextField('searchRegionParam', t('settings.regionParam'), config.regionParam, 'region')}
+          ${renderSearchTextField('searchSafeParam', t('settings.safeParam'), config.safeSearchParam, 'safeSearch')}
+          ${renderSearchTextField('searchFreshnessParam', t('settings.freshnessParam'), config.freshnessParam, 'freshness')}
+          ${renderSearchTextField('searchResultsPath', t('settings.resultsPath'), config.resultsPath, 'results / web.results')}
+          ${renderSearchTextField('searchTitleField', t('settings.titleField'), config.titleField, 'title')}
+          ${renderSearchTextField('searchUrlField', t('settings.urlField'), config.urlField, 'url')}
+          ${renderSearchTextField('searchSnippetField', t('settings.snippetField'), config.snippetField, 'snippet')}
+          ${renderSearchTextField('searchSourceField', t('settings.sourceField'), config.sourceField, 'source')}
+          ${renderSearchTextField('searchPublishedField', t('settings.publishedField'), config.publishedAtField, 'publishedAt')}
         </div>
         <div class="glass-form-field web-search-headers-field">
           <label for="searchExtraHeaders">额外请求头（JSON，不要在此填写 API Key）</label>
@@ -300,8 +300,8 @@ function renderWebSearchSettings(): string {
         </div>
       </details>
       <div class="web-search-actions">
-        <button class="test-btn glass-button glass-button--primary" id="saveSearchSettings" type="button">保存网络搜索设置</button>
-        <button class="tool-btn glass-button glass-button--secondary" id="testSearchConnection" type="button">测试搜索连接</button>
+        <button class="test-btn glass-button glass-button--primary" id="saveSearchSettings" type="button">${t('settings.saveSearch')}</button>
+        <button class="tool-btn glass-button glass-button--secondary" id="testSearchConnection" type="button">${t('settings.testSearch')}</button>
         <span class="settings-form-help">测试会使用 “OpenAI” 作为示例查询，不显示或记录完整 API Key。</span>
       </div>
       <div class="test-result liquid-glass liquid-glass--notice" id="searchTestResult" aria-live="polite"></div>
@@ -446,12 +446,12 @@ function bindWebSearchSettings(): void {
   const saveButton = document.getElementById('saveSearchSettings') as HTMLButtonElement | null;
   saveButton?.addEventListener('click', async () => {
     saveButton.disabled = true;
-    setSearchResultNotice('loading', '正在保存网络搜索设置…');
+    setSearchResultNotice('loading', t('settings.saving'));
     try {
       await persistSearchSettings();
-      setSearchResultNotice('ok', '网络搜索设置已保存。API Key 不会回传到设置页。');
+      setSearchResultNotice('ok', t('settings.saved'));
     } catch (error) {
-      setSearchResultNotice('fail', `保存失败：${escHtml(String(error))}`);
+      setSearchResultNotice('fail', `${t('settings.saveFail')}${escHtml(String(error))}`);
     } finally {
       saveButton.disabled = false;
     }
@@ -460,7 +460,7 @@ function bindWebSearchSettings(): void {
   const testButton = document.getElementById('testSearchConnection') as HTMLButtonElement | null;
   testButton?.addEventListener('click', async () => {
     testButton.disabled = true;
-    setSearchResultNotice('loading', '<span class="spinner"></span> 正在测试搜索连接…');
+    setSearchResultNotice('loading', `<span class="spinner"></span> ${t('settings.testing')}`);
     try {
       await persistSearchSettings();
       const result = await testSearchConnection();
@@ -468,12 +468,12 @@ function bindWebSearchSettings(): void {
         const examples = result.results.slice(0, 3)
           .map(item => `<li><strong>${escHtml(item.title)}</strong><span>${escHtml(item.source || '')}</span></li>`)
           .join('');
-        setSearchResultNotice('ok', `连接成功 · ${result.latencyMs} ms · ${result.resultCount} 条结果${examples ? `<ul class="search-test-examples">${examples}</ul>` : ''}`);
+        setSearchResultNotice('ok', `${t('settings.testSuccess')} · ${result.latencyMs} ms · ${result.resultCount} ${t('provider.models').toLowerCase()}${examples ? `<ul class="search-test-examples">${examples}</ul>` : ''}`);
       } else {
-        setSearchResultNotice('fail', `连接失败：${escHtml(result.error || '未知错误')}`);
+        setSearchResultNotice('fail', `${t('settings.testFail')}${escHtml(result.error || t('provider.unknownError'))}`);
       }
     } catch (error) {
-      setSearchResultNotice('fail', `连接失败：${escHtml(String(error))}`);
+      setSearchResultNotice('fail', `${t('settings.testFail')}${escHtml(String(error))}`);
     } finally {
       testButton.disabled = false;
     }
@@ -587,7 +587,7 @@ export function bindSettingsEvents(): void {
   if (addPromptBtn) {
     addPromptBtn.addEventListener('click', () => {
       const prompts = JSON.parse(localStorage.getItem('tc-custom-prompts') || '[]');
-      prompts.push({ name: 'New Prompt', prompt: '', scope: 'global' });
+      prompts.push({ name: t('settings.newPrompt'), prompt: '', scope: 'global' });
       localStorage.setItem('tc-custom-prompts', JSON.stringify(prompts));
       const promptList = document.getElementById('promptList');
       if (promptList) promptList.innerHTML = renderPromptList();

@@ -328,7 +328,7 @@ function buildApiContent(text: string, attachments: MessageAttachment[]): ApiMes
 }
 
 function titleFromContent(text: string, attachments: MessageAttachment[]): string {
-  const source = text.trim() || attachments[0]?.name || 'New Conversation';
+  const source = text.trim() || attachments[0]?.name || t('chat.new');
   const cleaned = source
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/[#*_`>\[\]()]/g, ' ')
@@ -840,13 +840,13 @@ function renderMessageSearchMetadata(msg: Message, isUser: boolean): string {
   if (metadata.error) {
     if (!isUser) return '';
     const brief = metadata.error.length > 140 ? `${metadata.error.slice(0, 139)}…` : metadata.error;
-    return `<div class="message-search-state is-error" title="${escHtml(brief)}"><span aria-hidden="true">!</span> 搜索失败，已降级为普通对话</div>`;
+    return `<div class="message-search-state is-error" title="${escHtml(brief)}"><span aria-hidden="true">!</span> ${t('chat.searchFailed')}</div>`;
   }
   if (metadata.results.length === 0) {
-    return isUser ? '<div class="message-search-state is-empty">未检索到可用网络结果</div>' : '';
+    return isUser ? `<div class="message-search-state is-empty">${t('chat.noResults')}</div>` : '';
   }
   if (isUser) {
-    return `<div class="message-search-state is-success"><span class="search-pulse-dot"></span>已检索 ${metadata.results.length} 条结果</div>`;
+    return `<div class="message-search-state is-success"><span class="search-pulse-dot"></span>${t('chat.retrievedResults')} ${metadata.results.length}</div>`;
   }
   const sources = metadata.results
     .filter(result => isSafeSourceUrl(result.url))
@@ -876,7 +876,7 @@ function sourceHost(value: string): string {
   try {
     return new URL(value).hostname;
   } catch {
-    return '网页来源';
+    return t('chat.webSource');
   }
 }
 
@@ -942,9 +942,9 @@ export function renderChatInput(): string {
     <div class="chat-input-area">
       ${renderAttachmentDrafts()}
       <div class="chat-input-tools">
-        <button class="web-search-toggle ${searchEnabled ? 'is-on' : ''}" id="webSearchToggle" type="button" role="switch" aria-checked="${searchEnabled}" ${!searchFeatureEnabled || streaming ? 'disabled' : ''} title="${searchFeatureEnabled ? '发送前检索网络资料' : '请先在设置中配置并启用网络搜索'}">
+        <button class="web-search-toggle ${searchEnabled ? 'is-on' : ''}" id="webSearchToggle" type="button" role="switch" aria-checked="${searchEnabled}" ${!searchFeatureEnabled || streaming ? 'disabled' : ''} title="${searchFeatureEnabled ? t('chat.searchToggle') : t('chat.searchToggleDisabled')}">
           <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/><path d="M3.8 12h16.4M12 3.5c2.2 2.3 3.4 5.1 3.4 8.5S14.2 18.2 12 20.5M12 3.5C9.8 5.8 8.6 8.6 8.6 12s1.2 6.2 3.4 8.5"/></svg>
-          <span>联网搜索</span>
+          <span>${t('chat.webSearchBtn')}</span>
         </button>
         ${searchStatus}
       </div>
@@ -1144,7 +1144,7 @@ export async function renameCurrentConversation(): Promise<void> {
   if (!state.currentConversationId) return;
   const conv = state.conversations.find(c => c.id === state.currentConversationId);
   if (!conv) return;
-  const title = await showGlassPrompt('Conversation title', conv.title);
+  const title = await showGlassPrompt(t('chat.conversationTitle'), conv.title);
   if (title === null) return;
   await updateConversationTitleLocal(conv.id, title);
 }
@@ -1222,7 +1222,7 @@ export async function handleSend(): Promise<void> {
       const searchConfig = getSearchConfigSnapshot().config;
       const searchProvider = getSearchProvider(searchConfig.providerId);
       state.isStreaming = true;
-      setWebSearchPhase('searching', '正在搜索网络…');
+      setWebSearchPhase('searching', t('chat.searching'));
       renderChatInputInDom();
 
       searchMetadata = {
@@ -1234,8 +1234,8 @@ export async function handleSend(): Promise<void> {
       };
 
       if (!searchProvider) {
-        searchMetadata.error = '未配置可用的 Search Provider';
-        setWebSearchPhase('error', '搜索 Provider 不可用，已使用普通对话继续');
+        searchMetadata.error = t('chat.noSearchProvider');
+        setWebSearchPhase('error', t('chat.searchUnavailable'));
       } else {
         try {
           const response = await searchProvider.search(text, {
@@ -1249,7 +1249,7 @@ export async function handleSend(): Promise<void> {
           searchMetadata.searchedAt = response.searchedAt;
           searchMetadata.providerId = response.providerId;
           augmentedUserText = buildSearchAugmentedPrompt(text, response.results, { language: getLang() });
-          setWebSearchPhase('success', `已检索 ${response.results.length} 条结果`);
+          setWebSearchPhase('success', `${t('chat.retrievedResults')} ${response.results.length}`);
         } catch (error) {
           const message = String(error);
           if (cancelledSendIds.has(sendId) || message.includes('SEARCH_CANCELLED')) {
@@ -1266,7 +1266,7 @@ export async function handleSend(): Promise<void> {
             return;
           }
           searchMetadata.error = message.length > 300 ? `${message.slice(0, 299)}…` : message;
-          setWebSearchPhase('error', '搜索失败，已使用普通对话继续');
+          setWebSearchPhase('error', t('chat.searchFailed'));
           console.warn('Web Search failed; continuing without search:', searchMetadata.error);
         }
       }
@@ -1284,7 +1284,7 @@ export async function handleSend(): Promise<void> {
       state.isStreaming = false;
       setWebSearchPhase('idle');
       renderChatInputInDom();
-      await showGlassAlert('Failed to save message: ' + String(e));
+      await showGlassAlert(t('chat.failedToSave') + String(e));
       return;
     }
 
@@ -1425,7 +1425,7 @@ export async function handleSend(): Promise<void> {
     renderChatArea();
     renderChatInputInDom();
     renderRightPanelInDom();
-    await showGlassAlert('Send failed: ' + String(e));
+    await showGlassAlert(t('chat.sendFailed') + String(e));
   } finally {
     if (ownsPreparation) sendPreparationInProgress = false;
   }
@@ -1531,13 +1531,13 @@ export function renderChatArea(): void {
   const titleEl = document.querySelector('.chat-center-title');
   if (titleEl) {
     const conv = state.conversations.find(c => c.id === state.currentConversationId);
-    titleEl.textContent = conv?.title ?? 'New Conversation';
+    titleEl.textContent = conv?.title ?? t('chat.new');
   }
   const modelEl = document.querySelector('.chat-center-model');
   if (modelEl) {
     const conv = state.conversations.find(c => c.id === state.currentConversationId);
     const model = conv ? state.models.find(m => m.id === conv.model_id) : null;
-    modelEl.textContent = model?.display_name ?? model?.model_name ?? 'No model selected';
+    modelEl.textContent = model?.display_name ?? model?.model_name ?? t('chat.noModel');
   }
 }
 
@@ -1599,8 +1599,8 @@ function bindMessageEvents(): void {
       const msg = state.messages.find(m => m.id === id);
       if (!msg) return;
       await copyText(getMessageCopyText(msg));
-      const oldText = btn.textContent ?? 'Copy';
-      btn.textContent = 'Copied';
+      const oldText = btn.textContent ?? t('chat.copy');
+      btn.textContent = t('chat.copied');
       btn.disabled = true;
       window.setTimeout(() => {
         btn.textContent = oldText;

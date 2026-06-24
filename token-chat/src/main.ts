@@ -143,9 +143,9 @@ function renderWindowTitlebar(): string {
         <span class="window-titlebar-page">${pageLabel(state.page)}</span>
       </div>
       <div class="window-controls">
-        <button class="window-control" data-window-action="minimize" aria-label="Minimize" title="Minimize">${iconSvg('minimize')}</button>
-        <button class="window-control" data-window-action="maximize" aria-label="Maximize" title="Maximize">${iconSvg('maximize')}</button>
-        <button class="window-control close" data-window-action="close" aria-label="Close" title="Close">${iconSvg('close')}</button>
+        <button class="window-control" data-window-action="minimize" aria-label="${t('window.minimize')}" title="${t('window.minimize')}">${iconSvg('minimize')}</button>
+        <button class="window-control" data-window-action="maximize" aria-label="${t('window.maximize')}" title="${t('window.maximize')}">${iconSvg('maximize')}</button>
+        <button class="window-control close" data-window-action="close" aria-label="${t('window.close')}" title="${t('window.close')}">${iconSvg('close')}</button>
       </div>
     </header>
   `;
@@ -182,9 +182,9 @@ function renderChatCenter() {
   return `
     <main class="chat-center">
       <div class="chat-center-header">
-        <button class="toggle-btn" data-toggle="sidebar" title="Toggle conversations" aria-label="Toggle conversations">${iconSvg('menu')}</button>
-        <span class="chat-center-title">${escHtml(conv?.title ?? 'New Conversation')}</span>
-        ${conv ? `<button class="title-edit-btn" id="editTitleBtn" title="Rename conversation" aria-label="Rename conversation">${iconSvg('edit')}</button>` : ''}
+        <button class="toggle-btn" data-toggle="sidebar" title="${t('chat.toggleSidebar')}" aria-label="${t('chat.toggleSidebar')}">${iconSvg('menu')}</button>
+        <span class="chat-center-title">${escHtml(conv?.title ?? t('chat.new'))}</span>
+        ${conv ? `<button class="title-edit-btn" id="editTitleBtn" title="${t('chat.rename')}" aria-label="${t('chat.rename')}">${iconSvg('edit')}</button>` : ''}
         <select class="model-select" id="modelSelect">
           <option value="">${t('chat.noModel')}</option>
           ${state.providers.flatMap(p => {
@@ -195,10 +195,10 @@ function renderChatCenter() {
           }).join('')}
         </select>
         <div class="chat-center-tools">
-          <button class="tool-btn" id="exportChatBtn">Export</button>
-          <button class="tool-btn" data-page="provider">Settings</button>
+          <button class="tool-btn" id="exportChatBtn">${t('chat.export')}</button>
+          <button class="tool-btn" data-page="provider">${t('nav.settings')}</button>
         </div>
-        <button class="toggle-btn" data-toggle="right" title="Toggle token monitor" aria-label="Toggle token monitor" style="margin-left:4px">${iconSvg('panel')}</button>
+        <button class="toggle-btn" data-toggle="right" title="${t('chat.toggleMonitor')}" aria-label="${t('chat.toggleMonitor')}" style="margin-left:4px">${iconSvg('panel')}</button>
       </div>
       <div class="chat-messages" id="chatMessages">
         ${renderChatMessages()}
@@ -214,7 +214,7 @@ function renderRightPanel() {
     <aside class="chat-right ${collapsed ? 'collapsed' : ''}" id="chatRight">
       <div class="chat-right-header">
         <h3>${t('chat.tokenMonitor')}</h3>
-        <button class="toggle-btn" data-toggle="right" aria-label="Close token monitor" style="width:28px;height:28px">${iconSvg('close')}</button>
+        <button class="toggle-btn" data-toggle="right" aria-label="${t('chat.closeMonitor')}" style="width:28px;height:28px">${iconSvg('close')}</button>
       </div>
       <div class="panel-body">
         ${renderRightPanelContent()}
@@ -272,8 +272,8 @@ export async function render() {
           <option value="rose" ${currentTheme === 'rose' ? 'selected' : ''}>${t('theme.rose')}</option>
           <option value="light" ${currentTheme === 'light' ? 'selected' : ''}>${t('theme.light')}</option>
         </select>
-        <div class="topnav-stat">Today: <span>${formatCurrencyAmount(0, 2)}</span></div>
-        <div class="topnav-stat">Tokens: <span>0</span></div>
+        <div class="topnav-stat">${t('chat.today')}: <span>${formatCurrencyAmount(0, 2)}</span></div>
+        <div class="topnav-stat">${t('chat.tokens')}: <span>0</span></div>
       </div>
     </nav>` : ''}
     <div class="page-body ${state.page === 'chat' ? 'chat-page-body' : ''}" data-page-body="${state.page}">

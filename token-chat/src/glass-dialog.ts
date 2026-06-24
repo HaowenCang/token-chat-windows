@@ -1,4 +1,5 @@
 import { liquidGlassClasses, liquidGlassLayers, portalLiquidGlassElement } from './liquid-glass';
+import { t } from './i18n';
 
 interface DialogOptions {
   title: string;
@@ -28,7 +29,7 @@ function showGlassDialog(options: DialogOptions): Promise<boolean | string | nul
       ? `<input class="glass-input glass-dialog-input" id="${inputId}" aria-label="${escHtml(options.title)}" value="${escHtml(options.defaultValue || '')}">`
       : '';
     const message = options.message ? `<p class="glass-dialog-message">${escHtml(options.message)}</p>` : '';
-    const cancel = options.mode === 'alert' ? '' : `<button type="button" class="glass-button glass-button--secondary" data-dialog-cancel>${escHtml(options.cancelLabel || 'Cancel')}</button>`;
+    const cancel = options.mode === 'alert' ? '' : `<button type="button" class="glass-button glass-button--secondary" data-dialog-cancel>${escHtml(options.cancelLabel || t('common.cancel'))}</button>`;
     const confirmClass = options.danger ? 'glass-button--danger' : 'glass-button--primary';
     const content = `
       <div class="glass-dialog-copy">
@@ -38,7 +39,7 @@ function showGlassDialog(options: DialogOptions): Promise<boolean | string | nul
       </div>
       <div class="glass-dialog-actions">
         ${cancel}
-        <button type="button" class="glass-button ${confirmClass}" data-dialog-confirm>${escHtml(options.confirmLabel || 'OK')}</button>
+        <button type="button" class="glass-button ${confirmClass}" data-dialog-confirm>${escHtml(options.confirmLabel || t('dialog.ok'))}</button>
       </div>
     `;
     backdrop.innerHTML = `<section class="${liquidGlassClasses('dialog', 'glass-dialog')}" role="dialog" aria-modal="true" aria-labelledby="glassDialogTitle">${liquidGlassLayers(content)}</section>`;
@@ -89,14 +90,14 @@ function showGlassDialog(options: DialogOptions): Promise<boolean | string | nul
   });
 }
 
-export function showGlassAlert(message: string, title = 'Token Chat'): Promise<void> {
+export function showGlassAlert(message: string, title = t('dialog.defaultTitle')): Promise<void> {
   return showGlassDialog({ mode: 'alert', title, message }).then(() => undefined);
 }
 
-export function showGlassConfirm(message: string, title = 'Confirm', danger = false): Promise<boolean> {
-  return showGlassDialog({ mode: 'confirm', title, message, confirmLabel: 'Confirm', danger }).then(Boolean);
+export function showGlassConfirm(message: string, title = t('dialog.confirm'), danger = false): Promise<boolean> {
+  return showGlassDialog({ mode: 'confirm', title, message, confirmLabel: t('dialog.confirm'), danger }).then(Boolean);
 }
 
 export function showGlassPrompt(title: string, defaultValue = ''): Promise<string | null> {
-  return showGlassDialog({ mode: 'prompt', title, defaultValue, confirmLabel: 'Save' }) as Promise<string | null>;
+  return showGlassDialog({ mode: 'prompt', title, defaultValue, confirmLabel: t('common.save') }) as Promise<string | null>;
 }
