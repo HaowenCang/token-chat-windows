@@ -467,11 +467,11 @@ body,
 }
 
 [data-page-body="chat"] .chat-left.collapsed {
-  width: 0;
-  min-width: 0;
-  flex: 0 0 0px;
-  opacity: 0;
-  pointer-events: none;
+  width: 0 !important;
+  min-width: 0 !important;
+  flex: 0 0 0px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .settings-page { display: flex; flex-direction: column; }
