@@ -1009,6 +1009,15 @@ export function renderRightPanelContent(): string {
       <div class="metric-card-value">${costLabel}</div>
       <div class="metric-card-sub">${usage.request_count} ${t('chat.messages')}</div>
     </div>
+    <div class="metric-card">
+      <div class="metric-card-label">${t('chat.cacheHitRate')}</div>
+      <div class="metric-card-value">${(() => {
+        const totalCacheable = usage.cached_input_tokens + usage.uncached_input_tokens;
+        if (totalCacheable === 0) return '-';
+        return `${Math.round(usage.cached_input_tokens / totalCacheable * 100)}%`;
+      })()}</div>
+      <div class="metric-card-sub">${usage.cached_input_tokens.toLocaleString()} / ${totalInput.toLocaleString()}</div>
+    </div>
     <div class="mini-chart">
       <div class="mini-chart-title">${tokenChartText.title}</div>
       ${renderMiniChart(usage.recent_runs)}
