@@ -1636,11 +1636,6 @@ export function bindConversationListEvents(): void {
       if (id) selectConversation(id);
     });
   });
-
-  const newBtn = document.querySelector('.chat-new-btn');
-  if (newBtn) {
-    newBtn.addEventListener('click', () => createConversation());
-  }
 }
 
 export function bindChatInputEvents(): void {
@@ -1698,6 +1693,8 @@ export function bindChatEvents(): void {
   bindChatInputEvents();
   bindMessageEvents();
   bindSelectionCopyFallback();
+
+  document.querySelector('.chat-new-btn')?.addEventListener('click', () => createConversation());
 
   document.getElementById('editTitleBtn')?.addEventListener('click', () => {
     renameCurrentConversation();
