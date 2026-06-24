@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { state, type Conversation, type Message, type Model } from './state';
 import { getLang, t } from './i18n';
 import { getEffectiveSystemPrompt } from './prompt';
@@ -1740,26 +1741,40 @@ export function bindChatInputEvents(): void {
     input.focus();
   }
 
-  const chatCenter = document.querySelector('.chat-center') as HTMLElement | null;
-  if (chatCenter) {
-    chatCenter.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      chatCenter.classList.add('drag-over');
-    });
-    chatCenter.addEventListener('dragleave', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      chatCenter.classList.remove('drag-over');
-    });
-    chatCenter.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      chatCenter.classList.remove('drag-over');
-      const files = (e as DragEvent).dataTransfer?.files;
-      if (files && files.length > 0) {
-        await addAttachmentFiles(files);
-        rerenderChatInputPreservingDraft();
+  const isTauri = !!(window as any).__TAURI_INTERNALS__;
+  if (isTauri) {
+    getCurrentWindow().onDragDropEvent(async (event) => {
+      const chatCenter = document.querySelector('.chat-center');
+      if (!chatCenter) return;
+      if (event.payload.type === 'over') {
+        chatCenter.classList.add('drag-over');
+      } else if (event.payload.type === 'drop') {
+        chatCenter.classList.remove('drag-over');
+        const paths = event.payload.paths;
+        if (paths.length > 0) {
+          try {
+            const files: File[] = [];
+            for (const path of paths) {
+              const binary: number[] = await invoke('read_file_bytes', { path });
+              const name = path.split(/[/\\]/).pop() ?? 'file';
+              const ext = name.split('.').pop()?.toLowerCase() ?? '';
+              const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' };
+              const mime = mimeMap[ext] ?? 'application/octet-stream';
+              const blob = new Blob([new Uint8Array(binary)], { type: mime });
+              files.push(new File([blob], name, { type: mime }));
+            }
+            if (files.length > 0) {
+              const dt = new DataTransfer();
+              files.forEach(f => dt.items.add(f));
+              await addAttachmentFiles(dt.files);
+              rerenderChatInputPreservingDraft();
+            }
+          } catch (e) {
+            console.error('Failed to read dropped files:', e);
+          }
+        }
+      } else if (event.payload.type === 'leave') {
+        chatCenter.classList.remove('drag-over');
       }
     });
   }

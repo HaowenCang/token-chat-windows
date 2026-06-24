@@ -7,6 +7,11 @@ mod provider;
 mod stats;
 mod web_search;
 
+#[tauri::command]
+fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
+    std::fs::read(&path).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -50,6 +55,7 @@ pub fn run() {
             stats::get_stats_by_model,
             stats::get_stats_daily_costs,
             stats::get_stats_by_conversation,
+            read_file_bytes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

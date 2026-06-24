@@ -179,7 +179,7 @@ export function renderSettingsPage(): string {
         </div>
         </div>
         <div style="text-align:center;padding:24px 0 8px;color:var(--text-faint);font-size:var(--fs-secondary)">
-          Token Chat v0.9.11
+          Token Chat v0.9.12
         </div>
       </div>
     </div>
