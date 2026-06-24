@@ -124,6 +124,7 @@ interface CurrencyCost {
 
 interface TokenUsageRun {
   input_tokens: number;
+  cached_input_tokens: number;
   output_tokens: number;
   cost_nanos: number;
   currency?: string;
@@ -414,6 +415,7 @@ function getTokenChartText() {
       title: 'Token \u7528\u91cf\uff08\u6700\u8fd1 10 \u6761\u6d88\u606f\uff09',
       noData: '\u6682\u65e0\u6570\u636e',
       input: '\u8f93\u5165',
+      cached: '\u7f13\u5b58\u8f93\u5165',
       output: '\u8f93\u51fa',
       total: '\u603b\u8ba1',
       cost: '\u8d39\u7528',
@@ -424,6 +426,7 @@ function getTokenChartText() {
     title: 'Token Usage (last 10 msgs)',
     noData: 'No data yet',
     input: 'Input',
+    cached: 'Cached Input',
     output: 'Output',
     total: 'Total',
     cost: 'Cost',
@@ -460,6 +463,7 @@ function buildEstimatedUsageFromMessages(convId: string, model: Model | null): C
     currency: model?.currency ?? getDisplayCurrency(),
     recent_runs: assistantMessages.slice(-10).map(m => ({
       input_tokens: 0,
+      cached_input_tokens: 0,
       output_tokens: estimateTokenCount(parseContent(m.content_json)),
       cost_nanos: 0,
       currency: model?.currency ?? getDisplayCurrency(),
@@ -526,17 +530,22 @@ function renderMiniChart(runs: TokenUsageRun[]): string {
     const total = run.input_tokens + run.output_tokens;
     const totalHeight = Math.max(2, (total / maxTokens) * 48);
     const outputHeight = total > 0 ? (run.output_tokens / total) * totalHeight : 0;
-    const inputHeight = totalHeight - outputHeight;
+    const cachedHeight = total > 0 ? (run.cached_input_tokens / total) * totalHeight : 0;
+    const uncachedHeight = totalHeight - outputHeight - cachedHeight;
     const x = startX + idx * (barWidth + gap);
-    const inputY = 58 - totalHeight;
+    const cachedY = 58 - totalHeight;
+    const uncachedY = cachedY + cachedHeight;
     const outputY = 58 - outputHeight;
+    const uncachedInput = run.input_tokens - run.cached_input_tokens;
     return `<g class="mini-chart-run" ${tooltipAttrs(formatShortDateTime(run.created_at), [
       { label: text.input, value: `${run.input_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--chart-input)' },
+      { label: text.cached, value: `${run.cached_input_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--stack-cache)' },
       { label: text.output, value: `${run.output_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--chart-output)' },
       { label: text.total, value: `${total.toLocaleString()} ${text.tokens}`, color: 'var(--chart-line)' },
       { label: text.cost, value: formatConvertedCostNanos(run.cost_nanos, run.currency ?? getDisplayCurrency()) },
     ])}>
-      <rect x="${x}" y="${inputY}" width="${barWidth}" height="${inputHeight}" rx="2" fill="var(--chart-input)" opacity="0.75"/>
+      <rect x="${x}" y="${cachedY}" width="${barWidth}" height="${Math.max(0, cachedHeight)}" rx="2" fill="var(--stack-cache)" opacity="0.75"/>
+      <rect x="${x}" y="${uncachedY}" width="${barWidth}" height="${Math.max(0, uncachedHeight)}" rx="2" fill="var(--chart-input)" opacity="0.75"/>
       <rect x="${x}" y="${outputY}" width="${barWidth}" height="${outputHeight}" rx="2" fill="var(--chart-output)" opacity="0.85"/>
     </g>`;
   }).join('');
@@ -569,6 +578,7 @@ function updateLiveTokenUsage(capture: StreamCapture, assistantContent: string):
     currency: capture.model.currency,
     run: {
       input_tokens: parts.uncachedInput + parts.cachedInput + parts.cacheWriteInput,
+      cached_input_tokens: parts.cachedInput,
       output_tokens: parts.output,
       cost_nanos: costNanos,
       currency: capture.model.currency,

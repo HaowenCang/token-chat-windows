@@ -90,6 +90,7 @@ pub struct RecordGenerationRunInput {
 #[derive(Serialize)]
 pub struct TokenUsageRun {
     pub input_tokens: i64,
+    pub cached_input_tokens: i64,
     pub output_tokens: i64,
     pub cost_nanos: i64,
     pub currency: String,
@@ -276,6 +277,7 @@ pub fn get_conversation_token_usage(
         .prepare(
             "SELECT
                 cache_read_input_tokens + cache_write_input_tokens + uncached_input_tokens,
+                cache_read_input_tokens,
                 output_tokens,
                 cost_nanos,
                 COALESCE(currency, 'CNY'),
@@ -293,13 +295,14 @@ pub fn get_conversation_token_usage(
         .query_map(params![conversation_id], |row| {
             Ok(TokenUsageRun {
                 input_tokens: row.get(0)?,
-                output_tokens: row.get(1)?,
-                cost_nanos: row.get(2)?,
-                currency: row.get(3)?,
-                first_event_latency_ms: row.get(4)?,
-                first_token_latency_ms: row.get(5)?,
-                duration_ms: row.get(6)?,
-                created_at: row.get(7)?,
+                cached_input_tokens: row.get(1)?,
+                output_tokens: row.get(2)?,
+                cost_nanos: row.get(3)?,
+                currency: row.get(4)?,
+                first_event_latency_ms: row.get(5)?,
+                first_token_latency_ms: row.get(6)?,
+                duration_ms: row.get(7)?,
+                created_at: row.get(8)?,
             })
         })
         .map_err(|e| e.to_string())?;
