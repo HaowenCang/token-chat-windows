@@ -249,7 +249,7 @@ body {
   overflow: hidden;
 }
 
-/* ── 4. Sidebar (Left Panel) — DEPRECATED: superseded by Section 7 glass-based sidebar ── */
+/* ── 4. Sidebar (Left Panel) ── */
 .chat-left {
   width: var(--sidebar-width);
   min-width: 0;
@@ -388,7 +388,7 @@ body {
   font-weight: 600;
 }
 
-/* ── 5. Chat Area (Center Panel) — DEPRECATED: superseded by Section 7 + unified-shell.css ── */
+/* ── 5. Chat Area (Center Panel) ── */
 .chat-center {
   flex: 1;
   display: flex;
@@ -528,32 +528,6 @@ body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-}
-/* Code blocks — DEPRECATED: .markdown-body scoped version in unified-shell.css overrides these */
-.msg-code-block {
-  background: var(--app-bg);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
-  margin-top: 8px;
-  font-family: var(--font-mono);
-  font-size: var(--fs-code);
-  overflow-x: auto;
-  line-height: 1.7;
-}
-.msg-code-copy {
-  float: right;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--text-muted);
-  border-radius: 5px;
-  padding: 2px 7px;
-  cursor: pointer;
-  font-size: var(--fs-secondary);
-}
-.msg-code-copy:hover {
-  color: var(--accent);
-  border-color: var(--accent);
 }
 .msg-copy-btn {
   border: 1px solid var(--line);
@@ -1001,143 +975,6 @@ body {
   transition: .2s;
 }
 .export-btn:hover { background: var(--accent); color: #fff; }
-
-/* Data detail tooltip — DEPRECATED: superseded by liquid-glass.css, kept as fallback only */
-.data-tooltip-bubble {
-  position: fixed;
-  z-index: 10000;
-  max-width: 300px;
-  min-width: 180px;
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity .08s ease, transform .08s ease;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: var(--fs-tooltip);
-  line-height: 1.35;
-  box-shadow: 0 16px 42px rgba(0,0,0,.24);
-}
-.data-tooltip-bubble.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-.data-tooltip-bubble[data-style="dark"] {
-  background: #141820;
-  border: 1px solid rgba(255,255,255,.10);
-  color: #f7f8fb;
-}
-.data-tooltip-bubble[data-style="light"] {
-  background: #ffffff;
-  border: 1px solid #e6ebf2;
-  color: #232832;
-  box-shadow: 0 14px 34px rgba(31,42,68,.16);
-}
-.data-tooltip-bubble[data-style="glass"] {
-  --glass-fill: rgba(18, 24, 32, .06);
-  --glass-border: rgba(255, 255, 255, .46);
-  --glass-sheen: rgba(255, 255, 255, .28);
-  --glass-blur: 8px;
-  --glass-saturation: 1.35;
-  overflow: hidden;
-  background:
-    linear-gradient(135deg, var(--glass-sheen) 0%, transparent 42%, rgba(255, 255, 255, .03) 100%),
-    var(--glass-fill);
-  border: 1px solid var(--glass-border);
-  color: #f7f8fb;
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) brightness(1.08);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) brightness(1.08);
-  box-shadow:
-    0 18px 48px rgba(0, 0, 0, .18),
-    inset 0 1px rgba(255, 255, 255, .42),
-    inset 0 -1px rgba(255, 255, 255, .10);
-}
-.data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"] {
-  --glass-fill: rgba(18, 24, 32, .006);
-  --glass-border: rgba(255, 255, 255, .16);
-  --glass-sheen: rgba(255, 255, 255, .03);
-  --glass-blur: 1px;
-  --glass-saturation: 1.01;
-}
-.data-tooltip-bubble[data-style="glass"][data-glass-level="balanced"] {
-  --glass-blur: 18px;
-}
-.data-tooltip-bubble[data-style="glass"][data-glass-level="frosted"] {
-  --glass-blur: 30px;
-}
-[data-theme="ocean"] .data-tooltip-bubble[data-style="glass"],
-[data-theme="forest"] .data-tooltip-bubble[data-style="glass"],
-[data-theme="sunset"] .data-tooltip-bubble[data-style="glass"],
-[data-theme="rose"] .data-tooltip-bubble[data-style="glass"],
-[data-theme="light"] .data-tooltip-bubble[data-style="glass"] {
-  color: #202631;
-}
-[data-theme="ocean"] .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"],
-[data-theme="forest"] .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"],
-[data-theme="sunset"] .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"],
-[data-theme="rose"] .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"],
-[data-theme="light"] .data-tooltip-bubble[data-style="glass"][data-glass-level="ultra-clear"] {
-  --glass-fill: rgba(255, 255, 255, .025);
-  --glass-border: rgba(255, 255, 255, .36);
-  --glass-sheen: rgba(255, 255, 255, .09);
-}
-/* balanced/frosted light theme: blur only, fill inherited from ultra-clear */
-.data-tooltip-bubble[data-style="compact"] {
-  background: #0b1020;
-  border: 1px solid rgba(47,115,255,.35);
-  color: #f7f8fb;
-  border-radius: 6px;
-  padding: 7px 9px;
-  min-width: 150px;
-}
-.data-tooltip-title {
-  font-weight: 700;
-  margin-bottom: 7px;
-  color: inherit;
-}
-.data-tooltip-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.data-tooltip-row {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(88px,1fr) auto;
-  gap: 14px;
-  align-items: center;
-  padding-left: 13px;
-}
-.data-tooltip-row::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: var(--tooltip-row-color, transparent);
-  transform: translateY(-50%);
-}
-.data-tooltip-label {
-  color: rgba(148,157,172,.95);
-  white-space: nowrap;
-}
-.data-tooltip-value {
-  font-weight: 700;
-  text-align: right;
-  white-space: nowrap;
-}
-.data-tooltip-bubble[data-style="light"] .data-tooltip-label {
-  color: #808a99;
-}
-[data-theme="ocean"] .data-tooltip-bubble[data-style="glass"] .data-tooltip-label,
-[data-theme="forest"] .data-tooltip-bubble[data-style="glass"] .data-tooltip-label,
-[data-theme="sunset"] .data-tooltip-bubble[data-style="glass"] .data-tooltip-label,
-[data-theme="rose"] .data-tooltip-bubble[data-style="glass"] .data-tooltip-label,
-[data-theme="light"] .data-tooltip-bubble[data-style="glass"] .data-tooltip-label {
-  color: #6f7886;
-}
 
 /* Top nav */
 .topnav-brand {

@@ -1,0 +1,389 @@
+请进行 UI bug 修复。项目主目录是 `token-chat/`，前端是 TypeScript + Vite，桌面端是 Tauri。请不要修改业务逻辑、Provider 数据结构、Token 统计计算、API 调用、SQLite 后端或路由逻辑；本次任务只修复前端 UI 组件、CSS 样式、弹层定位、表单布局和 Liquid Glass 视觉系统。
+
+本次修复的核心目标是：恢复并规范 Liquid Glass 弹层系统。当前所有弹层被过度套用同一套“大圆角、强模糊、低密度”的玻璃样式，导致 tooltip、dropdown、date picker、modal 都变得像同一种大气泡。请将其改为“同一套 Liquid Glass 材质语言，不同组件 variant”的系统。
+
+请重点检查并修改以下文件：
+
+* `token-chat/src/liquid-glass.ts`
+* `token-chat/src/liquid-glass.css`
+* `token-chat/src/glass-system.css`
+* `token-chat/src/custom-select.ts`
+* `token-chat/src/custom-date-picker.ts`
+* `token-chat/src/tooltip.ts`
+* `token-chat/src/provider.ts`
+* `token-chat/src/settings.ts`
+* 如有必要，补充检查 `token-chat/src/styles.css`、`token-chat/src/unified-shell.css`、`token-chat/src/stats.ts`、`token-chat/src/chat.ts`
+
+一、建立 Liquid Glass variant，而不是所有弹层共用一个外观
+
+当前 `liquid-glass.ts` 已经有 `LiquidGlassLayer = 'dropdown' | 'popover' | 'tooltip' | 'modal' | 'dialog' | 'notice'`。请保留这种分层思想，但在 CSS 中进一步落实不同 variant 的尺寸、圆角、padding、blur、shadow 和 overflow 规则。
+
+请至少区分以下 variant：
+
+```ts
+type LiquidGlassLayer =
+  | 'dropdown'
+  | 'date-picker'
+  | 'tooltip'
+  | 'popover'
+  | 'modal'
+  | 'dialog'
+  | 'notice';
+```
+
+如果不想改 TypeScript 类型，也可以继续使用 `'popover'`，但必须给 date picker 独立 class，例如 `.glass-date-popover`，且不能继承 `.glass-dropdown` 的滚动规则。
+
+请在 `liquid-glass.css` 中拆分：
+
+```css
+.liquid-glass--tooltip
+.liquid-glass--dropdown
+.liquid-glass--date-picker
+.liquid-glass--popover
+.liquid-glass--modal
+.liquid-glass--dialog
+```
+
+不要再让 tooltip、dropdown、date picker、modal 共享完全相同的 `border-radius`、`padding`、`overflow-y:auto`、`max-height` 和 `box-shadow`。
+
+建议 token：
+
+```css
+:root {
+  --glass-radius-tooltip: 16px;
+  --glass-radius-dropdown: 18px;
+  --glass-radius-date-picker: 20px;
+  --glass-radius-modal: 28px;
+
+  --glass-blur-tooltip: 18px;
+  --glass-blur-dropdown: 22px;
+  --glass-blur-date-picker: 24px;
+  --glass-blur-modal: 28px;
+
+  --glass-shadow-tooltip: 0 10px 28px rgba(31, 35, 50, 0.14);
+  --glass-shadow-dropdown: 0 14px 36px rgba(31, 35, 50, 0.16);
+  --glass-shadow-modal: 0 28px 80px rgba(31, 35, 50, 0.24);
+}
+```
+
+二、修复 `custom-date-picker.ts` 的日期选择器滚动条 bug
+
+当前日期选择器创建 popover 时使用了类似：
+
+```ts
+popover.className = liquidGlassClasses('popover', 'glass-date-popover glass-dropdown');
+```
+
+请修复这一点。日期选择器不应该带 `glass-dropdown` class，因为 dropdown 的 `overflow-y:auto`、`max-height` 和列表密度会污染 calendar 面板，导致日期面板内部出现垂直滚动条。
+
+请改为类似：
+
+```ts
+popover.className = liquidGlassClasses('date-picker', 'glass-date-popover');
+```
+
+如果不改 `LiquidGlassLayer` 类型，则至少改为：
+
+```ts
+popover.className = liquidGlassClasses('popover', 'glass-date-popover');
+```
+
+并确保 `.glass-date-popover` 不匹配 `.glass-dropdown` 的 CSS 选择器。
+
+日期选择器修复要求：
+
+1. 单月日期选择器不得出现内部垂直滚动条。
+2. popover 高度应由内容自然撑开，不继承 dropdown 的 `max-height` 或 `overflow-y:auto`。
+3. `.glass-date-popover` 应设置：
+
+   * `overflow: visible` 或 `overflow: hidden`，但不能 `overflow-y:auto`
+   * 合理固定宽度，例如 `320px`
+   * 自适应窗口边界
+   * 月份标题、星期行、42 个日期格、底部“清除 / 今天”按钮完整显示
+4. calendar grid 使用固定 7 列布局。
+5. 日期格尺寸保持紧凑，不要像 modal 一样大。
+6. 底部按钮区与日期网格之间只保留轻量分割线。
+7. 今天、选中日期、range start、range end、range middle、hover 状态要清晰但克制。
+8. date picker 必须通过 portal 渲染到顶层，避免被父容器裁切。
+
+请重点检查：
+
+```css
+.custom-select-menu.liquid-glass,
+.glass-dropdown.liquid-glass,
+.token-trend-model-menu.liquid-glass
+```
+
+这一类选择器是否把 `.glass-date-popover` 也包含进去了。日期选择器必须从 dropdown 样式中拆出来。
+
+三、修复 dropdown 过大、选中描边过强的问题
+
+请修改 `custom-select.ts` 和相关 CSS。
+
+当前普通下拉菜单，例如模型选择、货币选择、语言选择、主题选择，不应该变成大尺寸玻璃弹窗。dropdown 应当是紧凑列表，而不是 modal。
+
+要求：
+
+1. `custom-select-menu` 默认宽度应与 trigger 对齐。
+2. `positionMenu()` 中保留 `matchAnchorWidth` 或等价逻辑，不要让 dropdown 任意变宽。
+3. panel padding 控制在 `6px - 8px`。
+4. option 行高控制在 `36px - 42px`。
+5. 圆角控制在 `16px - 18px`，不要使用 modal 级别大圆角。
+6. 选中项只使用淡紫色背景或左侧细指示条，不要使用厚重紫色描边。
+7. `focus-visible` 只在键盘导航时出现，不要把 selected 状态渲染成强烈 focus ring。
+8. 4-8 项的下拉菜单不得出现滚动条。
+9. 只有当选项超出可视区域时，才允许 `max-height` 和细滚动条。
+10. dropdown 仍然使用 Liquid Glass 材质，但密度必须接近普通菜单。
+
+请检查并修复模型选择下拉框、货币选择下拉框、语言选择下拉框、主题选择下拉框。
+
+四、修复 tooltip 过大、过重的问题
+
+请修改 `tooltip.ts` 与 `liquid-glass.css` 中 `.data-tooltip-bubble`、`.glass-tooltip`、`.data-tooltip-row` 等样式。
+
+当前 Token 监控图表 tooltip 过大、过白、圆角过大、文字过粗，遮挡图表和下方 Provider/模型信息。Tooltip 应该是 compact variant，不应该像 modal。
+
+要求：
+
+1. tooltip 最大宽度控制在 `240px - 280px`。
+2. padding 控制在 `10px - 14px`。
+3. 圆角控制在 `14px - 16px`。
+4. 标题可以半粗，普通 label 不要过粗。
+5. 数值可以 `font-weight: 600`，不要所有文字都加粗。
+6. label、彩色圆点、数值使用 grid 对齐。
+7. tooltip 应贴近数据点，并自动避让右侧栏边界。
+8. tooltip 不应遮挡过多图表或下方模型信息。
+9. tooltip 不得被 Token 监控侧栏裁切。
+10. 如果使用 SVG filter、blur、displacement 模拟折射，绝对不能作用到 `.liquid-glass__content`，文字必须保持清晰。
+
+建议结构保持 `tooltip.ts` 现有的 `ensureTooltip()` 和 `liquidGlassLayers()`，但 CSS 必须改为 tooltip compact variant，而不是继承通用大玻璃面板。
+
+五、修复 Edit Provider / Add Provider / Edit Model modal 过度雾化和表单密度问题
+
+请重点修改 `provider.ts` 中以下 modal：
+
+* `renderAddProviderModal()`
+* `renderEditProviderModal()`
+* `renderAddModelModal()`
+* `renderEditModelModal()`
+* `renderDiscoverModal()`
+
+当前这些 modal 使用大量内联样式，例如 `style="width:480px;height:auto;max-height:80vh"`、`modal-body` 上的 `overflow-y:auto`、textarea 上的 `resize:vertical`。请逐步减少内联样式，改为语义化 class。
+
+请新增或复用以下 class：
+
+```css
+.provider-modal
+.provider-modal--compact
+.provider-modal__header
+.provider-modal__body
+.provider-modal__footer
+.glass-form
+.glass-form-field
+.glass-form-label
+.glass-form-control
+```
+
+modal 修复要求：
+
+1. modal 可以保持 Liquid Glass，但不能像 tooltip/dropdown 一样强透明、强折射。
+2. modal 背景应比 tooltip/dropdown 更稳定、更可读。
+3. `Edit Provider` 标题过大，请降低标题字号，例如 `28px - 32px`。
+4. 关闭按钮不要过大，建议 `36px - 40px`。
+5. body 区不要过度灰化，header/body/footer 分割线要克制。
+6. 表单行距减少，避免过度稀疏。
+7. input、textarea 使用统一 `.glass-input` / `.glass-textarea`，但不要像白色大块一样发亮。
+8. textarea 禁止默认原生 resize handle，除非项目明确需要。建议改为 `resize: none;` 或只允许内部滚动。
+9. `Test`、`Cancel`、`Save` 按钮尺寸统一，层级明确：
+
+   * Save: primary
+   * Cancel: secondary
+   * Test: secondary 或 tertiary
+10. modal 最大宽度保持合理：
+
+* Provider modal: `min(520px, calc(100vw - 48px))`
+* Model modal: `min(560px, calc(100vw - 48px))`
+
+11. modal 最大高度不应导致普通表单过早出现滚动条；只有内容确实超出视口时 body 才滚动。
+12. 仍然通过 `data-glass-portal` 或 portal 渲染到顶层。
+
+六、修复“数据详情气泡”设置区布局
+
+请检查 `settings.ts` 中 `settings-tooltip-section`、`settings-tooltip-form`、`settings-form-row`、`settings-form-control`、`settings-form-action`、`glass-input-suffix` 相关结构。
+
+目标布局：
+
+```text
+气泡样式      [select: 液态玻璃]       [预览按钮]
+玻璃透明度    [select: 近乎透明]       [空]
+弹出延迟      [input: 0  ms]           [空]
+              0ms 立即显示，建议范围：50-150ms。
+```
+
+要求：
+
+1. “预览”按钮必须与“气泡样式”下拉框同一行。
+2. `ms` 必须作为输入框 suffix，不能掉到下一行。
+3. 延迟说明文字必须紧跟输入框，不能远离。
+4. 表单采用稳定 grid：
+
+   * label 列：约 `180px`
+   * control 列：约 `minmax(240px, 320px)`
+   * action 列：自适应
+5. 宽屏下不要让所有内容挤在左侧，也不要让控件无限拉长。
+6. 窄屏下允许换行，但 label、control、help 的语义关系不能断裂。
+7. 该区域内所有 select、input、button 均使用全局 glass control，不回退到灰色实体控件。
+
+请在 CSS 中补足：
+
+```css
+.settings-tooltip-form
+.settings-form-row
+.settings-form-control
+.settings-form-action
+.settings-form-help
+.glass-input-suffix
+.glass-input-suffix__label
+```
+
+七、修复 Liquid Glass 视觉过强的问题
+
+保留边缘折射、高光、内阴影和玻璃感，但不要让所有弹窗都像大气泡。请按 variant 调整强度：
+
+Tooltip:
+
+* 最轻、最紧凑
+* 边缘高光轻
+* 阴影小
+* 文字最清晰
+
+Dropdown:
+
+* 紧凑菜单
+* 与 trigger 对齐
+* 轻微玻璃背景
+* 无夸张折射
+
+Date picker:
+
+* 中等玻璃面板
+* 不滚动
+* 日历网格清晰
+
+Modal:
+
+* 最稳定、最可读
+* 背景更实
+* blur 可存在，但不要影响表单阅读
+
+不要把 `.liquid-glass::before`、`.liquid-glass::after` 的强高光和强 caustic 效果无差别套到所有组件。如果需要，给不同 variant 调整 opacity：
+
+```css
+.liquid-glass--tooltip::before { opacity: .35; }
+.liquid-glass--dropdown::before { opacity: .42; }
+.liquid-glass--date-picker::before { opacity: .45; }
+.liquid-glass--modal::before { opacity: .25; }
+```
+
+八、禁止 filter 影响文字内容
+
+请检查 `liquid-glass.css` 和所有相关组件。任何 `filter: blur()`、SVG displacement、backdrop blur、mask、mix-blend-mode 都不能影响文本内容层。
+
+正确分层：
+
+```html
+<div class="liquid-glass liquid-glass--tooltip">
+  <span class="liquid-glass__refract-layer"></span>
+  <span class="liquid-glass__rim"></span>
+  <div class="liquid-glass__content">
+    <!-- 文字、按钮、输入框等必须保持 sharp -->
+  </div>
+</div>
+```
+
+`.liquid-glass__content` 必须：
+
+```css
+filter: none !important;
+backdrop-filter: none !important;
+position: relative;
+z-index: 2;
+```
+
+九、全局检查旧样式污染
+
+请全局搜索并处理以下风险：
+
+```text
+glass-dropdown
+glass-date-popover glass-dropdown
+custom-select-menu
+data-tooltip-bubble
+glass-tooltip
+modal-overlay
+modal-body
+modal-footer
+resize:vertical
+overflow-y:auto
+max-height:80vh
+#dedede
+#e0e0e0
+lightgray
+gray
+```
+
+特别注意：
+
+1. `.glass-date-popover` 不得再继承 `.glass-dropdown` 的滚动和尺寸规则。
+2. `.custom-select-menu` 不得继承 modal 的大圆角和大 padding。
+3. `.data-tooltip-bubble` 不得继承 dropdown/modal 的大尺寸规则。
+4. `.glass-modal` 不得使用 tooltip 的强折射和紧凑定位规则。
+5. Provider modal 的 input/textarea 不要继续通过 `chat-search` 语义类控制样式，尽量用 `.glass-input` / `.glass-textarea` / `.glass-form-field`。
+
+十、验收标准
+
+完成后请逐项验证：
+
+1. 运行 `cd token-chat && npm run build`，确保 TypeScript 和 Vite 构建通过。
+2. 聊天页 Token 监控图表 tooltip：
+
+   * 尺寸紧凑
+   * 不遮挡过多内容
+   * 文字清晰
+   * 彩色圆点、label、value 对齐
+3. 模型选择 dropdown：
+
+   * 不再巨大
+   * 与 trigger 宽度对齐
+   * 选项行高合理
+   * selected 状态不再有厚重紫色描边
+4. 货币选择 dropdown：
+
+   * 面板紧凑
+   * 没有大面积空白
+   * 不出现不必要滚动条
+5. 日期选择器：
+
+   * 单月视图完整显示
+   * 无内部垂直滚动条
+   * “清除 / 今天”按钮正常显示
+6. Edit Provider modal：
+
+   * 不再过度雾化
+   * 标题和关闭按钮尺寸合理
+   * 表单行距合理
+   * textarea 没有难看的原生 resize handle
+   * Test / Cancel / Save 按钮层级明确
+7. 设置页“数据详情气泡”区域：
+
+   * “预览”按钮与气泡样式下拉框同一行
+   * `ms` 单位与输入框同一行
+   * 帮助文字紧跟输入框
+8. 所有弹层仍然属于统一 Liquid Glass 设计语言，但 tooltip、dropdown、date picker、modal 有各自的信息密度和尺寸规则。
+9. 修复后请在最终回复中列出：
+
+   * 修改过的文件
+   * 拆分出的 variant
+   * 移除或修正的旧 class
+   * 主要 bug 的根因
+   * 构建结果
