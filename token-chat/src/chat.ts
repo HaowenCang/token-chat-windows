@@ -34,6 +34,7 @@ import {
 
 import { mountMessageList, updateMessageList, patchStreamingMessage } from './components/MessageList';
 import { mountChatInput, updateChatInput, syncInputSignals } from './components/ChatInput';
+import { mountConversationList, syncConversationSignals } from './components/ConversationList';
 
 // ── DOM updaters ──
 
@@ -55,11 +56,10 @@ export function renderChatArea(): void {
   }
 }
 
-export function renderConversationListInDom(bindEvents?: () => void): void {
+export function renderConversationListInDom(): void {
   const listEl = document.getElementById('chatList');
   if (listEl) {
-    listEl.innerHTML = renderConversationList();
-    if (bindEvents) bindEvents(); else bindConversationListEvents();
+    mountConversationList(listEl, selectConversation, deleteConversation, createConversation);
   }
 }
 
