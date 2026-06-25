@@ -223,7 +223,25 @@ function renderRightPanel() {
   `;
 }
 
+// ponytail: render lock — 跳过并发，最后一次会执行
+let rendering = false;
+let renderDirty = false;
+
 export async function render() {
+  if (rendering) { renderDirty = true; return; }
+  rendering = true;
+  renderDirty = true;
+  try {
+    while (renderDirty) {
+      renderDirty = false;
+      await renderOnce();
+    }
+  } finally {
+    rendering = false;
+  }
+}
+
+async function renderOnce() {
   const app = document.getElementById('app')!;
   await loadBuiltinPrompt();
   if (state.page === 'chat') {
