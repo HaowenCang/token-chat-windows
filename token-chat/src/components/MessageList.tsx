@@ -1,13 +1,13 @@
 /** @jsxImportSource preact */
 import { render } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
-import { messages, currentConversationId, isStreaming, syncMessages } from './chat-signals';
+import { messages, currentConversationId, isStreaming, syncMessages, getCachedMarkdown, getCachedReasoningMarkdown } from './chat-signals';
 import { state, parseContent, type Message } from '../state';
 import { t } from '../i18n';
-import { renderMarkdown } from '../chat-markdown';
 import { parseAttachments, renderMessageAttachments, escHtml, formatFileSize } from '../chat-attachment';
 import { isSafeSourceUrl, parseSearchMetadata } from '../web-search';
 import { copyText } from '../chat-render';
+import { renderMarkdown } from '../chat-markdown';
 
 // ── Source URL click handler ──
 async function openSourceUrl(url: string) {
@@ -117,10 +117,10 @@ function MessageBubble({ msg }: { msg: Message }) {
             if (body) body.style.display = body.style.display === 'none' ? '' : 'none';
           }}>
             <div class="msg-thinking-label">Thinking</div>
-            <div class="msg-thinking-body" ref={thinkingRef} dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.reasoning_content) }} />
+            <div class="msg-thinking-body" ref={thinkingRef} dangerouslySetInnerHTML={{ __html: getCachedReasoningMarkdown(msg.reasoning_content) }} />
           </div>
         )}
-        <div class="msg-content" ref={contentRef} dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }} />
+        <div class="msg-content" ref={contentRef} dangerouslySetInnerHTML={{ __html: getCachedMarkdown(msg.content_json) }} />
         <div dangerouslySetInnerHTML={{ __html: renderMessageAttachments(attachments) }} />
         <SearchMetadata msg={msg} isUser={isUser} />
       </div>
