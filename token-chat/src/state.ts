@@ -71,3 +71,14 @@ export const state: AppState = {
   sidebarCollapsed: false,
   rightPanelCollapsed: false,
 };
+
+export function parseContent(contentJson: string): string {
+  try {
+    const parsed = JSON.parse(contentJson);
+    if (typeof parsed === 'string') return parsed;
+    if (parsed.text) return parsed.text;
+    return contentJson;
+  } catch {
+    return contentJson;
+  }
+}

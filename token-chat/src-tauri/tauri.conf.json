@@ -1,6 +1,6 @@
 {
   "productName": "Token Chat",
-  "version": "0.9.12",
+  "version": "0.9.13",
   "identifier": "com.tokenchat.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",

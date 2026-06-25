@@ -2,12 +2,26 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { state, type Conversation, type Message, type Model } from './state';
-import { getLang, t } from './i18n';
+import { state, parseContent, type Conversation, type Message } from './state';
+import { t, getLang } from './i18n';
 import { getEffectiveSystemPrompt } from './prompt';
-import { tooltipAttrs } from './tooltip';
-import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
 import { showGlassAlert, showGlassConfirm, showGlassPrompt } from './glass-dialog';
+import { renderMarkdown } from './chat-markdown';
+import {
+  type StreamChunk,
+  type StreamCapture,
+  type ApiMessage,
+  type ApiMessageContent,
+  loadTokenUsage,
+  updateLiveTokenUsage,
+  resetLiveTokenUsage,
+  relativeTime,
+  deriveTokenParts,
+  estimateTokenCount,
+  stringifyApiContent,
+  renderRightPanelContent,
+} from './chat-token';
+export { renderRightPanelContent };
 import {
   buildSearchAugmentedPrompt,
   cancelWebSearch,
@@ -27,6 +41,8 @@ declare global {
 let streamUnlisten: UnlistenFn | null = null;
 let metricsUnlisten: UnlistenFn | null = null;
 const isDev = !(window as any).__TAURI_INTERNALS__;
+
+// ── Mock data ──
 
 const devNow = Math.floor(Date.now() / 1000);
 const mockConversations: Conversation[] = [
@@ -66,40 +82,9 @@ const mockMessages: Message[] = [
   },
 ];
 
-interface StreamChunk {
-  content: string;
-  reasoning: string;
-  done: boolean;
-  usage?: StreamUsage;
-}
+// ── Attachment types & state ──
 
-interface StreamUsage {
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  cached_tokens?: number;
-  total_tokens?: number;
-}
-
-interface StreamMetrics {
-  first_event_ms: number;
-  first_token_ms: number;
-  total_ms: number;
-  tokens_generated: number;
-}
-
-type ApiMessageContent =
-  | string
-  | Array<
-      | { type: 'text'; text: string }
-      | { type: 'image_url'; image_url: { url: string } }
-    >;
-
-interface ApiMessage {
-  role: string;
-  content: ApiMessageContent;
-}
-
-interface MessageAttachment {
+export interface MessageAttachment {
   id: string;
   name: string;
   mime: string;
@@ -110,63 +95,6 @@ interface MessageAttachment {
   truncated?: boolean;
 }
 
-interface TokenParts {
-  uncachedInput: number;
-  cachedInput: number;
-  cacheWriteInput: number;
-  output: number;
-  source: 'provider_reported' | 'estimated';
-}
-
-interface CurrencyCost {
-  currency: string;
-  cost_nanos: number;
-}
-
-interface TokenUsageRun {
-  input_tokens: number;
-  cached_input_tokens: number;
-  output_tokens: number;
-  cost_nanos: number;
-  currency?: string;
-  first_event_latency_ms?: number | null;
-  first_token_latency_ms?: number | null;
-  duration_ms?: number | null;
-  created_at: number;
-}
-
-interface ConversationTokenUsage {
-  conversation_id: string;
-  uncached_input_tokens: number;
-  cached_input_tokens: number;
-  cache_write_input_tokens: number;
-  output_tokens: number;
-  cost_nanos: number;
-  cost_by_currency?: CurrencyCost[];
-  request_count: number;
-  currency: string;
-  recent_runs: TokenUsageRun[];
-}
-
-interface LiveTokenUsage {
-  conversationId: string;
-  parts: TokenParts;
-  costNanos: number;
-  currency: string;
-  run: TokenUsageRun;
-}
-
-interface StreamCapture {
-  sendId: number;
-  conversationId: string;
-  messagesForApi: ApiMessage[];
-  model: Model;
-  usage: StreamUsage | null;
-  metrics: StreamMetrics | null;
-}
-
-let currentTokenUsage: ConversationTokenUsage | null = null;
-let liveTokenUsage: LiveTokenUsage | null = null;
 let selectedAttachments: MessageAttachment[] = [];
 let selectionCopyFallbackBound = false;
 let sendSequence = 0;
@@ -288,14 +216,6 @@ function renderMessageAttachments(attachments: MessageAttachment[]): string {
   `;
 }
 
-function stringifyApiContent(content: ApiMessageContent): string {
-  if (typeof content === 'string') return content;
-  return content.map(part => {
-    if (part.type === 'text') return part.text;
-    return '[Image attachment]';
-  }).join('\n');
-}
-
 function buildTextWithAttachments(text: string, attachments: MessageAttachment[]): string {
   const parts: string[] = [];
   if (text.trim()) parts.push(text.trim());
@@ -345,425 +265,7 @@ function isDefaultConversationTitle(title: string): boolean {
   return normalized === '' || normalized === 'new conversation' || title.trim() === '新对话';
 }
 
-function clampTokenNumber(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
-}
-
-function estimateTokenCount(text: string): number {
-  if (!text.trim()) return 0;
-  const cjkCount = (text.match(/[\u3400-\u9fff\uf900-\ufaff]/g) ?? []).length;
-  const nonCjkText = text.replace(/[\u3400-\u9fff\uf900-\ufaff]/g, '');
-  return Math.max(1, cjkCount + Math.ceil(nonCjkText.length / 4));
-}
-
-function estimatePromptTokens(messages: ApiMessage[]): number {
-  return messages.reduce((sum, msg) => sum + estimateTokenCount(stringifyApiContent(msg.content)) + 4, 2);
-}
-
-function deriveTokenParts(messagesForApi: ApiMessage[], assistantContent: string, usage: StreamUsage | null): TokenParts {
-  const estimatedPrompt = estimatePromptTokens(messagesForApi);
-  const estimatedOutput = estimateTokenCount(assistantContent);
-  const reportedCompletion = clampTokenNumber(usage?.completion_tokens);
-  const reportedTotal = clampTokenNumber(usage?.total_tokens);
-  let prompt = clampTokenNumber(usage?.prompt_tokens);
-  let output = reportedCompletion;
-
-  if (prompt === 0 && reportedTotal > 0 && output > 0) {
-    prompt = Math.max(0, reportedTotal - output);
-  }
-  if (output === 0 && reportedTotal > 0 && prompt > 0) {
-    output = Math.max(0, reportedTotal - prompt);
-  }
-  if (prompt === 0) prompt = estimatedPrompt;
-  if (output === 0) output = estimatedOutput;
-
-  const cachedInput = Math.min(clampTokenNumber(usage?.cached_tokens), prompt);
-  return {
-    uncachedInput: Math.max(0, prompt - cachedInput),
-    cachedInput,
-    cacheWriteInput: 0,
-    output,
-    source: usage ? 'provider_reported' : 'estimated',
-  };
-}
-
-function calculateCostNanos(parts: TokenParts, model: Model): number {
-  const total =
-    parts.uncachedInput * model.uncached_input_nanos_per_million +
-    parts.cachedInput * model.cache_read_nanos_per_million +
-    parts.output * model.output_nanos_per_million;
-  return Math.max(0, Math.round(total / 1_000_000));
-}
-
-function formatConvertedCostNanos(nanos: number, sourceCurrency: string): string {
-  return formatCurrencyNanos(convertCurrencyNanos(nanos, sourceCurrency), 4);
-}
-
-function formatConversationCost(usage: ConversationTokenUsage): string {
-  const costs = usage.cost_by_currency?.length
-    ? usage.cost_by_currency
-    : [{ currency: usage.currency, cost_nanos: usage.cost_nanos }];
-  const convertedNanos = costs.reduce(
-    (sum, item) => sum + convertCurrencyNanos(item.cost_nanos, item.currency),
-    0,
-  );
-  return formatCurrencyNanos(convertedNanos, 4);
-}
-
-function getTokenChartText() {
-  if (getLang() === 'zh') {
-    return {
-      title: 'Token \u7528\u91cf\uff08\u6700\u8fd1 10 \u6761\u6d88\u606f\uff09',
-      noData: '\u6682\u65e0\u6570\u636e',
-      input: '\u8f93\u5165',
-      cached: '\u7f13\u5b58\u8f93\u5165',
-      output: '\u8f93\u51fa',
-      total: '\u603b\u8ba1',
-      cost: '\u8d39\u7528',
-      tokens: 'Token',
-    };
-  }
-  return {
-    title: 'Token Usage (last 10 msgs)',
-    noData: 'No data yet',
-    input: 'Input',
-    cached: 'Cached Input',
-    output: 'Output',
-    total: 'Total',
-    cost: 'Cost',
-    tokens: 'tokens',
-  };
-}
-
-function buildEstimatedUsageFromMessages(convId: string, model: Model | null): ConversationTokenUsage {
-  const inputTokens = state.messages
-    .filter(m => m.role === 'user' || m.role === 'system')
-    .reduce((sum, m) => sum + estimateTokenCount(parseContent(m.content_json)), 0);
-  const outputTokens = state.messages
-    .filter(m => m.role === 'assistant')
-    .reduce((sum, m) => sum + estimateTokenCount(parseContent(m.content_json)), 0);
-  const parts: TokenParts = {
-    uncachedInput: inputTokens,
-    cachedInput: 0,
-    cacheWriteInput: 0,
-    output: outputTokens,
-    source: 'estimated',
-  };
-  const costNanos = model ? calculateCostNanos(parts, model) : 0;
-  const assistantMessages = state.messages.filter(m => m.role === 'assistant');
-
-  return {
-    conversation_id: convId,
-    uncached_input_tokens: inputTokens,
-    cached_input_tokens: 0,
-    cache_write_input_tokens: 0,
-    output_tokens: outputTokens,
-    cost_nanos: costNanos,
-    cost_by_currency: [{ currency: model?.currency ?? getDisplayCurrency(), cost_nanos: costNanos }],
-    request_count: assistantMessages.length,
-    currency: model?.currency ?? getDisplayCurrency(),
-    recent_runs: assistantMessages.slice(-10).map(m => ({
-      input_tokens: 0,
-      cached_input_tokens: 0,
-      output_tokens: estimateTokenCount(parseContent(m.content_json)),
-      cost_nanos: 0,
-      currency: model?.currency ?? getDisplayCurrency(),
-      created_at: m.created_at,
-    })),
-  };
-}
-
-function getPanelUsage(convId: string, model: Model | null): ConversationTokenUsage {
-  const persisted = currentTokenUsage?.conversation_id === convId ? currentTokenUsage : null;
-  const shouldEstimate = !persisted || (persisted.request_count === 0 && state.messages.length > 0);
-  const base = shouldEstimate
-    ? buildEstimatedUsageFromMessages(convId, model)
-    : persisted;
-
-  if (!base) {
-    return {
-      conversation_id: convId,
-      uncached_input_tokens: 0,
-      cached_input_tokens: 0,
-      cache_write_input_tokens: 0,
-      output_tokens: 0,
-      cost_nanos: 0,
-      cost_by_currency: [],
-      request_count: 0,
-      currency: model?.currency ?? getDisplayCurrency(),
-      recent_runs: [],
-    };
-  }
-
-  if (liveTokenUsage?.conversationId !== convId) return base;
-
-  return {
-    ...base,
-    uncached_input_tokens: base.uncached_input_tokens + liveTokenUsage.parts.uncachedInput,
-    cached_input_tokens: base.cached_input_tokens + liveTokenUsage.parts.cachedInput,
-    cache_write_input_tokens: base.cache_write_input_tokens + liveTokenUsage.parts.cacheWriteInput,
-    output_tokens: base.output_tokens + liveTokenUsage.parts.output,
-    cost_nanos: base.cost_nanos + liveTokenUsage.costNanos,
-    cost_by_currency: [
-      ...(base.cost_by_currency ?? [{ currency: base.currency, cost_nanos: base.cost_nanos }]),
-      { currency: liveTokenUsage.currency, cost_nanos: liveTokenUsage.costNanos },
-    ],
-    request_count: base.request_count + 1,
-    currency: liveTokenUsage.currency || base.currency,
-    recent_runs: [...base.recent_runs, liveTokenUsage.run].slice(-10),
-  };
-}
-
-function renderMiniChart(runs: TokenUsageRun[]): string {
-  const text = getTokenChartText();
-  if (runs.length === 0) {
-    return `<svg viewBox="0 0 260 60" style="width:100%;height:60px">
-      <line x1="0" y1="58" x2="260" y2="58" stroke="var(--line)" stroke-width="1"/>
-      <text x="130" y="34" text-anchor="middle" fill="var(--text-faint)" class="chart-text">${text.noData}</text>
-    </svg>`;
-  }
-
-  const maxTokens = Math.max(...runs.map(r => r.input_tokens + r.output_tokens), 1);
-  const barWidth = 16;
-  const gap = 8;
-  const startX = Math.max(0, 260 - runs.length * (barWidth + gap));
-  const bars = runs.map((run, idx) => {
-    const total = run.input_tokens + run.output_tokens;
-    const totalHeight = Math.max(2, (total / maxTokens) * 48);
-    const outputHeight = total > 0 ? (run.output_tokens / total) * totalHeight : 0;
-    const cachedHeight = total > 0 ? (run.cached_input_tokens / total) * totalHeight : 0;
-    const uncachedHeight = totalHeight - outputHeight - cachedHeight;
-    const x = startX + idx * (barWidth + gap);
-    const cachedY = 58 - totalHeight;
-    const uncachedY = cachedY + cachedHeight;
-    const outputY = 58 - outputHeight;
-    const uncachedInput = run.input_tokens - run.cached_input_tokens;
-    return `<g class="mini-chart-run" ${tooltipAttrs(formatShortDateTime(run.created_at), [
-      { label: text.input, value: `${run.input_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--chart-input)' },
-      { label: text.cached, value: `${run.cached_input_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--stack-cache)' },
-      { label: text.output, value: `${run.output_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--chart-output)' },
-      { label: text.total, value: `${total.toLocaleString()} ${text.tokens}`, color: 'var(--chart-line)' },
-      { label: text.cost, value: formatConvertedCostNanos(run.cost_nanos, run.currency ?? getDisplayCurrency()) },
-    ])}>
-      <rect x="${x}" y="${cachedY}" width="${barWidth}" height="${Math.max(0, cachedHeight)}" rx="2" fill="var(--stack-cache)" opacity="0.75"/>
-      <rect x="${x}" y="${uncachedY}" width="${barWidth}" height="${Math.max(0, uncachedHeight)}" rx="2" fill="var(--chart-input)" opacity="0.75"/>
-      <rect x="${x}" y="${outputY}" width="${barWidth}" height="${outputHeight}" rx="2" fill="var(--chart-output)" opacity="0.85"/>
-    </g>`;
-  }).join('');
-
-  return `<svg viewBox="0 0 260 60" style="width:100%;height:60px">
-    <line x1="0" y1="58" x2="260" y2="58" stroke="var(--line)" stroke-width="1"/>
-    ${bars}
-  </svg>`;
-}
-
-export async function loadTokenUsage(conversationId: string): Promise<void> {
-  if (isDev) {
-    currentTokenUsage = null;
-    return;
-  }
-  try {
-    currentTokenUsage = await invoke<ConversationTokenUsage>('get_conversation_token_usage', { conversationId });
-  } catch {
-    currentTokenUsage = null;
-  }
-}
-
-function updateLiveTokenUsage(capture: StreamCapture, assistantContent: string): void {
-  const parts = deriveTokenParts(capture.messagesForApi, assistantContent, capture.usage);
-  const costNanos = calculateCostNanos(parts, capture.model);
-  liveTokenUsage = {
-    conversationId: capture.conversationId,
-    parts,
-    costNanos,
-    currency: capture.model.currency,
-    run: {
-      input_tokens: parts.uncachedInput + parts.cachedInput + parts.cacheWriteInput,
-      cached_input_tokens: parts.cachedInput,
-      output_tokens: parts.output,
-      cost_nanos: costNanos,
-      currency: capture.model.currency,
-      created_at: Math.floor(Date.now() / 1000),
-    },
-  };
-}
-
-function relativeTime(ts: number): string {
-  const now = Date.now();
-  const diff = now - ts * 1000;
-  if (diff < 60_000) return 'just now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
-}
-
-function formatShortDateTime(ts: number): string {
-  return new Date(ts * 1000).toLocaleString(undefined, {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function placeholderToken(index: number): string {
-  return `\uE000${index}\uE001`;
-}
-
-function restorePlaceholders(html: string, placeholders: string[]): string {
-  return html.replace(/\uE000(\d+)\uE001/g, (_, idx) => placeholders[Number(idx)] ?? '');
-}
-
-function renderLatex(math: string, block: boolean): string {
-  let html = escHtml(math.trim());
-  html = html.replace(/\\mathbf\{([^{}]+)\}/g, '<span class="math-vector">$1</span>');
-  html = html.replace(/\\mathrm\{([^{}]+)\}/g, '<span class="math-roman">$1</span>');
-
-  for (let i = 0; i < 4; i += 1) {
-    html = html.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '<span class="math-frac"><span>$1</span><span>$2</span></span>');
-  }
-
-  const commands: Record<string, string> = {
-    '\\varepsilon': 'ε',
-    '\\epsilon': 'ε',
-    '\\partial': '∂',
-    '\\nabla': '∇',
-    '\\cdot': '·',
-    '\\times': '×',
-    '\\rho': 'ρ',
-    '\\mu': 'μ',
-    '\\pi': 'π',
-    '\\alpha': 'α',
-    '\\beta': 'β',
-    '\\gamma': 'γ',
-    '\\Delta': 'Δ',
-    '\\delta': 'δ',
-    '\\leq': '≤',
-    '\\geq': '≥',
-    '\\neq': '≠',
-    '\\infty': '∞',
-    '\\left': '',
-    '\\right': '',
-  };
-  for (const [cmd, value] of Object.entries(commands).sort((a, b) => b[0].length - a[0].length)) {
-    html = html.split(cmd).join(value);
-  }
-  html = html.replace(/\\([a-zA-Z]+)/g, '$1');
-  html = html.replace(/_\{([^{}]+)\}/g, '<sub>$1</sub>');
-  html = html.replace(/_([A-Za-z0-9]+)/g, '<sub>$1</sub>');
-  html = html.replace(/\^\{([^{}]+)\}/g, '<sup>$1</sup>');
-  html = html.replace(/\^([A-Za-z0-9+\-=]+)/g, '<sup>$1</sup>');
-
-  const cls = block ? 'math-block' : 'math-inline';
-  const tag = block ? 'div' : 'span';
-  return `<${tag} class="${cls}" title="${escHtml(math.trim())}">${html}</${tag}>`;
-}
-
-function renderInlineMarkdown(text: string): string {
-  const placeholders: string[] = [];
-  let working = text.replace(/`([^`]+)`/g, (_, code) => {
-    const token = placeholderToken(placeholders.length);
-    placeholders.push(`<code class="md-inline-code">${escHtml(code)}</code>`);
-    return token;
-  });
-  working = working.replace(/\$([^$\n]+)\$/g, (_, math) => {
-    const token = placeholderToken(placeholders.length);
-    placeholders.push(renderLatex(math, false));
-    return token;
-  });
-
-  let html = escHtml(working);
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-  return restorePlaceholders(html, placeholders);
-}
-
-export function renderMarkdown(text: string): string {
-  const blockPlaceholders: string[] = [];
-  let source = text.replace(/\r\n/g, '\n');
-  source = source.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    const label = lang ? `<span class="msg-code-lang">${escHtml(lang)}</span>` : '';
-    const token = placeholderToken(blockPlaceholders.length);
-    blockPlaceholders.push(`<div class="msg-code-block"><div class="msg-code-toolbar">${label}<button class="msg-code-copy" onclick="navigator.clipboard.writeText(this.closest('.msg-code-block').querySelector('code').textContent)">Copy</button></div><pre><code>${escHtml(code)}</code></pre></div>`);
-    return `\n${token}\n`;
-  });
-  source = source.replace(/\$\$([\s\S]*?)\$\$/g, (_, math) => {
-    const token = placeholderToken(blockPlaceholders.length);
-    blockPlaceholders.push(renderLatex(math, true));
-    return `\n${token}\n`;
-  });
-
-  const parts: string[] = [];
-  let paragraph: string[] = [];
-  let listType: 'ul' | 'ol' | null = null;
-
-  const closeList = () => {
-    if (listType) {
-      parts.push(`</${listType}>`);
-      listType = null;
-    }
-  };
-  const flushParagraph = () => {
-    if (paragraph.length === 0) return;
-    closeList();
-    parts.push(`<p>${paragraph.map(renderInlineMarkdown).join('<br>')}</p>`);
-    paragraph = [];
-  };
-  const openList = (type: 'ul' | 'ol', start = 1) => {
-    flushParagraph();
-    if (listType === type) return;
-    closeList();
-    listType = type;
-    parts.push(type === 'ol'
-      ? `<ol class="md-list" start="${start}">`
-      : '<ul class="md-list">');
-  };
-
-  for (const line of source.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      flushParagraph();
-      closeList();
-      continue;
-    }
-    if (/^\uE000\d+\uE001$/.test(trimmed)) {
-      flushParagraph();
-      closeList();
-      parts.push(trimmed);
-      continue;
-    }
-
-    const heading = /^(#{1,6})\s+(.+)$/.exec(trimmed);
-    if (heading) {
-      flushParagraph();
-      closeList();
-      const level = Math.min(6, heading[1].length);
-      parts.push(`<h${level} class="md-heading md-h${level}">${renderInlineMarkdown(heading[2])}</h${level}>`);
-      continue;
-    }
-
-    const unordered = /^[-*+]\s+(.+)$/.exec(trimmed);
-    if (unordered) {
-      openList('ul');
-      parts.push(`<li>${renderInlineMarkdown(unordered[1])}</li>`);
-      continue;
-    }
-
-    const ordered = /^(\d+)\.\s+(.+)$/.exec(trimmed);
-    if (ordered) {
-      const ordinal = Math.max(1, Number.parseInt(ordered[1], 10) || 1);
-      openList('ol', ordinal);
-      parts.push(`<li value="${ordinal}">${renderInlineMarkdown(ordered[2])}</li>`);
-      continue;
-    }
-
-    paragraph.push(line);
-  }
-
-  flushParagraph();
-  closeList();
-  return `<div class="markdown-body">${restorePlaceholders(parts.join(''), blockPlaceholders)}</div>`;
-}
+// ── Conversation list ──
 
 export function renderConversationList(): string {
   const convs = state.conversations;
@@ -788,6 +290,8 @@ export function renderConversationList(): string {
     `;
   }).join('');
 }
+
+// ── Message rendering ──
 
 export function renderChatMessages(): string {
   if (!state.currentConversationId) {
@@ -895,17 +399,6 @@ function sourceHost(value: string): string {
   }
 }
 
-function parseContent(contentJson: string): string {
-  try {
-    const parsed = JSON.parse(contentJson);
-    if (typeof parsed === 'string') return parsed;
-    if (parsed.text) return parsed.text;
-    return contentJson;
-  } catch {
-    return contentJson;
-  }
-}
-
 function getMessageCopyText(msg: Message): string {
   const parts = [parseContent(msg.content_json)];
   const attachments = parseAttachments(msg.attachments_json);
@@ -946,6 +439,8 @@ function bindSelectionCopyFallback(): void {
   });
 }
 
+// ── Chat input ──
+
 export function renderChatInput(): string {
   const streaming = state.isStreaming;
   const searchFeatureEnabled = getSearchConfigSnapshot().config.enabled;
@@ -978,111 +473,7 @@ export function renderChatInput(): string {
   `;
 }
 
-export function renderRightPanelContent(): string {
-  const convId = state.currentConversationId;
-  if (!convId) {
-    return renderEmptyRightPanel();
-  }
-
-  const conv = state.conversations.find(c => c.id === convId);
-  const model = conv ? state.models.find(m => m.id === conv.model_id) : null;
-  const usage = getPanelUsage(convId, model ?? null);
-  const totalInput = usage.uncached_input_tokens + usage.cached_input_tokens + usage.cache_write_input_tokens;
-  const totalOutput = usage.output_tokens;
-  const costLabel = formatConversationCost(usage);
-  const tokenChartText = getTokenChartText();
-
-  return `
-    <div class="metric-row">
-      <div class="metric-card">
-        <div class="metric-card-label">${t('chat.input')}</div>
-        <div class="metric-card-value" style="color:var(--stack-input)">${totalInput.toLocaleString()}</div>
-        <div class="metric-card-sub">${t('chat.tokens')}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-card-label">${t('chat.output')}</div>
-        <div class="metric-card-value" style="color:var(--stack-output)">${totalOutput.toLocaleString()}</div>
-        <div class="metric-card-sub">${t('chat.tokens')}</div>
-      </div>
-    </div>
-    <div class="metric-row">
-      <div class="metric-card">
-        <div class="metric-card-label">${t('chat.cacheHitRate')}</div>
-        <div class="metric-card-value">${(() => {
-          const totalCacheable = usage.cached_input_tokens + usage.uncached_input_tokens;
-          if (totalCacheable === 0) return '-';
-          return `${Math.round(usage.cached_input_tokens / totalCacheable * 100)}%`;
-        })()}</div>
-        <div class="metric-card-sub">${usage.cached_input_tokens.toLocaleString()} / ${totalInput.toLocaleString()}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-card-label">${t('chat.sessionCost')}</div>
-        <div class="metric-card-value">${costLabel}</div>
-        <div class="metric-card-sub">${usage.request_count} ${t('chat.messages')}</div>
-      </div>
-    </div>
-    <div class="mini-chart">
-      <div class="mini-chart-title">${tokenChartText.title}</div>
-      ${renderMiniChart(usage.recent_runs)}
-    </div>
-    ${model ? `
-    <div class="model-info-card">
-      <div class="model-info-name">${escHtml(model.display_name || model.model_name)}</div>
-      <div class="model-info-provider">${escHtml(model.provider_id)}</div>
-      <div class="model-info-stats">
-        <div><div class="model-info-stat-label">${t('chat.cacheReadPerM')}</div><div class="model-info-stat-value">${formatCurrencyAmount(model.cache_read_nanos_per_million / 1e9, 2, model.currency)}</div></div>
-        <div><div class="model-info-stat-label">${t('chat.inputPerM')}</div><div class="model-info-stat-value">${formatCurrencyAmount(model.uncached_input_nanos_per_million / 1e9, 2, model.currency)}</div></div>
-        <div><div class="model-info-stat-label">${t('chat.outputPerM')}</div><div class="model-info-stat-value">${formatCurrencyAmount(model.output_nanos_per_million / 1e9, 2, model.currency)}</div></div>
-        <div><div class="model-info-stat-label">${t('chat.maxCtx')}</div><div class="model-info-stat-value">${(model.context_window / 1000).toFixed(0)}K</div></div>
-        <div><div class="model-info-stat-label">${t('chat.latency')}</div><div class="model-info-stat-value">${(() => {
-          const latencyRuns = usage.recent_runs.filter(r => r.first_token_latency_ms != null && r.first_token_latency_ms > 0);
-          if (latencyRuns.length === 0) return '-';
-          const avg = Math.round(latencyRuns.reduce((s, r) => s + (r.first_token_latency_ms ?? 0), 0) / latencyRuns.length);
-          return `${avg}ms`;
-        })()}</div></div>
-        <div><div class="model-info-stat-label">${t('chat.tokenRate')}</div><div class="model-info-stat-value">${(() => {
-          const rateRuns = usage.recent_runs.filter(r => r.duration_ms != null && r.duration_ms > 0 && r.output_tokens > 0 && r.first_token_latency_ms != null && (r.duration_ms - (r.first_token_latency_ms ?? 0)) > 0);
-          if (rateRuns.length === 0) return '-';
-          const totalOutput = rateRuns.reduce((s, r) => s + r.output_tokens, 0);
-          const totalGenTime = rateRuns.reduce((s, r) => s + (r.duration_ms ?? 0) - (r.first_token_latency_ms ?? 0), 0);
-          if (totalGenTime <= 0) return '-';
-          const rate = Math.round(totalOutput / totalGenTime * 1000);
-          return `${rate} t/s`;
-        })()}</div></div>
-      </div>
-    </div>` : `
-    <div class="model-info-card">
-      <div class="model-info-name">${t('chat.noModel')}</div>
-      <div class="model-info-provider">-</div>
-    </div>`}
-  `;
-}
-
-function renderEmptyRightPanel(): string {
-  return `
-    <div class="metric-row">
-      <div class="metric-card">
-        <div class="metric-card-label">${t('chat.input')}</div>
-        <div class="metric-card-value" style="color:var(--stack-input)">0</div>
-        <div class="metric-card-sub">${t('chat.tokens')}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-card-label">${t('chat.output')}</div>
-        <div class="metric-card-value" style="color:var(--stack-output)">0</div>
-        <div class="metric-card-sub">${t('chat.tokens')}</div>
-      </div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-card-label">${t('chat.sessionCost')}</div>
-      <div class="metric-card-value">${formatCurrencyAmount(0, 2)}</div>
-      <div class="metric-card-sub">0 ${t('chat.messages')}</div>
-    </div>
-    <div class="model-info-card">
-      <div class="model-info-name">${t('chat.noModel')}</div>
-      <div class="model-info-provider">-</div>
-    </div>
-  `;
-}
+// ── Conversation CRUD ──
 
 export async function loadConversations(): Promise<void> {
   if (isDev) {
@@ -1098,7 +489,7 @@ export async function loadConversations(): Promise<void> {
 
 export async function selectConversation(id: string): Promise<void> {
   state.currentConversationId = id;
-  liveTokenUsage = null;
+  resetLiveTokenUsage();
   if (isDev) {
     state.messages = mockMessages.filter(message => message.conversation_id === id);
   } else {
@@ -1216,6 +607,8 @@ export async function renameCurrentConversation(): Promise<void> {
   await updateConversationTitleLocal(conv.id, title);
 }
 
+// ── Send & streaming ──
+
 export async function handleSend(): Promise<void> {
   let pendingAssistantMsg: Message | null = null;
   let ownsPreparation = false;
@@ -1227,7 +620,7 @@ export async function handleSend(): Promise<void> {
       await Promise.allSettled([invoke('cancel_generation'), cancelWebSearch()]);
       state.isStreaming = false;
       setWebSearchPhase('idle');
-      liveTokenUsage = null;
+      resetLiveTokenUsage();
       renderChatArea();
       renderChatInputInDom();
       renderRightPanelInDom();
@@ -1248,7 +641,6 @@ export async function handleSend(): Promise<void> {
     const conv = state.conversations.find(c => c.id === conversationId);
     if (!conv) return;
 
-    // Auto-select model if not set
     if (!conv.model_id && state.models.length > 0) {
       const firstModel = state.models[0];
       conv.model_id = firstModel.id;
@@ -1264,7 +656,6 @@ export async function handleSend(): Promise<void> {
     }
 
     let model = state.models.find(m => m.id === conv.model_id);
-    // Fallback: try first model if still not found
     if (!model && state.models.length > 0) {
       model = state.models[0];
       conv.model_id = model.id;
@@ -1473,7 +864,7 @@ export async function handleSend(): Promise<void> {
           duration_ms: capture.metrics?.total_ms ?? null,
         },
       });
-      liveTokenUsage = null;
+      resetLiveTokenUsage();
       await loadTokenUsage(conversationId);
       renderRightPanelInDom();
     } catch (e) {
@@ -1487,7 +878,7 @@ export async function handleSend(): Promise<void> {
     if (pendingAssistantMsg) {
       pendingAssistantMsg.status = 'failed';
     }
-    liveTokenUsage = null;
+    resetLiveTokenUsage();
     cleanupStreamListeners();
     renderChatArea();
     renderChatInputInDom();
@@ -1527,8 +918,8 @@ async function setupStreamListeners(assistantMsgId: string, capture: StreamCaptu
     updateStreamingMessage(assistantMsg);
   });
 
-  metricsUnlisten = await listen<StreamMetrics>('chat-metrics', (event) => {
-    capture.metrics = event.payload;
+  metricsUnlisten = await listen<StreamChunk>('chat-metrics', (event) => {
+    capture.metrics = (event as any).payload;
   });
 }
 
@@ -1583,10 +974,12 @@ function scrollToBottom(): void {
   }
 }
 
-export function autoResizeTextarea(textarea: HTMLTextAreaElement): void {
+function autoResizeTextarea(textarea: HTMLTextAreaElement): void {
   textarea.style.height = 'auto';
   textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
 }
+
+// ── DOM updaters ──
 
 export function renderChatArea(): void {
   const messagesEl = document.getElementById('chatMessages');
@@ -1645,6 +1038,8 @@ export function renderRightPanelInDom(): void {
     panelBody.innerHTML = renderRightPanelContent();
   }
 }
+
+// ── Event binding ──
 
 function bindMessageEvents(): void {
   document.querySelectorAll<HTMLButtonElement>('[data-open-source-url]').forEach(button => {
