@@ -35,6 +35,7 @@ import {
 import { mountMessageList, updateMessageList, patchStreamingMessage } from './components/MessageList';
 import { mountChatInput, updateChatInput, syncInputSignals } from './components/ChatInput';
 import { mountConversationList, syncConversationSignals } from './components/ConversationList';
+import { mountRightPanel, updateRightPanel } from './components/RightPanel';
 
 // ── DOM updaters ──
 
@@ -73,7 +74,7 @@ export function renderChatInputInDom(): void {
 export function renderRightPanelInDom(): void {
   const panelBody = document.querySelector('.chat-right .panel-body');
   if (panelBody) {
-    panelBody.innerHTML = renderRightPanelContent();
+    mountRightPanel(panelBody as HTMLElement);
   }
 }
 
