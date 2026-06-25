@@ -1,0 +1,14 @@
+/* ConversationList component-specific styles.
+   Global layout classes (.chat-item, .chat-item-content, etc.) stay in styles.css.
+   This file only contains styles unique to the Preact component. */
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: var(--fs-secondary);
+  text-align: center;
+  padding: 24px 16px;
+}

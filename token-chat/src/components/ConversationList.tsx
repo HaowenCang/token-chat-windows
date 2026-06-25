@@ -5,6 +5,7 @@ import { state, type Conversation } from '../state';
 import { t } from '../i18n';
 import { relativeTime } from '../chat-token';
 import { escHtml } from '../chat-attachment';
+import styles from './ConversationList.module.css';
 
 // ── Signals ──
 
@@ -29,7 +30,7 @@ function ConversationListInner({ onSelect, onDelete, onNew }: ConversationListPr
   const activeId = activeConversationId.value;
 
   if (convs.length === 0) {
-    return <div class="placeholder-content" style={{ height: '100%' }}>{t('chat.noConversations')}</div>;
+    return <div class={styles.emptyState}>{t('chat.noConversations')}</div>;
   }
 
   return (
