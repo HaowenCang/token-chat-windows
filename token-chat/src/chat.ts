@@ -32,14 +32,14 @@ import {
   bindChatEvents as bindConversationAndMessageEvents,
 } from './chat-conversation';
 
+import { mountMessageList, updateMessageList, patchStreamingMessage } from './components/MessageList';
+
 // ── DOM updaters ──
 
-export function renderChatArea(bindEvents?: () => void): void {
+export function renderChatArea(): void {
   const messagesEl = document.getElementById('chatMessages');
   if (messagesEl) {
-    messagesEl.innerHTML = renderChatMessages();
-    if (bindEvents) bindEvents(); else bindMessageEvents();
-    scrollToBottom();
+    mountMessageList(messagesEl);
   }
   const titleEl = document.querySelector('.chat-center-title');
   if (titleEl) {
