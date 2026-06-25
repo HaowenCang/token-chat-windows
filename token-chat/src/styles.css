@@ -249,7 +249,7 @@ body {
   overflow: hidden;
 }
 
-/* ── 4. Sidebar (Left Panel) ── */
+/* ── 4. Sidebar (Left Panel) — DEPRECATED: superseded by Section 7 glass-based sidebar ── */
 .chat-left {
   width: var(--sidebar-width);
   min-width: 0;
@@ -388,7 +388,7 @@ body {
   font-weight: 600;
 }
 
-/* ── 5. Chat Area (Center Panel) ── */
+/* ── 5. Chat Area (Center Panel) — DEPRECATED: superseded by Section 7 + unified-shell.css ── */
 .chat-center {
   flex: 1;
   display: flex;
@@ -529,6 +529,7 @@ body {
   height: 6px;
   border-radius: 50%;
 }
+/* Code blocks — DEPRECATED: .markdown-body scoped version in unified-shell.css overrides these */
 .msg-code-block {
   background: var(--app-bg);
   border: 1px solid var(--line);
@@ -1001,7 +1002,7 @@ body {
 }
 .export-btn:hover { background: var(--accent); color: #fff; }
 
-/* Data detail tooltip */
+/* Data detail tooltip — DEPRECATED: superseded by liquid-glass.css, kept as fallback only */
 .data-tooltip-bubble {
   position: fixed;
   z-index: 10000;

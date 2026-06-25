@@ -14,6 +14,7 @@ export interface Model {
   display_name: string;
   system_prompt?: string | null;
   temperature: number;
+  max_output_tokens?: number | null;
   context_window: number;
   uncached_input_nanos_per_million: number;
   cache_read_nanos_per_million: number;

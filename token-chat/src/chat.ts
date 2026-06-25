@@ -814,8 +814,8 @@ export async function handleSend(): Promise<void> {
       apiKey,
       model: model.model_name,
       messages: messagesForApi,
-      temperature: 0.7,
-      maxTokens: 4096,
+      temperature: model.temperature,
+      maxTokens: model.max_output_tokens ?? undefined,
     });
     cleanupStreamListeners();
 
