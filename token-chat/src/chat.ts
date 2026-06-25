@@ -33,6 +33,7 @@ import {
 } from './chat-conversation';
 
 import { mountMessageList, updateMessageList, patchStreamingMessage } from './components/MessageList';
+import { mountChatInput, updateChatInput, syncInputSignals } from './components/ChatInput';
 
 // ── DOM updaters ──
 
@@ -64,18 +65,8 @@ export function renderConversationListInDom(bindEvents?: () => void): void {
 
 export function renderChatInputInDom(): void {
   const inputArea = document.querySelector('.chat-input-area');
-  if (inputArea) {
-    const parent = inputArea.parentElement;
-    if (parent) {
-      inputArea.outerHTML = renderChatInputHtml({
-        isStreaming: state.isStreaming,
-        searchFeatureEnabled: getSearchConfigSnapshot().config.enabled,
-        searchEnabled: isChatWebSearchEnabled(),
-        searchPhase: getWebSearchPhase(),
-        searchStatusText: getWebSearchStatusText(),
-      });
-      bindChatInputEvents();
-    }
+  if (inputArea && inputArea.parentElement) {
+    mountChatInput(inputArea.parentElement, handleSend);
   }
 }
 
