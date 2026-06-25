@@ -1,5 +1,3 @@
-import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { state, parseContent, type Message } from './state';
 import { t, getLang } from './i18n';
 import { getEffectiveSystemPrompt } from './prompt';
@@ -11,7 +9,6 @@ import {
   resetLiveTokenUsage,
   loadTokenUsage,
   deriveTokenParts,
-  calculateCostNanos,
 } from './chat-token';
 import {
   getSelectedAttachments,
@@ -20,8 +17,6 @@ import {
   buildApiContent,
   titleFromContent,
   isDefaultConversationTitle,
-  addAttachmentFiles,
-  type MessageAttachment,
 } from './chat-attachment';
 import {
   buildSearchAugmentedPrompt,
@@ -35,6 +30,17 @@ import {
   autoResizeTextarea,
 } from './chat-render';
 import { setupStreamListeners } from './chat-stream';
+import {
+  cancelGeneration,
+  getProviderApiKey,
+  recordGenerationRun,
+  saveAssistantMessage,
+  saveUserMessage,
+  sendMessage,
+  updateConversationModel,
+  updateConversationTitle,
+} from './ipc/chat-ipc';
+import { isWebRuntime } from './platform/runtime';
 
 // ── Send state ──
 
@@ -80,16 +86,10 @@ function doRenderConversationListInDom() { _renderConversationListInDom(); }
 function doRenderChatInputInDom() { _renderChatInputInDom(); }
 function doRenderRightPanelInDom() { _renderRightPanelInDom(); }
 
-function rerenderChatInputPreservingDraft(): void {
-  const currentInput = document.getElementById('chatInput') as HTMLTextAreaElement | null;
-  const draft = currentInput?.value ?? '';
-  doRenderChatInputInDom();
-  const nextInput = document.getElementById('chatInput') as HTMLTextAreaElement | null;
-  if (nextInput) {
-    nextInput.value = draft;
-    autoResizeTextarea(nextInput);
-    nextInput.focus();
-  }
+function setChatInputValue(input: HTMLTextAreaElement, value: string): void {
+  input.value = value;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  autoResizeTextarea(input);
 }
 
 // ── Auto-generate title ──
@@ -113,7 +113,7 @@ export async function handleSend(): Promise<void> {
       cancelledSendIds.add(activeSendId);
       const streamingMessage = state.messages.find(message => message.status === 'streaming');
       if (streamingMessage) streamingMessage.status = 'cancelled';
-      await Promise.allSettled([invoke('cancel_generation'), cancelWebSearch()]);
+      await Promise.allSettled([cancelGeneration(), cancelWebSearch()]);
       state.isStreaming = false;
       setWebSearchPhase('idle');
       resetLiveTokenUsage();
@@ -142,11 +142,7 @@ export async function handleSend(): Promise<void> {
       conv.model_id = firstModel.id;
       conv.provider_id = firstModel.provider_id;
       try {
-        await invoke('update_conversation_model', {
-          id: conv.id,
-          providerId: firstModel.provider_id,
-          modelId: firstModel.id,
-        });
+        await updateConversationModel(conv.id, firstModel.provider_id, firstModel.id);
       } catch {}
       doRenderChatArea();
     }
@@ -162,9 +158,8 @@ export async function handleSend(): Promise<void> {
     const provider = state.providers.find(p => p.id === conv.provider_id);
     if (!provider) return;
 
-    input.value = '';
+    setChatInputValue(input, '');
     clearSelectedAttachments();
-    autoResizeTextarea(input);
 
     const sendId = ++sendSequence;
     activeSendId = sendId;
@@ -214,8 +209,7 @@ export async function handleSend(): Promise<void> {
             doRenderChatInputInDom();
             const restoredInput = document.getElementById('chatInput') as HTMLTextAreaElement | null;
             if (restoredInput) {
-              restoredInput.value = text;
-              autoResizeTextarea(restoredInput);
+              setChatInputValue(restoredInput, text);
             }
             cancelledSendIds.delete(sendId);
             return;
@@ -229,7 +223,7 @@ export async function handleSend(): Promise<void> {
 
     let savedUserMessage: Message;
     try {
-      savedUserMessage = await invoke<Message>('save_user_message', {
+      savedUserMessage = await saveUserMessage({
         conversationId,
         content: text,
         attachmentsJson: attachments.length > 0 ? JSON.stringify(attachments) : null,
@@ -299,14 +293,14 @@ export async function handleSend(): Promise<void> {
     let apiKey = '';
     if (conv.provider_id) {
       try {
-        const key = await invoke<string | null>('get_provider_api_key', { id: conv.provider_id });
+        const key = await getProviderApiKey(conv.provider_id);
         apiKey = key ?? '';
       } catch (e) {
         console.error('Failed to get API key:', e);
       }
     }
 
-    await invoke('send_message', {
+    await sendMessage({
       baseUrl: provider.base_url,
       apiKey,
       model: model.model_name,
@@ -322,7 +316,7 @@ export async function handleSend(): Promise<void> {
     const assistantContent = parseContent(assistantMsg.content_json);
     let savedAssistant: Message | null = null;
     try {
-      savedAssistant = await invoke<Message>('save_assistant_message', {
+      savedAssistant = await saveAssistantMessage({
         conversationId,
         content: assistantContent,
         reasoning: assistantMsg.reasoning_content,
@@ -342,23 +336,21 @@ export async function handleSend(): Promise<void> {
     }
 
     const parts = deriveTokenParts(messagesForApi, assistantContent, capture.usage);
-    const totalTokens = parts.uncachedInput + parts.cachedInput + parts.cacheWriteInput + parts.output;
     try {
-      await invoke('record_generation_run', {
+      await recordGenerationRun({
         conversationId,
+        assistantMessageId: savedAssistant?.id ?? null,
         providerId: provider.id,
-        providerName: provider.name,
         modelId: model.id,
-        modelName: model.model_name,
-        promptTokens: parts.uncachedInput + parts.cachedInput + parts.cacheWriteInput,
-        completionTokens: parts.output,
-        cachedTokens: parts.cachedInput,
-        totalTokens,
-        nanosCost: calculateCostNanos(parts, model),
-        currency: model.currency,
-        firstEventMs: capture.metrics?.first_event_ms ?? null,
-        firstTokenMs: capture.metrics?.first_token_ms ?? null,
-        totalMs: capture.metrics?.total_ms ?? null,
+        status: assistantMsg.status === 'failed' ? 'failed' : assistantMsg.status === 'cancelled' ? 'cancelled' : 'completed',
+        uncachedInputTokens: parts.uncachedInput,
+        cacheReadInputTokens: parts.cachedInput,
+        cacheWriteInputTokens: parts.cacheWriteInput,
+        outputTokens: parts.output,
+        usageSource: parts.source,
+        firstEventLatencyMs: capture.metrics?.first_event_ms ?? null,
+        firstTokenLatencyMs: capture.metrics?.first_token_ms ?? null,
+        durationMs: capture.metrics?.total_ms ?? null,
       });
     } catch (e) {
       console.error('Failed to record generation run:', e);
@@ -391,117 +383,6 @@ export async function handleSend(): Promise<void> {
   }
 }
 
-// ── Input event binding (called from chat.ts) ──
-
-export function bindChatInputEvents(): void {
-  const input = document.getElementById('chatInput') as HTMLTextAreaElement | null;
-  if (input) {
-    input.addEventListener('keydown', (e) => {
-      const sendKey = localStorage.getItem('tc-send-key') || 'enter';
-      const isSend = sendKey === 'enter' ? (e.key === 'Enter' && !e.shiftKey) : (e.key === 'Enter' && e.shiftKey);
-      const isNewline = sendKey === 'enter' ? (e.key === 'Enter' && e.shiftKey) : (e.key === 'Enter' && !e.shiftKey);
-      if (isSend) {
-        e.preventDefault();
-        handleSend();
-      } else if (isNewline) {
-        // Allow default newline behavior
-      }
-    });
-    input.addEventListener('input', () => autoResizeTextarea(input));
-    input.addEventListener('paste', async (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      const imageFiles: File[] = [];
-      for (const item of items) {
-        if (item.type.startsWith('image/')) {
-          const file = item.getAsFile();
-          if (file) imageFiles.push(file);
-        }
-      }
-      if (imageFiles.length > 0) {
-        e.preventDefault();
-        const dt = new DataTransfer();
-        imageFiles.forEach(f => dt.items.add(f));
-        await addAttachmentFiles(dt.files);
-        rerenderChatInputPreservingDraft();
-      }
-    });
-    input.focus();
-  }
-
-  const isTauri = !!(window as any).__TAURI_INTERNALS__;
-  if (isTauri) {
-    getCurrentWindow().onDragDropEvent(async (event) => {
-      const chatCenter = document.querySelector('.chat-center');
-      if (!chatCenter) return;
-      if (event.payload.type === 'over') {
-        chatCenter.classList.add('drag-over');
-      } else if (event.payload.type === 'drop') {
-        chatCenter.classList.remove('drag-over');
-        const paths = event.payload.paths;
-        if (paths.length > 0) {
-          try {
-            const files: File[] = [];
-            for (const path of paths) {
-              const binary: number[] = await invoke('read_file_bytes', { path });
-              const name = path.split(/[/\\]/).pop() ?? 'file';
-              const ext = name.split('.').pop()?.toLowerCase() ?? '';
-              const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' };
-              const mime = mimeMap[ext] ?? 'application/octet-stream';
-              const blob = new Blob([new Uint8Array(binary)], { type: mime });
-              files.push(new File([blob], name, { type: mime }));
-            }
-            if (files.length > 0) {
-              const dt = new DataTransfer();
-              files.forEach(f => dt.items.add(f));
-              await addAttachmentFiles(dt.files);
-              rerenderChatInputPreservingDraft();
-            }
-          } catch (e) {
-            console.error('Failed to read dropped files:', e);
-          }
-        }
-      } else if (event.payload.type === 'leave') {
-        chatCenter.classList.remove('drag-over');
-      }
-    });
-  }
-
-  const sendBtn = document.getElementById('sendBtn');
-  if (sendBtn) {
-    sendBtn.addEventListener('click', () => handleSend());
-  }
-
-  const webSearchToggle = document.getElementById('webSearchToggle') as HTMLButtonElement | null;
-  webSearchToggle?.addEventListener('click', () => {
-    if (webSearchToggle.disabled || state.isStreaming) return;
-    const next = webSearchToggle.getAttribute('aria-checked') !== 'true';
-    localStorage.setItem('tc-chat-web-search-enabled', String(next));
-    rerenderChatInputPreservingDraft();
-  });
-
-  const attachBtn = document.getElementById('attachBtn');
-  const attachmentInput = document.getElementById('attachmentInput') as HTMLInputElement | null;
-  if (attachBtn && attachmentInput) {
-    attachBtn.addEventListener('click', () => attachmentInput.click());
-    attachmentInput.addEventListener('change', async () => {
-      await addAttachmentFiles(attachmentInput.files);
-      attachmentInput.value = '';
-      rerenderChatInputPreservingDraft();
-    });
-  }
-
-  document.querySelectorAll<HTMLElement>('[data-remove-attachment]').forEach(el => {
-    el.addEventListener('click', () => {
-      const id = el.dataset.removeAttachment;
-      const remaining = getSelectedAttachments().filter(a => a.id !== id);
-      clearSelectedAttachments();
-      remaining.forEach(a => getSelectedAttachments().push(a));
-      rerenderChatInputPreservingDraft();
-    });
-  });
-}
-
 // ── Update conversation title (called from chat-conversation.ts) ──
 
 export async function updateConversationTitleLocal(conversationId: string, title: string): Promise<void> {
@@ -511,10 +392,10 @@ export async function updateConversationTitleLocal(conversationId: string, title
   if (!conv || conv.title === trimmed) return;
   conv.title = trimmed;
   conv.updated_at = Math.floor(Date.now() / 1000);
-  const isDev = !(window as any).__TAURI_INTERNALS__;
+  const isDev = isWebRuntime();
   if (!isDev) {
     try {
-      await invoke('update_conversation_title', { id: conversationId, title: trimmed });
+      await updateConversationTitle(conversationId, trimmed);
     } catch (e) {
       console.error('Failed to update conversation title:', e);
     }

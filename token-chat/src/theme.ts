@@ -1,9 +1,10 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { isTauriRuntime } from './platform/runtime';
 
 const CUSTOM_ACCENT_KEY = 'tc-custom-accent';
 
 function syncWindowTheme(theme: string): void {
-  if (!(window as any).__TAURI_INTERNALS__) return;
+  if (!isTauriRuntime()) return;
   const nativeTheme = theme === 'midnight' ? 'dark' : 'light';
   void getCurrentWindow().setTheme(nativeTheme).catch(() => {});
 }

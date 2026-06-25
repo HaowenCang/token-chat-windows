@@ -1,20 +1,16 @@
 /** @jsxImportSource preact */
 import { render } from 'preact';
 import { signal } from '@preact/signals';
-import { state, type Conversation } from '../state';
 import { t } from '../i18n';
-import { relativeTime } from '../chat-token';
-import { escHtml } from '../chat-attachment';
+import { getConversationListItems, type ConversationListItemView } from '../chat-view-model';
 import styles from './ConversationList.module.css';
 
 // ── Signals ──
 
-export const conversations = signal<Conversation[]>([]);
-export const activeConversationId = signal<string | null>(null);
+export const conversations = signal<ConversationListItemView[]>([]);
 
 export function syncConversationSignals(): void {
-  conversations.value = [...state.conversations];
-  activeConversationId.value = state.currentConversationId;
+  conversations.value = getConversationListItems();
 }
 
 // ── Component ──
@@ -27,7 +23,6 @@ interface ConversationListProps {
 
 function ConversationListInner({ onSelect, onDelete, onNew }: ConversationListProps) {
   const convs = conversations.value;
-  const activeId = activeConversationId.value;
 
   if (convs.length === 0) {
     return <div class={styles.emptyState}>{t('chat.noConversations')}</div>;
@@ -36,12 +31,9 @@ function ConversationListInner({ onSelect, onDelete, onNew }: ConversationListPr
   return (
     <div>
       {convs.map(c => {
-        const isActive = c.id === activeId;
-        const model = state.models.find(m => m.id === c.model_id);
-        const modelName = model?.display_name ?? model?.model_name ?? '';
         return (
           <div
-            class={`chat-item ${isActive ? 'active' : ''}`}
+            class={`chat-item ${c.isActive ? 'active' : ''}`}
             data-conv-id={c.id}
             onClick={() => onSelect(c.id)}
             key={c.id}
@@ -49,8 +41,8 @@ function ConversationListInner({ onSelect, onDelete, onNew }: ConversationListPr
             <div class="chat-item-content">
               <div class="chat-item-title">{c.title}</div>
               <div class="chat-item-meta">
-                {modelName && <span class="chat-item-model">{modelName}</span>}
-                <span>{relativeTime(c.updated_at)}</span>
+                {c.modelName && <span class="chat-item-model">{c.modelName}</span>}
+                <span>{c.relativeUpdatedAt}</span>
               </div>
             </div>
             <button

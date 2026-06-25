@@ -1,6 +1,7 @@
-import { invoke } from '@tauri-apps/api/core';
+import { getBuiltinPrompt } from './ipc/prompt-ipc';
+import { isWebRuntime } from './platform/runtime';
 
-const isDev = !(window as any).__TAURI_INTERNALS__;
+const isDev = isWebRuntime();
 let builtinPrompt: string | null = null;
 
 export async function loadBuiltinPrompt(): Promise<void> {
@@ -10,7 +11,7 @@ export async function loadBuiltinPrompt(): Promise<void> {
     return;
   }
   try {
-    builtinPrompt = await invoke<string>('get_builtin_prompt');
+    builtinPrompt = await getBuiltinPrompt();
   } catch {
     builtinPrompt = '';
   }

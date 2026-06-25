@@ -1,9 +1,10 @@
-import { invoke } from '@tauri-apps/api/core';
 import { state, parseContent, type Model } from './state';
 import { getLang, t } from './i18n';
 import { tooltipAttrs } from './tooltip';
 import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
 import { renderMarkdown } from './chat-markdown';
+import { loadConversationTokenUsage } from './ipc/chat-ipc';
+import { isWebRuntime } from './platform/runtime';
 
 // ── Interfaces ──
 
@@ -312,13 +313,13 @@ function getPanelUsage(convId: string, model: Model | null): ConversationTokenUs
 }
 
 export async function loadTokenUsage(conversationId: string): Promise<void> {
-  const isDev = !(window as any).__TAURI_INTERNALS__;
+  const isDev = isWebRuntime();
   if (isDev) {
     currentTokenUsage = null;
     return;
   }
   try {
-    currentTokenUsage = await invoke<ConversationTokenUsage>('get_conversation_token_usage', { conversationId });
+    currentTokenUsage = await loadConversationTokenUsage(conversationId);
   } catch {
     currentTokenUsage = null;
   }

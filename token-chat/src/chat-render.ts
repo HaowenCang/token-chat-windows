@@ -1,7 +1,7 @@
-import { state, parseContent, type Conversation, type Message } from './state';
+import { state, parseContent, type Message } from './state';
 import { t } from './i18n';
 import { renderMarkdown } from './chat-markdown';
-import { relativeTime, renderRightPanelContent } from './chat-token';
+import { renderRightPanelContent } from './chat-token';
 import {
   escHtml,
   formatFileSize,
@@ -9,35 +9,27 @@ import {
   renderAttachmentDrafts,
   renderMessageAttachments,
 } from './chat-attachment';
-import {
-  isSafeSourceUrl,
-  parseSearchMetadata,
-} from './web-search';
+import { getConversationListItems, getMessageSearchView } from './chat-view-model';
 
 // ── Conversation list ──
 
 export function renderConversationList(): string {
-  const convs = state.conversations;
-  if (convs.length === 0) {
+  const items = getConversationListItems();
+  if (items.length === 0) {
     return `<div class="placeholder-content" style="height:100%">${t('chat.noConversations')}</div>`;
   }
-  return convs.map(c => {
-    const isActive = c.id === state.currentConversationId;
-    const model = state.models.find(m => m.id === c.model_id);
-    const modelName = model?.display_name ?? model?.model_name ?? '';
-    return `
-      <div class="chat-item ${isActive ? 'active' : ''}" data-conv-id="${c.id}">
+  return items.map(item => `
+      <div class="chat-item ${item.isActive ? 'active' : ''}" data-conv-id="${item.id}">
         <div class="chat-item-content">
-          <div class="chat-item-title">${escHtml(c.title)}</div>
+          <div class="chat-item-title">${escHtml(item.title)}</div>
           <div class="chat-item-meta">
-            ${modelName ? `<span class="chat-item-model">${escHtml(modelName)}</span>` : ''}
-            <span>${relativeTime(c.updated_at)}</span>
+            ${item.modelName ? `<span class="chat-item-model">${escHtml(item.modelName)}</span>` : ''}
+            <span>${escHtml(item.relativeUpdatedAt)}</span>
           </div>
         </div>
-        <button class="chat-item-delete" data-delete-conv="${c.id}" title="${t('common.delete')}">&#10005;</button>
+        <button class="chat-item-delete" data-delete-conv="${item.id}" title="${t('common.delete')}">&#10005;</button>
       </div>
-    `;
-  }).join('');
+    `).join('');
 }
 
 // ── Message rendering ──
@@ -79,7 +71,7 @@ function renderMessage(msg: Message): string {
   }
   bubbleInner += `<div class="msg-content">${renderMarkdown(content)}</div>`;
   bubbleInner += renderMessageAttachments(attachments);
-  bubbleInner += renderMessageSearchMetadata(msg, isUser);
+  bubbleInner += renderMessageSearchMetadataView(msg, isUser);
 
   let statusHtml = '';
   if (msg.status === 'streaming') {
@@ -102,50 +94,41 @@ function renderMessage(msg: Message): string {
   `;
 }
 
-function renderMessageSearchMetadata(msg: Message, isUser: boolean): string {
-  const metadata = parseSearchMetadata(msg.search_metadata_json);
-  if (!metadata) return '';
-  if (metadata.error) {
+function renderMessageSearchMetadataView(msg: Message, isUser: boolean): string {
+  const search = getMessageSearchView(msg);
+  if (!search) return '';
+  if (search.error) {
     if (!isUser) return '';
-    const brief = metadata.error.length > 140 ? `${metadata.error.slice(0, 139)}…` : metadata.error;
+    const brief = search.error.length > 140 ? `${search.error.slice(0, 139)}...` : search.error;
     return `<div class="message-search-state is-error" title="${escHtml(brief)}"><span aria-hidden="true">!</span> ${t('chat.searchFailed')}</div>`;
   }
-  if (metadata.results.length === 0) {
+  if (search.resultCount === 0) {
     return isUser ? `<div class="message-search-state is-empty">${t('chat.noResults')}</div>` : '';
   }
   if (isUser) {
-    return `<div class="message-search-state is-success"><span class="search-pulse-dot"></span>${t('chat.retrievedResults')} ${metadata.results.length}</div>`;
+    return `<div class="message-search-state is-success"><span class="search-pulse-dot"></span>${t('chat.retrievedResults')} ${search.resultCount}</div>`;
   }
-  const sources = metadata.results
-    .filter(result => isSafeSourceUrl(result.url))
-    .map((result, index) => `
+  const sources = search.sources
+    .map(source => `
       <li class="message-source-item">
-        <span class="message-source-index">${index + 1}</span>
+        <span class="message-source-index">${source.index}</span>
         <div class="message-source-copy">
-          <button class="message-source-title" type="button" data-open-source-url="${escHtml(result.url)}">${escHtml(result.title)}</button>
+          <button class="message-source-title" type="button" data-open-source-url="${escHtml(source.url)}">${escHtml(source.title)}</button>
           <div class="message-source-meta">
-            <span>${escHtml(result.source || sourceHost(result.url))}</span>
-            <span class="message-source-url">${escHtml(result.url)}</span>
-            ${result.publishedAt ? `<span>${escHtml(result.publishedAt)}</span>` : ''}
+            <span>${escHtml(source.source || t('chat.webSource'))}</span>
+            <span class="message-source-url">${escHtml(source.url)}</span>
+            ${source.publishedAt ? `<span>${escHtml(source.publishedAt)}</span>` : ''}
           </div>
         </div>
-        <button class="message-source-open" type="button" data-open-source-url="${escHtml(result.url)}" aria-label="用系统浏览器打开来源">↗</button>
+        <button class="message-source-open" type="button" data-open-source-url="${escHtml(source.url)}" aria-label="${t('chat.openSource')}">↗</button>
       </li>`)
     .join('');
   if (!sources) return '';
   return `
     <details class="message-sources">
-      <summary><span>来源</span><span class="glass-chip">${metadata.results.length}</span></summary>
+      <summary><span>${t('chat.sources')}</span><span class="glass-chip">${search.resultCount}</span></summary>
       <ol>${sources}</ol>
     </details>`;
-}
-
-function sourceHost(value: string): string {
-  try {
-    return new URL(value).hostname;
-  } catch {
-    return t('chat.webSource');
-  }
 }
 
 export function getMessageCopyText(msg: Message): string {

@@ -1,4 +1,11 @@
-import { invoke } from '@tauri-apps/api/core';
+import {
+  cancelSearch,
+  getSearchConfig,
+  saveSearchConfig as saveSearchConfigInStore,
+  searchWeb,
+  testSearchConnection as testSearchConnectionInStore,
+} from './ipc/search-ipc';
+import { isTauriRuntime } from './platform/runtime';
 
 export type SearchFreshness = 'any' | 'day' | 'week' | 'month' | 'year';
 
@@ -120,10 +127,6 @@ let cachedConfigView: SearchConfigView = {
   hasApiKey: false,
 };
 
-function isTauriRuntime(): boolean {
-  return Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
-}
-
 function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, Math.round(parsed))) : fallback;
@@ -158,7 +161,7 @@ export async function loadSearchConfig(): Promise<SearchConfigView> {
   }
 
   try {
-    const view = await invoke<SearchConfigView>('get_search_config');
+    const view = await getSearchConfig();
     cachedConfigView = { config: normalizeConfig(view.config), hasApiKey: Boolean(view.hasApiKey) };
   } catch (error) {
     console.error('Failed to load Web Search settings:', error);
@@ -177,13 +180,7 @@ export async function saveSearchConfig(
     cachedConfigView = { config: normalized, hasApiKey: Boolean(apiKey) };
     return getSearchConfigSnapshot();
   }
-  const view = await invoke<SearchConfigView>('save_search_config', {
-    input: {
-      config: normalized,
-      apiKey: apiKey?.trim() || null,
-      clearApiKey,
-    },
-  });
+  const view = await saveSearchConfigInStore({ config: normalized, apiKey, clearApiKey });
   cachedConfigView = { config: normalizeConfig(view.config), hasApiKey: Boolean(view.hasApiKey) };
   return getSearchConfigSnapshot();
 }
@@ -198,7 +195,7 @@ export async function testSearchConnection(): Promise<SearchTestResult> {
       error: '搜索连接测试需要在 Tauri 桌面应用中运行。',
     };
   }
-  return invoke<SearchTestResult>('test_search_connection');
+  return testSearchConnectionInStore();
 }
 
 export class TauriHttpSearchProvider implements SearchProvider {
@@ -206,7 +203,7 @@ export class TauriHttpSearchProvider implements SearchProvider {
   readonly name = 'HTTP JSON Search';
 
   async search(query: string, options: SearchOptions = {}): Promise<SearchResponse> {
-    return invoke<SearchResponse>('search_web', { query, options });
+    return searchWeb(query, options);
   }
 }
 
@@ -220,7 +217,7 @@ export function getSearchProvider(providerId: string): SearchProvider | null {
 
 export async function cancelWebSearch(): Promise<void> {
   if (!isTauriRuntime()) return;
-  await invoke('cancel_search');
+  await cancelSearch();
 }
 
 function compactExternalText(value: string, maxChars: number): string {

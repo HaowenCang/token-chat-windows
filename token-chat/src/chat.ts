@@ -1,25 +1,10 @@
 // Entry point — DOM updates, event binding, orchestrates sub-modules
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { state, type Message } from './state';
+import { state } from './state';
 import { t } from './i18n';
-import { isSafeSourceUrl, getSearchConfigSnapshot } from './web-search';
 import { renderRightPanelContent } from './chat-token';
-import {
-  renderConversationList,
-  renderChatMessages,
-  renderChatInput,
-  renderChatInput as renderChatInputHtml,
-  getMessageCopyText,
-  copyText,
-  scrollToBottom,
-  autoResizeTextarea,
-} from './chat-render';
+import { copyText } from './chat-render';
 import {
   handleSend,
-  bindChatInputEvents,
-  getWebSearchPhase,
-  getWebSearchStatusText,
-  isChatWebSearchEnabled,
   setChatCallbacks,
 } from './chat-send';
 import {
@@ -28,14 +13,14 @@ import {
   createConversation,
   renameCurrentConversation,
   deleteConversation,
+  setCurrentConversationModel,
   setConversationCallbacks,
-  bindChatEvents as bindConversationAndMessageEvents,
 } from './chat-conversation';
 
-import { mountMessageList, updateMessageList, patchStreamingMessage } from './components/MessageList';
-import { mountChatInput, updateChatInput, syncInputSignals } from './components/ChatInput';
-import { mountConversationList, syncConversationSignals } from './components/ConversationList';
-import { mountRightPanel, updateRightPanel } from './components/RightPanel';
+import { mountMessageList } from './components/MessageList';
+import { mountChatInput } from './components/ChatInput';
+import { mountConversationList } from './components/ConversationList';
+import { mountRightPanel } from './components/RightPanel';
 
 // ── DOM updaters ──
 
@@ -65,9 +50,9 @@ export function renderConversationListInDom(): void {
 }
 
 export function renderChatInputInDom(): void {
-  const inputArea = document.querySelector('.chat-input-area');
-  if (inputArea && inputArea.parentElement) {
-    mountChatInput(inputArea.parentElement, handleSend);
+  const mountEl = document.getElementById('chatInputMount');
+  if (mountEl) {
+    mountChatInput(mountEl, handleSend);
   }
 }
 
@@ -79,65 +64,6 @@ export function renderRightPanelInDom(): void {
 }
 
 // ── Event binding ──
-
-function bindMessageEvents(): void {
-  document.querySelectorAll<HTMLButtonElement>('[data-open-source-url]').forEach(button => {
-    button.addEventListener('click', async () => {
-      const url = button.dataset.openSourceUrl ?? '';
-      if (!isSafeSourceUrl(url)) return;
-      try {
-        await openUrl(url);
-      } catch (error) {
-        console.error('Failed to open source URL:', error);
-      }
-    });
-  });
-
-  document.querySelectorAll<HTMLButtonElement>('[data-copy-msg-id]').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.copyMsgId;
-      const msg = state.messages.find(m => m.id === id);
-      if (!msg) return;
-      await copyText(getMessageCopyText(msg));
-      const oldText = btn.textContent ?? t('chat.copy');
-      btn.textContent = t('chat.copied');
-      btn.disabled = true;
-      window.setTimeout(() => {
-        btn.textContent = oldText;
-        btn.disabled = false;
-      }, 900);
-    });
-  });
-
-  document.querySelectorAll<HTMLElement>('[data-toggle-thinking]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      if (e.detail > 1) return;
-      const sel = window.getSelection();
-      if (sel && sel.toString().length > 0) return;
-      const body = el.querySelector('.msg-thinking-body') as HTMLElement | null;
-      if (body) {
-        body.style.display = body.style.display === 'none' ? '' : 'none';
-      }
-    });
-  });
-}
-
-function bindConversationListEvents(): void {
-  document.querySelectorAll<HTMLElement>('[data-conv-id]').forEach(el => {
-    el.addEventListener('click', () => {
-      const id = el.dataset.convId;
-      if (id) selectConversation(id);
-    });
-  });
-  document.querySelectorAll<HTMLElement>('[data-delete-conv]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id = el.dataset.deleteConv;
-      if (id) deleteConversation(id);
-    });
-  });
-}
 
 let selectionCopyFallbackBound = false;
 
@@ -156,14 +82,18 @@ function bindSelectionCopyFallback(): void {
 }
 
 export function bindChatEvents(): void {
-  bindConversationListEvents();
-  bindChatInputEvents();
-  bindMessageEvents();
   bindSelectionCopyFallback();
 
   document.querySelector('.chat-new-btn')?.addEventListener('click', () => createConversation());
   document.getElementById('editTitleBtn')?.addEventListener('click', () => renameCurrentConversation());
   document.querySelector('.chat-center-title')?.addEventListener('dblclick', () => renameCurrentConversation());
+}
+
+export function mountChatSurfaceInDom(): void {
+  renderConversationListInDom();
+  renderChatArea();
+  renderChatInputInDom();
+  renderRightPanelInDom();
 }
 
 // ── Re-exports for main.ts ──
@@ -174,6 +104,7 @@ export {
   createConversation,
   renameCurrentConversation,
   deleteConversation,
+  setCurrentConversationModel,
 };
 export { renderConversationList, renderChatMessages, renderChatInput } from './chat-render';
 export { renderRightPanelContent } from './chat-token';
@@ -188,11 +119,7 @@ setChatCallbacks({
 });
 
 setConversationCallbacks({
-  renderChatArea: (bindEvents: () => void) => {
-    renderChatArea();
-  },
-  renderConversationListInDom: (bindEvents: () => void) => {
-    renderConversationListInDom();
-  },
+  renderChatArea,
+  renderConversationListInDom,
   renderRightPanelInDom,
 });

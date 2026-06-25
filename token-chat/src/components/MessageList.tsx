@@ -5,9 +5,10 @@ import { messages, currentConversationId, isStreaming, syncMessages, getCachedMa
 import { state, parseContent, type Message } from '../state';
 import { t } from '../i18n';
 import { parseAttachments, renderMessageAttachments, escHtml, formatFileSize } from '../chat-attachment';
-import { isSafeSourceUrl, parseSearchMetadata } from '../web-search';
+import { isSafeSourceUrl } from '../web-search';
 import { copyText } from '../chat-render';
 import { renderMarkdown } from '../chat-markdown';
+import { getMessageSearchView } from '../chat-view-model';
 
 // ── Source URL click handler ──
 async function openSourceUrl(url: string) {
@@ -22,48 +23,42 @@ async function openSourceUrl(url: string) {
 
 // ── Search metadata rendering ──
 
-function SearchMetadata({ msg, isUser }: { msg: Message; isUser: boolean }) {
-  const metadata = parseSearchMetadata(msg.search_metadata_json ?? null);
-  if (!metadata) return null;
-  if (metadata.error) {
+function SearchMetadataView({ msg, isUser }: { msg: Message; isUser: boolean }) {
+  const search = getMessageSearchView(msg);
+  if (!search) return null;
+  if (search.error) {
     if (!isUser) return null;
-    const brief = metadata.error.length > 140 ? `${metadata.error.slice(0, 139)}…` : metadata.error;
+    const brief = search.error.length > 140 ? `${search.error.slice(0, 139)}...` : search.error;
     return <div class="message-search-state is-error" title={brief}><span aria-hidden="true">!</span> {t('chat.searchFailed')}</div>;
   }
-  if (metadata.results.length === 0) {
+  if (search.resultCount === 0) {
     return isUser ? <div class="message-search-state is-empty">{t('chat.noResults')}</div> : null;
   }
   if (isUser) {
-    return <div class="message-search-state is-success"><span class="search-pulse-dot"></span>{t('chat.retrievedResults')} {metadata.results.length}</div>;
+    return <div class="message-search-state is-success"><span class="search-pulse-dot"></span>{t('chat.retrievedResults')} {search.resultCount}</div>;
   }
-  const sources = metadata.results
-    .filter(result => isSafeSourceUrl(result.url))
-    .map((result, index) => (
-      <li class="message-source-item">
-        <span class="message-source-index">{index + 1}</span>
-        <div class="message-source-copy">
-          <button class="message-source-title" type="button" onClick={() => openSourceUrl(result.url)}>{result.title}</button>
-          <div class="message-source-meta">
-            <span>{result.source || sourceHost(result.url)}</span>
-            <span class="message-source-url">{result.url}</span>
-            {result.publishedAt && <span>{result.publishedAt}</span>}
-          </div>
+  const sources = search.sources.map(source => (
+    <li class="message-source-item">
+      <span class="message-source-index">{source.index}</span>
+      <div class="message-source-copy">
+        <button class="message-source-title" type="button" onClick={() => openSourceUrl(source.url)}>{source.title}</button>
+        <div class="message-source-meta">
+          <span>{source.source || t('chat.webSource')}</span>
+          <span class="message-source-url">{source.url}</span>
+          {source.publishedAt && <span>{source.publishedAt}</span>}
         </div>
-        <button class="message-source-open" type="button" onClick={() => openSourceUrl(result.url)} aria-label="用系统浏览器打开来源">↗</button>
-      </li>
-    ));
+      </div>
+      <button class="message-source-open" type="button" onClick={() => openSourceUrl(source.url)} aria-label={t('chat.openSource')}>↗</button>
+    </li>
+  ));
 
   if (sources.length === 0) return null;
   return (
     <details class="message-sources">
-      <summary><span>来源</span><span class="glass-chip">{metadata.results.length}</span></summary>
+      <summary><span>{t('chat.sources')}</span><span class="glass-chip">{search.resultCount}</span></summary>
       <ol>{sources}</ol>
     </details>
   );
-}
-
-function sourceHost(value: string): string {
-  try { return new URL(value).hostname; } catch { return t('chat.webSource'); }
 }
 
 // ── Message component ──
@@ -122,7 +117,7 @@ function MessageBubble({ msg }: { msg: Message }) {
         )}
         <div class="msg-content" ref={contentRef} dangerouslySetInnerHTML={{ __html: getCachedMarkdown(msg.content_json) }} />
         <div dangerouslySetInnerHTML={{ __html: renderMessageAttachments(attachments) }} />
-        <SearchMetadata msg={msg} isUser={isUser} />
+        <SearchMetadataView msg={msg} isUser={isUser} />
       </div>
       <div class="msg-meta">
         {!isUser && msg.model_name && <span class="msg-metric">{msg.model_name}</span>}

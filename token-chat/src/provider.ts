@@ -1,11 +1,24 @@
-import { invoke } from '@tauri-apps/api/core';
 import { state, type Provider, type Model } from './state';
 import { t } from './i18n';
 import { currencyOptions, formatCurrencyAmount, getDisplayCurrency, normalizeCurrency } from './currency';
 import { showGlassConfirm } from './glass-dialog';
 import { clearDeclaredGlassPortals, mountDeclaredGlassPortals } from './liquid-glass';
+import {
+  createModel as createModelInCatalog,
+  createProvider as createProviderInCatalog,
+  deleteModel as deleteModelFromCatalog,
+  deleteProvider as deleteProviderFromCatalog,
+  discoverModels as discoverProviderModels,
+  getProviderApiKey,
+  listModels as listModelsInCatalog,
+  listProvidersWithModels,
+  testProviderConnection,
+  updateModel as updateModelInCatalog,
+  updateProvider as updateProviderInCatalog,
+} from './ipc/provider-catalog';
+import { isWebRuntime } from './platform/runtime';
 
-const isDev = !(window as any).__TAURI_INTERNALS__;
+const isDev = isWebRuntime();
 
 const mockProviders: Provider[] = [
   { id: 'p1', name: 'OpenAI', base_url: 'https://api.openai.com/v1', created_at: 1718000000, updated_at: 1718000000 },
@@ -55,15 +68,9 @@ export async function loadProviders(): Promise<void> {
     return;
   }
   try {
-    state.providers = await invoke<Provider[]>('list_providers');
-    const allModels: Model[] = [];
-    for (const p of state.providers) {
-      try {
-        const models = await invoke<Model[]>('list_models', { providerId: p.id });
-        allModels.push(...models);
-      } catch {}
-    }
-    state.models = allModels;
+    const snapshot = await listProvidersWithModels();
+    state.providers = snapshot.providers;
+    state.models = snapshot.models;
   } catch {
     state.providers = [];
     state.models = [];
@@ -76,7 +83,7 @@ async function loadModels(providerId: string): Promise<void> {
     return;
   }
   try {
-    const models = await invoke<Model[]>('list_models', { providerId });
+    const models = await listModelsInCatalog(providerId);
     state.models = [
       ...state.models.filter(m => m.provider_id !== providerId),
       ...models,
@@ -742,8 +749,8 @@ async function testConnection(): Promise<void> {
     testResult = { success: true, latency_ms: 245 };
   } else {
     try {
-      const apiKey = await invoke<string | null>('get_provider_api_key', { id: selectedProviderId });
-      testResult = await invoke<{ success: boolean; latency_ms: number; error?: string }>('test_provider', {
+      const apiKey = await getProviderApiKey(selectedProviderId);
+      testResult = await testProviderConnection({
         baseUrl: provider.base_url,
         apiKey: apiKey ?? '',
       });
@@ -773,7 +780,7 @@ async function testConnectionFromModal(): Promise<void> {
     testResult = { success: true, latency_ms: 180 };
   } else {
     try {
-      testResult = await invoke<{ success: boolean; latency_ms: number; error?: string }>('test_provider', {
+      testResult = await testProviderConnection({
         baseUrl,
         apiKey,
       });
@@ -810,11 +817,12 @@ async function saveProvider(): Promise<void> {
     state.providers.push(newProvider);
   } else {
     try {
-      const input: Record<string, unknown> = { name, base_url, api_key };
-      if (extra_headers) {
-        try { input.extra_headers = JSON.parse(extra_headers); } catch {}
-      }
-      const provider = await invoke<Provider>('create_provider', { input });
+      const provider = await createProviderInCatalog({
+        name,
+        baseUrl: base_url,
+        apiKey: api_key,
+        extraHeadersJson: extra_headers || null,
+      });
       state.providers.push(provider);
     } catch (e) {
       console.error('Failed to create provider:', e);
@@ -836,7 +844,7 @@ async function deleteProvider(): Promise<void> {
     selectedProviderId = null;
   } else {
     try {
-      await invoke('delete_provider', { id: selectedProviderId });
+      await deleteProviderFromCatalog(selectedProviderId);
       state.providers = state.providers.filter(p => p.id !== selectedProviderId);
       selectedProviderId = null;
     } catch (e) {
@@ -859,7 +867,7 @@ async function testConnectionFromEditModal(): Promise<void> {
 
   if (!apiKey && editingProviderId) {
     try {
-      const stored = await invoke<string | null>('get_provider_api_key', { id: editingProviderId });
+      const stored = await getProviderApiKey(editingProviderId);
       apiKey = stored ?? '';
     } catch {}
   }
@@ -873,7 +881,7 @@ async function testConnectionFromEditModal(): Promise<void> {
     testResult = { success: true, latency_ms: 180 };
   } else {
     try {
-      testResult = await invoke<{ success: boolean; latency_ms: number; error?: string }>('test_provider', {
+      testResult = await testProviderConnection({
         baseUrl,
         apiKey,
       });
@@ -903,7 +911,7 @@ async function saveEditProvider(): Promise<void> {
 
   if (!api_key && editingProviderId) {
     try {
-      const stored = await invoke<string | null>('get_provider_api_key', { id: editingProviderId });
+      const stored = await getProviderApiKey(editingProviderId);
       api_key = stored ?? '';
     } catch {}
   }
@@ -915,14 +923,15 @@ async function saveEditProvider(): Promise<void> {
     }
   } else {
     try {
-      const input: Record<string, unknown> = { name, base_url, api_key };
-      if (extra_headers) {
-        try { input.extra_headers_json = extra_headers; } catch {}
-      }
-      await invoke('update_provider', { id: editingProviderId, input });
+      const provider = await updateProviderInCatalog(editingProviderId, {
+        name,
+        baseUrl: base_url,
+        apiKey: api_key,
+        extraHeadersJson: extra_headers || null,
+      });
       const idx = state.providers.findIndex(p => p.id === editingProviderId);
       if (idx >= 0) {
-        state.providers[idx] = { ...state.providers[idx], name, base_url, updated_at: Math.floor(Date.now() / 1000) };
+        state.providers[idx] = provider;
       }
     } catch (e) {
       console.error('Failed to update provider:', e);
@@ -956,8 +965,8 @@ async function startDiscoverModels(): Promise<void> {
     ];
   } else {
     try {
-      const apiKey = await invoke<string | null>('get_provider_api_key', { id: selectedProviderId });
-      const models = await invoke<{ id: string; owned_by?: string }[]>('discover_models', {
+      const apiKey = await getProviderApiKey(selectedProviderId);
+      const models = await discoverProviderModels({
         baseUrl: provider.base_url,
         apiKey: apiKey ?? '',
       });
@@ -999,17 +1008,15 @@ async function addDiscoveredModels(): Promise<void> {
       mockModels.push(newModel);
     } else {
       try {
-        await invoke('create_model', {
-          input: {
-            provider_id: selectedProviderId,
-            model_name: m.id,
-            display_name: m.id,
-            context_window: 128000,
-            uncached_input_nanos_per_million: 0,
-            cache_read_nanos_per_million: 0,
-            output_nanos_per_million: 0,
-            currency: getDisplayCurrency(),
-          },
+        await createModelInCatalog({
+          providerId: selectedProviderId,
+          modelName: m.id,
+          displayName: m.id,
+          contextWindow: 128000,
+          uncachedInputNanosPerMillion: 0,
+          cacheReadNanosPerMillion: 0,
+          outputNanosPerMillion: 0,
+          currency: getDisplayCurrency(),
         });
       } catch (e) {
         console.error(`Failed to add model ${m.id}:`, e);
@@ -1062,20 +1069,17 @@ async function saveEditModel(): Promise<void> {
     }
   } else {
     try {
-      await invoke('update_model', {
-        id: editingModelId,
-        input: {
-          provider_id: model.provider_id,
-          model_name,
-          display_name,
-          context_window,
-          uncached_input_nanos_per_million: uncached_input,
-          cache_read_nanos_per_million: cache_read,
-          output_nanos_per_million: output,
-          currency,
-          system_prompt,
-          temperature,
-        },
+      await updateModelInCatalog(editingModelId, {
+        providerId: model.provider_id,
+        modelName: model_name,
+        displayName: display_name,
+        contextWindow: context_window,
+        uncachedInputNanosPerMillion: uncached_input,
+        cacheReadNanosPerMillion: cache_read,
+        outputNanosPerMillion: output,
+        currency,
+        systemPrompt: system_prompt,
+        temperature,
       });
       const idx = state.models.findIndex(m => m.id === editingModelId);
       if (idx >= 0) {
@@ -1099,7 +1103,7 @@ async function deleteEditingModel(): Promise<void> {
     state.models = state.models.filter(m => m.id !== editingModelId);
   } else {
     try {
-      await invoke('delete_model', { id: editingModelId });
+      await deleteModelFromCatalog(editingModelId);
       state.models = state.models.filter(m => m.id !== editingModelId);
     } catch (e) {
       console.error('Failed to delete model:', e);
@@ -1149,17 +1153,16 @@ async function saveModel(): Promise<void> {
     state.models = mockModels.filter(m => m.provider_id === selectedProviderId);
   } else {
     try {
-      const input = {
-        provider_id: selectedProviderId,
-        model_name,
-        display_name,
-        context_window,
-        uncached_input_nanos_per_million: uncached_input,
-        cache_read_nanos_per_million: cache_read,
-        output_nanos_per_million: output,
+      const model = await createModelInCatalog({
+        providerId: selectedProviderId,
+        modelName: model_name,
+        displayName: display_name,
+        contextWindow: context_window,
+        uncachedInputNanosPerMillion: uncached_input,
+        cacheReadNanosPerMillion: cache_read,
+        outputNanosPerMillion: output,
         currency,
-      };
-      const model = await invoke<Model>('create_model', { input });
+      });
       state.models.push(model);
     } catch (e) {
       console.error('Failed to create model:', e);

@@ -1,30 +1,26 @@
-import { invoke } from '@tauri-apps/api/core';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { state, parseContent, type Conversation, type Message } from './state';
+import { state, type Conversation, type Message } from './state';
 import { t } from './i18n';
 import { showGlassConfirm, showGlassPrompt } from './glass-dialog';
 import { resetLiveTokenUsage, loadTokenUsage } from './chat-token';
-import { parseAttachments } from './chat-attachment';
-import { isSafeSourceUrl } from './web-search';
+import { updateConversationTitleLocal } from './chat-send';
 import {
-  renderChatMessages,
-  getMessageCopyText,
-  copyText,
-} from './chat-render';
-import {
-  bindChatInputEvents,
-  updateConversationTitleLocal,
-} from './chat-send';
+  createConversation as createConversationInStore,
+  deleteConversation as deleteConversationFromStore,
+  listConversations as listConversationsFromStore,
+  listMessages,
+  updateConversationModel as updateConversationModelInStore,
+} from './ipc/chat-ipc';
+import { isWebRuntime } from './platform/runtime';
 
 // ── Callbacks set by chat.ts to avoid circular imports ──
 
-let _renderChatArea: (bindEvents: () => void) => void = () => {};
-let _renderConversationListInDom: (bindEvents: () => void) => void = () => {};
+let _renderChatArea: () => void = () => {};
+let _renderConversationListInDom: () => void = () => {};
 let _renderRightPanelInDom: () => void = () => {};
 
 export function setConversationCallbacks(opts: {
-  renderChatArea: (bindEvents: () => void) => void;
-  renderConversationListInDom: (bindEvents: () => void) => void;
+  renderChatArea: () => void;
+  renderConversationListInDom: () => void;
   renderRightPanelInDom: () => void;
 }): void {
   _renderChatArea = opts.renderChatArea;
@@ -32,7 +28,7 @@ export function setConversationCallbacks(opts: {
   _renderRightPanelInDom = opts.renderRightPanelInDom;
 }
 
-const isDev = !(window as any).__TAURI_INTERNALS__;
+const isDev = isWebRuntime();
 
 // ── Mock data ──
 
@@ -82,7 +78,7 @@ export async function loadConversations(): Promise<void> {
     return;
   }
   try {
-    state.conversations = await invoke<Conversation[]>('list_conversations');
+    state.conversations = await listConversationsFromStore();
   } catch {
     state.conversations = [];
   }
@@ -95,7 +91,7 @@ export async function selectConversation(id: string): Promise<void> {
     state.messages = mockMessages.filter(message => message.conversation_id === id);
   } else {
     try {
-      state.messages = await invoke<Message[]>('list_messages', { conversationId: id });
+      state.messages = await listMessages(id);
     } catch {
       state.messages = [];
     }
@@ -131,8 +127,9 @@ export async function createConversation(): Promise<void> {
       const pModels = state.models.filter(m => m.provider_id === providerId);
       if (pModels.length > 0) modelId = pModels[0].id;
     }
-    const conv = await invoke<Conversation>('create_conversation', {
-      input: { provider_id: providerId ?? null, model_id: modelId ?? null },
+    const conv = await createConversationInStore({
+      providerId: providerId ?? null,
+      modelId: modelId ?? null,
     });
     state.conversations.unshift(conv);
     await selectConversation(conv.id);
@@ -151,12 +148,12 @@ export async function deleteConversation(id: string): Promise<void> {
     }
   } else {
     try {
-      await invoke('delete_conversation', { id });
+      await deleteConversationFromStore(id);
       state.conversations = state.conversations.filter(c => c.id !== id);
       if (state.currentConversationId === id) {
         state.currentConversationId = state.conversations[0]?.id ?? null;
         if (state.currentConversationId) {
-          state.messages = await invoke<Message[]>('list_messages', { conversationId: state.currentConversationId });
+          state.messages = await listMessages(state.currentConversationId);
           await loadTokenUsage(state.currentConversationId);
         } else {
           state.messages = [];
@@ -181,101 +178,24 @@ export async function renameCurrentConversation(): Promise<void> {
   await updateConversationTitleLocal(conv.id, title);
 }
 
+export async function setCurrentConversationModel(modelId: string): Promise<void> {
+  if (!state.currentConversationId || !modelId) return;
+  const conv = state.conversations.find(c => c.id === state.currentConversationId);
+  const model = state.models.find(m => m.id === modelId);
+  if (!conv || !model) return;
+  conv.model_id = model.id;
+  conv.provider_id = model.provider_id;
+  if (!isDev) {
+    try {
+      await updateConversationModelInStore(conv.id, model.provider_id, model.id);
+    } catch {}
+  }
+  doRenderConversationListInDom();
+  doRenderRightPanelInDom();
+}
+
 // ── Internal render helpers ──
 
-function doRenderChatArea() { _renderChatArea(bindMessageEvents); }
-function doRenderConversationListInDom() { _renderConversationListInDom(bindConversationListEvents); }
+function doRenderChatArea() { _renderChatArea(); }
+function doRenderConversationListInDom() { _renderConversationListInDom(); }
 function doRenderRightPanelInDom() { _renderRightPanelInDom(); }
-
-// ── Event binding ──
-
-function bindMessageEvents(): void {
-  document.querySelectorAll<HTMLButtonElement>('[data-open-source-url]').forEach(button => {
-    button.addEventListener('click', async () => {
-      const url = button.dataset.openSourceUrl ?? '';
-      if (!isSafeSourceUrl(url)) return;
-      try {
-        await openUrl(url);
-      } catch (error) {
-        console.error('Failed to open source URL:', error);
-      }
-    });
-  });
-
-  document.querySelectorAll<HTMLButtonElement>('[data-copy-msg-id]').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.copyMsgId;
-      const msg = state.messages.find(m => m.id === id);
-      if (!msg) return;
-      await copyText(getMessageCopyText(msg));
-      const oldText = btn.textContent ?? t('chat.copy');
-      btn.textContent = t('chat.copied');
-      btn.disabled = true;
-      window.setTimeout(() => {
-        btn.textContent = oldText;
-        btn.disabled = false;
-      }, 900);
-    });
-  });
-
-  document.querySelectorAll<HTMLElement>('[data-toggle-thinking]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      if (e.detail > 1) return;
-      const sel = window.getSelection();
-      if (sel && sel.toString().length > 0) return;
-      const body = el.querySelector('.msg-thinking-body') as HTMLElement | null;
-      if (body) {
-        body.style.display = body.style.display === 'none' ? '' : 'none';
-      }
-    });
-  });
-}
-
-function bindConversationListEvents(): void {
-  document.querySelectorAll<HTMLElement>('[data-conv-id]').forEach(el => {
-    el.addEventListener('click', () => {
-      const id = el.dataset.convId;
-      if (id) selectConversation(id);
-    });
-  });
-  document.querySelectorAll<HTMLElement>('[data-delete-conv]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id = el.dataset.deleteConv;
-      if (id) deleteConversation(id);
-    });
-  });
-}
-
-let selectionCopyFallbackBound = false;
-
-function bindSelectionCopyFallback(): void {
-  if (selectionCopyFallbackBound) return;
-  selectionCopyFallbackBound = true;
-  document.addEventListener('keydown', (e) => {
-    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'c') return;
-    const target = e.target as HTMLElement | null;
-    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
-    const selected = window.getSelection()?.toString() ?? '';
-    if (selected.trim()) {
-      void copyText(selected);
-    }
-  });
-}
-
-export function bindChatEvents(): void {
-  bindConversationListEvents();
-  bindChatInputEvents();
-  bindMessageEvents();
-  bindSelectionCopyFallback();
-
-  document.querySelector('.chat-new-btn')?.addEventListener('click', () => createConversation());
-
-  document.getElementById('editTitleBtn')?.addEventListener('click', () => {
-    renameCurrentConversation();
-  });
-  document.querySelector('.chat-center-title')?.addEventListener('dblclick', () => {
-    renameCurrentConversation();
-  });
-}

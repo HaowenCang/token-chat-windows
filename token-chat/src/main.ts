@@ -3,7 +3,6 @@ import './unified-shell.css';
 import './glass-system.css';
 import './liquid-glass.css';
 import { injectGlassRefractionFilters } from './glass-caustics';
-import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { state, type Page } from './state';
 import { t, getLang } from './i18n';
@@ -13,9 +12,10 @@ import {
   renderChatMessages,
   renderChatInput,
   renderRightPanelContent,
-  renderRightPanelInDom,
+  mountChatSurfaceInDom,
   bindChatEvents,
   selectConversation,
+  setCurrentConversationModel,
 } from './chat';
 import { loadProviders, renderProviderPage, bindProviderEvents } from './provider';
 import { loadStats, renderStatsPage, bindStatsEvents } from './stats';
@@ -29,6 +29,7 @@ import { initCustomSelects } from './custom-select';
 import { initCustomDatePickers } from './custom-date-picker';
 import { clearDeclaredGlassPortals, mountDeclaredGlassPortals } from './liquid-glass';
 import { loadSearchConfig } from './web-search';
+import { isTauriRuntime } from './platform/runtime';
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -76,23 +77,7 @@ function bindEvents() {
   const modelSelect = document.getElementById('modelSelect') as HTMLSelectElement | null;
   if (modelSelect) {
     modelSelect.addEventListener('change', async () => {
-      const modelId = modelSelect.value;
-      if (!state.currentConversationId) return;
-      const conv = state.conversations.find(c => c.id === state.currentConversationId);
-      if (!conv) return;
-      const model = state.models.find(m => m.id === modelId);
-      if (model) {
-        conv.model_id = modelId;
-        conv.provider_id = model.provider_id;
-        try {
-          await invoke('update_conversation_model', {
-            id: state.currentConversationId,
-            providerId: model.provider_id,
-            modelId: modelId,
-          });
-        } catch {}
-        renderRightPanelInDom();
-      }
+      await setCurrentConversationModel(modelSelect.value);
     });
   }
 
@@ -105,8 +90,7 @@ function bindEvents() {
 }
 
 function bindWindowChromeEvents() {
-  const isTauri = Boolean((window as any).__TAURI_INTERNALS__);
-  const windowHandle = isTauri ? getCurrentWindow() : null;
+  const windowHandle = isTauriRuntime() ? getCurrentWindow() : null;
 
   document.querySelectorAll<HTMLButtonElement>('[data-window-action]').forEach(button => {
     button.addEventListener('click', async () => {
@@ -203,7 +187,9 @@ function renderChatCenter() {
       <div class="chat-messages" id="chatMessages">
         ${renderChatMessages()}
       </div>
-      ${renderChatInput()}
+      <div id="chatInputMount" class="chat-input-mount">
+        ${renderChatInput()}
+      </div>
     </main>
   `;
 }
@@ -303,6 +289,9 @@ async function renderOnce() {
     </div>
   `;
   mountDeclaredGlassPortals(app);
+  if (state.page === 'chat') {
+    mountChatSurfaceInDom();
+  }
   bindEvents();
 }
 

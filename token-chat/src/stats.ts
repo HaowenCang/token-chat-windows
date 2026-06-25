@@ -1,58 +1,19 @@
-import { invoke } from '@tauri-apps/api/core';
 import { getLang, t } from './i18n';
 import { tooltipAttrs } from './tooltip';
 import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
 import { clearDeclaredGlassPortals, mountDeclaredGlassPortals, placeLiquidGlassLayer } from './liquid-glass';
+import {
+  loadStatsSnapshot,
+  type ConversationStats,
+  type CurrencyCost,
+  type DailyCost,
+  type ModelStats,
+  type StatsRangeParams,
+  type StatsSummary,
+} from './ipc/stats-snapshot';
+import { isWebRuntime } from './platform/runtime';
 
-const isDev = !(window as any).__TAURI_INTERNALS__;
-
-interface CurrencyCost {
-  currency: string;
-  cost_nanos: number;
-}
-
-interface StatsSummary {
-  total_cost_nanos: number;
-  cost_by_currency?: CurrencyCost[];
-  total_requests: number;
-  cache_hit_rate: number;
-  avg_latency_ms: number;
-}
-
-interface ModelStats {
-  model_name: string;
-  provider_name: string;
-  currency: string;
-  request_count: number;
-  cached_tokens: number;
-  uncached_tokens: number;
-  output_tokens: number;
-  total_cost_nanos: number;
-  avg_token_rate: number;
-}
-
-interface DailyCost {
-  date: string;
-  model_key?: string;
-  model_name?: string;
-  provider_name?: string;
-  currency?: string;
-  cost_nanos: number;
-  cached_tokens: number;
-  input_tokens: number;
-  output_tokens: number;
-}
-
-interface ConversationStats {
-  conversation_id: string;
-  title: string;
-  model: string;
-  currency: string;
-  requests: number;
-  tokens: number;
-  total_cost_nanos: number;
-  updated_at: number;
-}
+const isDev = isWebRuntime();
 
 interface StatsData {
   summary: StatsSummary;
@@ -60,11 +21,6 @@ interface StatsData {
   token_breakdown: { cached: number; input: number; output: number };
   by_model: ModelStats[];
   by_conversation: ConversationStats[];
-}
-
-interface StatsRangeParams {
-  start_ts: number | null;
-  end_ts: number | null;
 }
 
 type TimeRange = 'all' | 'today' | 'month' | 'custom';
@@ -407,11 +363,13 @@ export async function loadStats(): Promise<void> {
   }
   try {
     const range = getStatsRangeParams();
-    const summary = await invoke<StatsSummary>('get_stats_summary', { range });
-    const byModel = await invoke<ModelStats[]>('get_stats_by_model', { range });
-    const dailyCosts = await invoke<DailyCost[]>('get_stats_daily_costs', { range });
-    const byConversation = await invoke<ConversationStats[]>('get_stats_by_conversation', { range });
-    statsData = normalizeStatsCurrency(summary, dailyCosts, byModel, byConversation);
+    const snapshot = await loadStatsSnapshot(range);
+    statsData = normalizeStatsCurrency(
+      snapshot.summary,
+      snapshot.dailyCosts,
+      snapshot.byModel,
+      snapshot.byConversation,
+    );
   } catch {
     statsData = emptyStats();
   }

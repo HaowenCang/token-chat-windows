@@ -3,7 +3,6 @@ import { render } from 'preact';
 import { useState, useRef, useEffect, useCallback } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { invoke } from '@tauri-apps/api/core';
 import { state } from '../state';
 import { t } from '../i18n';
 import {
@@ -17,18 +16,22 @@ import {
 } from '../chat-attachment';
 import { getSearchConfigSnapshot } from '../web-search';
 import { isChatWebSearchEnabled, getWebSearchPhase, getWebSearchStatusText } from '../chat-send';
+import { readFileBytes } from '../ipc/chat-ipc';
+import { isTauriRuntime } from '../platform/runtime';
 
 // ── Signals for reactive UI ──
 
 export const inputDraft = signal('');
 export const attachmentsSignal = signal<MessageAttachment[]>([]);
 export const streamingSignal = signal(false);
+export const searchEnabledSignal = signal(false);
 export const searchPhaseSignal = signal('idle');
 export const searchStatusSignal = signal('');
 
 export function syncInputSignals(): void {
   attachmentsSignal.value = [...getSelectedAttachments()];
   streamingSignal.value = state.isStreaming;
+  searchEnabledSignal.value = isChatWebSearchEnabled();
   searchPhaseSignal.value = getWebSearchPhase();
   searchStatusSignal.value = getWebSearchStatusText();
 }
@@ -60,7 +63,7 @@ function ChatInputInner({ onSend }: ChatInputProps) {
 
   const streaming = streamingSignal.value;
   const searchFeatureEnabled = getSearchConfigSnapshot().config.enabled;
-  const searchEnabled = isChatWebSearchEnabled();
+  const searchEnabled = searchEnabledSignal.value;
   const searchPhase = searchPhaseSignal.value;
   const searchStatusText = searchStatusSignal.value;
 
@@ -140,7 +143,7 @@ function ChatInputInner({ onSend }: ChatInputProps) {
     if (streaming) return;
     const next = !searchEnabled;
     localStorage.setItem('tc-chat-web-search-enabled', String(next));
-    // Trigger re-render by updating signals
+    searchEnabledSignal.value = next;
     searchPhaseSignal.value = getWebSearchPhase();
     searchStatusSignal.value = getWebSearchStatusText();
   }, [streaming, searchEnabled]);
@@ -154,8 +157,7 @@ function ChatInputInner({ onSend }: ChatInputProps) {
 
   // Drag & drop
   useEffect(() => {
-    const isTauri = !!(window as any).__TAURI_INTERNALS__;
-    if (!isTauri) return;
+    if (!isTauriRuntime()) return;
     let unlisten: (() => void) | undefined;
     getCurrentWindow().onDragDropEvent(async (event) => {
       const chatCenter = document.querySelector('.chat-center');
@@ -169,7 +171,7 @@ function ChatInputInner({ onSend }: ChatInputProps) {
           try {
             const files: File[] = [];
             for (const path of paths) {
-              const binary: number[] = await invoke('read_file_bytes', { path });
+              const binary = await readFileBytes(path);
               const name = path.split(/[/\\]/).pop() ?? 'file';
               const ext = name.split('.').pop()?.toLowerCase() ?? '';
               const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' };
@@ -224,6 +226,7 @@ function ChatInputInner({ onSend }: ChatInputProps) {
           </svg>
         </button>
         <textarea
+          id="chatInput"
           ref={textareaRef}
           class="chat-input"
           rows={1}
@@ -259,14 +262,8 @@ export function mountChatInput(container: HTMLElement, onSend: () => void): void
 
 export function updateChatInput(onSend: () => void): void {
   syncInputSignals();
-  const inputArea = document.querySelector('.chat-input-area');
-  if (inputArea) {
-    const parent = inputArea.parentElement;
-    if (parent) {
-      // Create a wrapper to mount into
-      const wrapper = document.createElement('div');
-      parent.replaceChild(wrapper, inputArea);
-      render(<ChatInputInner onSend={onSend} />, wrapper);
-    }
+  const mountEl = document.getElementById('chatInputMount');
+  if (mountEl) {
+    render(<ChatInputInner onSend={onSend} />, mountEl);
   }
 }
