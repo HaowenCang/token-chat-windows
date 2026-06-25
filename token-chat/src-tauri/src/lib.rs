@@ -1,5 +1,6 @@
 mod chat;
 mod conversation;
+mod credential;
 mod db;
 mod message;
 mod prompt;

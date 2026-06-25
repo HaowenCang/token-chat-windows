@@ -1,4 +1,4 @@
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Instant;
@@ -45,6 +45,46 @@ async fn post_chat_request(
         .send()
         .await
         .map_err(|e| e.to_string())
+}
+
+fn should_retry(status: StatusCode) -> bool {
+    status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
+}
+
+async fn post_with_retry(
+    client: &Client,
+    url: &str,
+    api_key: &str,
+    body: &Value,
+) -> Result<reqwest::Response, String> {
+    let max_attempts = 3;
+    let mut last_err = String::new();
+
+    for attempt in 0..max_attempts {
+        if CANCEL.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err("cancelled".to_string());
+        }
+
+        let resp = post_chat_request(client, url, api_key, body).await?;
+
+        if resp.status().is_success() {
+            return Ok(resp);
+        }
+
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+
+        if should_retry(status) && attempt + 1 < max_attempts {
+            last_err = format!("HTTP {}: {}", status, text);
+            let delay = std::time::Duration::from_secs(1 << attempt); // 1s, 2s
+            tokio::time::sleep(delay).await;
+            continue;
+        }
+
+        return Err(format!("HTTP {}: {}", status, text));
+    }
+
+    Err(last_err)
 }
 
 fn parse_usage(u: &Value) -> Usage {
@@ -110,25 +150,20 @@ pub async fn send_message(
         body["max_tokens"] = serde_json::json!(m);
     }
 
-    let mut resp = post_chat_request(&client, &url, &api_key, &body).await?;
-
-    if !resp.status().is_success() {
-        let status = resp.status().as_u16();
-        let text = resp.text().await.unwrap_or_default();
-        if status == 400 && text.to_ascii_lowercase().contains("stream") {
-            if let Some(obj) = body.as_object_mut() {
-                obj.remove("stream_options");
+    let resp = match post_with_retry(&client, &url, &api_key, &body).await {
+        Ok(r) => r,
+        Err(e) => {
+            // Check if stream_options caused a 400 — remove and retry once
+            if e.contains("HTTP 400") && e.to_ascii_lowercase().contains("stream") {
+                if let Some(obj) = body.as_object_mut() {
+                    obj.remove("stream_options");
+                }
+                post_with_retry(&client, &url, &api_key, &body).await?
+            } else {
+                return Err(e);
             }
-            resp = post_chat_request(&client, &url, &api_key, &body).await?;
-            if !resp.status().is_success() {
-                let status = resp.status().as_u16();
-                let text = resp.text().await.unwrap_or_default();
-                return Err(format!("HTTP {}: {}", status, text));
-            }
-        } else {
-            return Err(format!("HTTP {}: {}", status, text));
         }
-    }
+    };
 
     let mut first_event = None;
     let mut first_token = None;

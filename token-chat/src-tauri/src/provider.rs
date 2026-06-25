@@ -1,3 +1,4 @@
+use crate::credential;
 use crate::db::DbConn;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -86,15 +87,23 @@ pub fn create_provider(db: State<'_, DbConn>, input: CreateProvider) -> Result<P
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
+
+    // Store API key in Windows Credential Manager, save provider_id as reference
+    if let Some(ref key) = input.api_key {
+        if !key.is_empty() {
+            credential::store_api_key(&id, key)?;
+        }
+    }
+
     conn.execute(
         "INSERT INTO providers (id, name, base_url, secret_ref, extra_headers_json, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![id, input.name, input.base_url, input.api_key, input.extra_headers_json, now, now],
+        params![id, input.name, input.base_url, id, input.extra_headers_json, now, now],
     ).map_err(|e| e.to_string())?;
     Ok(Provider {
-        id,
+        id: id.clone(),
         name: input.name,
         base_url: input.base_url,
-        secret_ref: input.api_key,
+        secret_ref: Some(id.clone()),
         extra_headers_json: input.extra_headers_json,
         created_at: now,
         updated_at: now,
@@ -109,15 +118,23 @@ pub fn update_provider(
 ) -> Result<Provider, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let now = chrono::Utc::now().timestamp();
+
+    // Update API key in Credential Manager
+    if let Some(ref key) = input.api_key {
+        if !key.is_empty() {
+            credential::store_api_key(&id, key)?;
+        }
+    }
+
     conn.execute(
         "UPDATE providers SET name = ?1, base_url = ?2, secret_ref = ?3, extra_headers_json = ?4, updated_at = ?5 WHERE id = ?6",
-        params![input.name, input.base_url, input.api_key, input.extra_headers_json, now, id],
+        params![input.name, input.base_url, id, input.extra_headers_json, now, id],
     ).map_err(|e| e.to_string())?;
     Ok(Provider {
-        id,
+        id: id.clone(),
         name: input.name,
         base_url: input.base_url,
-        secret_ref: input.api_key,
+        secret_ref: Some(id),
         extra_headers_json: input.extra_headers_json,
         created_at: now,
         updated_at: now,
@@ -125,20 +142,16 @@ pub fn update_provider(
 }
 
 #[tauri::command]
-pub fn get_provider_api_key(db: State<'_, DbConn>, id: String) -> Result<Option<String>, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-    let key: Option<String> = conn
-        .query_row(
-            "SELECT secret_ref FROM providers WHERE id = ?1",
-            params![id],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(key)
+pub fn get_provider_api_key(_db: State<'_, DbConn>, id: String) -> Result<Option<String>, String> {
+    // Read API key from Windows Credential Manager
+    credential::get_api_key(&id)
 }
 
 #[tauri::command]
 pub fn delete_provider(db: State<'_, DbConn>, id: String) -> Result<(), String> {
+    // Delete credential from Windows Credential Manager (ignore if not found)
+    let _ = credential::delete_api_key(&id);
+
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM providers WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
