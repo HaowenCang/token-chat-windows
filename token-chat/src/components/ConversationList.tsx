@@ -7,9 +7,9 @@ import styles from './ConversationList.module.css';
 
 // ── Signals ──
 
-export const conversations = signal<ConversationListItemView[]>([]);
+const conversations = signal<ConversationListItemView[]>([]);
 
-export function syncConversationSignals(): void {
+function syncConversationSignals(): void {
   conversations.value = getConversationListItems();
 }
 
@@ -18,10 +18,9 @@ export function syncConversationSignals(): void {
 interface ConversationListProps {
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
-  onNew: () => void;
 }
 
-function ConversationListInner({ onSelect, onDelete, onNew }: ConversationListProps) {
+function ConversationListInner({ onSelect, onDelete }: ConversationListProps) {
   const convs = conversations.value;
 
   if (convs.length === 0) {
@@ -65,8 +64,7 @@ export function mountConversationList(
   container: HTMLElement,
   onSelect: (id: string) => void,
   onDelete: (id: string) => void,
-  onNew: () => void,
 ): void {
   syncConversationSignals();
-  render(<ConversationListInner onSelect={onSelect} onDelete={onDelete} onNew={onNew} />, container);
+  render(<ConversationListInner onSelect={onSelect} onDelete={onDelete} />, container);
 }

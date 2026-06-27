@@ -2,7 +2,6 @@ import { state, parseContent, type Model } from './state';
 import { getLang, t } from './i18n';
 import { tooltipAttrs } from './tooltip';
 import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
-import { renderMarkdown } from './chat-markdown';
 import { loadConversationTokenUsage } from './ipc/chat-ipc';
 import { isWebRuntime } from './platform/runtime';
 
@@ -103,10 +102,6 @@ export let liveTokenUsage: LiveTokenUsage | null = null;
 
 export function resetLiveTokenUsage(): void {
   liveTokenUsage = null;
-}
-
-export function setCurrentTokenUsage(v: ConversationTokenUsage | null): void {
-  currentTokenUsage = v;
 }
 
 // ── Helpers ──
@@ -369,7 +364,6 @@ function renderMiniChart(runs: TokenUsageRun[]): string {
     const cachedY = 58 - totalHeight;
     const uncachedY = cachedY + cachedHeight;
     const outputY = 58 - outputHeight;
-    const uncachedInput = run.input_tokens - run.cached_input_tokens;
     return `<g class="mini-chart-run" ${tooltipAttrs(formatShortDateTime(run.created_at), [
       { label: text.input, value: `${run.input_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--chart-input)' },
       { label: text.cached, value: `${run.cached_input_tokens.toLocaleString()} ${text.tokens}`, color: 'var(--stack-cache)' },

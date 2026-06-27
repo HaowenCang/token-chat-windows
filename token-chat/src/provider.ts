@@ -4,6 +4,19 @@ import { currencyOptions, formatCurrencyAmount, getDisplayCurrency, normalizeCur
 import { showGlassConfirm } from './glass-dialog';
 import { clearDeclaredGlassPortals, mountDeclaredGlassPortals } from './liquid-glass';
 import {
+  discoveredModelDraft,
+  modelDraftFromForm,
+  modelFromDraft,
+  modelStatePatchFromDraft,
+  providerConnectionInputFromForm,
+  providerDraftFromForm,
+} from './provider-form-model';
+import {
+  getProviderDetailView,
+  getProviderListItems,
+  getProviderModels as getModelsForProvider,
+} from './provider-catalog-view-model';
+import {
   createModel as createModelInCatalog,
   createProvider as createProviderInCatalog,
   deleteModel as deleteModelFromCatalog,
@@ -93,13 +106,12 @@ async function loadModels(providerId: string): Promise<void> {
   }
 }
 
-function getProviderModels(providerId: string): Model[] {
-  if (isDev) return mockModels.filter(m => m.provider_id === providerId);
-  return state.models.filter(m => m.provider_id === providerId);
+function getCatalogModels(): Model[] {
+  return isDev ? mockModels : state.models;
 }
 
-function getHealthStatus(_provider: Provider): 'online' | 'degraded' | 'offline' {
-  return 'online';
+function getProviderModels(providerId: string): Model[] {
+  return getModelsForProvider(getCatalogModels(), providerId);
 }
 
 export function renderProviderPage(): string {
@@ -137,19 +149,19 @@ function renderProviderCards(): string {
   if (state.providers.length === 0) {
     return `<div class="placeholder-content" style="height:200px">${t('provider.noProviders')}</div>`;
   }
-  return state.providers.map(p => {
-    const isActive = p.id === selectedProviderId;
-    const models = getProviderModels(p.id);
-    const health = getHealthStatus(p);
-    const dotClass = health === 'online' ? 'online' : health === 'degraded' ? 'degraded' : '';
+  return getProviderListItems({
+    providers: state.providers,
+    models: getCatalogModels(),
+    selectedProviderId,
+  }).map(item => {
     return `
-      <div class="provider-item glass-card glass-list-item ${isActive ? 'active' : ''}" data-provider-id="${p.id}">
+      <div class="provider-item glass-card glass-list-item ${item.isActive ? 'active' : ''}" data-provider-id="${item.id}">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
-          <div class="status-dot ${dotClass}"></div>
-          <div class="provider-item-name">${escHtml(p.name)}</div>
+          <div class="status-dot ${item.statusDotClass}"></div>
+          <div class="provider-item-name">${escHtml(item.name)}</div>
         </div>
         <div class="provider-item-status">
-          <span class="tag glass-chip">${models.length} ${t('provider.models')}</span>
+          <span class="tag glass-chip">${item.modelCount} ${t('provider.models')}</span>
         </div>
       </div>
     `;
@@ -160,11 +172,13 @@ function renderProviderDetail(): string {
   if (!selectedProviderId) {
     return `<div class="placeholder-content">${t('provider.selectProvider')}</div>`;
   }
-  const provider = state.providers.find(p => p.id === selectedProviderId);
+  const { provider, models, health } = getProviderDetailView({
+    providers: state.providers,
+    models: getCatalogModels(),
+    selectedProviderId,
+  });
   if (!provider) return `<div class="placeholder-content">${t('provider.noProviders')}</div>`;
 
-  const models = getProviderModels(provider.id);
-  const health = getHealthStatus(provider);
   const healthLabel = health === 'online' ? t('provider.online') : health === 'degraded' ? t('provider.degraded') : t('provider.offline');
   const healthColor = health === 'online' ? 'var(--success)' : health === 'degraded' ? 'var(--warning)' : 'var(--danger)';
 
@@ -766,10 +780,12 @@ async function testConnection(): Promise<void> {
 async function testConnectionFromModal(): Promise<void> {
   const baseUrlInput = document.getElementById('providerBaseUrl') as HTMLInputElement | null;
   const apiKeyInput = document.getElementById('providerApiKey') as HTMLInputElement | null;
-  const baseUrl = baseUrlInput?.value.trim() ?? '';
-  const apiKey = apiKeyInput?.value.trim() ?? '';
+  const connection = providerConnectionInputFromForm({
+    baseUrl: baseUrlInput?.value ?? '',
+    apiKey: apiKeyInput?.value ?? '',
+  });
 
-  if (!baseUrl) return;
+  if (!connection) return;
 
   testLoading = true;
   testResult = null;
@@ -781,8 +797,8 @@ async function testConnectionFromModal(): Promise<void> {
   } else {
     try {
       testResult = await testProviderConnection({
-        baseUrl,
-        apiKey,
+        baseUrl: connection.baseUrl,
+        apiKey: connection.apiKey,
       });
     } catch (e) {
       testResult = { success: false, latency_ms: 0, error: String(e) };
@@ -799,30 +815,28 @@ async function saveProvider(): Promise<void> {
   const apiKeyInput = document.getElementById('providerApiKey') as HTMLInputElement | null;
   const headersInput = document.getElementById('providerHeaders') as HTMLTextAreaElement | null;
 
-  const name = nameInput?.value.trim() ?? '';
-  const base_url = baseUrlInput?.value.trim() ?? '';
-  const api_key = apiKeyInput?.value.trim() ?? '';
-  const extra_headers = headersInput?.value.trim() ?? '';
+  const draft = providerDraftFromForm({
+    name: nameInput?.value ?? '',
+    baseUrl: baseUrlInput?.value ?? '',
+    apiKey: apiKeyInput?.value ?? '',
+    extraHeadersJson: headersInput?.value ?? '',
+  });
 
-  if (!name || !base_url) return;
+  if (!draft) return;
 
   if (isDev) {
     const newProvider: Provider = {
       id: crypto.randomUUID(),
-      name,
-      base_url,
+      name: draft.name,
+      base_url: draft.baseUrl,
+      extra_headers_json: draft.extraHeadersJson,
       created_at: Math.floor(Date.now() / 1000),
       updated_at: Math.floor(Date.now() / 1000),
     };
     state.providers.push(newProvider);
   } else {
     try {
-      const provider = await createProviderInCatalog({
-        name,
-        baseUrl: base_url,
-        apiKey: api_key,
-        extraHeadersJson: extra_headers || null,
-      });
+      const provider = await createProviderInCatalog(draft);
       state.providers.push(provider);
     } catch (e) {
       console.error('Failed to create provider:', e);
@@ -860,15 +874,17 @@ async function deleteProvider(): Promise<void> {
 async function testConnectionFromEditModal(): Promise<void> {
   const baseUrlInput = document.getElementById('editProviderBaseUrl') as HTMLInputElement | null;
   const apiKeyInput = document.getElementById('editProviderApiKey') as HTMLInputElement | null;
-  const baseUrl = baseUrlInput?.value.trim() ?? '';
-  let apiKey = apiKeyInput?.value.trim() ?? '';
+  const connection = providerConnectionInputFromForm({
+    baseUrl: baseUrlInput?.value ?? '',
+    apiKey: apiKeyInput?.value ?? '',
+  });
 
-  if (!baseUrl) return;
+  if (!connection) return;
 
-  if (!apiKey && editingProviderId) {
+  if (!connection.apiKey && editingProviderId) {
     try {
       const stored = await getProviderApiKey(editingProviderId);
-      apiKey = stored ?? '';
+      connection.apiKey = stored ?? '';
     } catch {}
   }
 
@@ -882,8 +898,8 @@ async function testConnectionFromEditModal(): Promise<void> {
   } else {
     try {
       testResult = await testProviderConnection({
-        baseUrl,
-        apiKey,
+        baseUrl: connection.baseUrl,
+        apiKey: connection.apiKey,
       });
     } catch (e) {
       testResult = { success: false, latency_ms: 0, error: String(e) };
@@ -902,33 +918,36 @@ async function saveEditProvider(): Promise<void> {
   const apiKeyInput = document.getElementById('editProviderApiKey') as HTMLInputElement | null;
   const headersInput = document.getElementById('editProviderHeaders') as HTMLTextAreaElement | null;
 
-  const name = nameInput?.value.trim() ?? '';
-  const base_url = baseUrlInput?.value.trim() ?? '';
-  let api_key = apiKeyInput?.value.trim() ?? '';
-  const extra_headers = headersInput?.value.trim() ?? '';
+  const draft = providerDraftFromForm({
+    name: nameInput?.value ?? '',
+    baseUrl: baseUrlInput?.value ?? '',
+    apiKey: apiKeyInput?.value ?? '',
+    extraHeadersJson: headersInput?.value ?? '',
+  });
 
-  if (!name || !base_url) return;
+  if (!draft) return;
 
-  if (!api_key && editingProviderId) {
+  if (!draft.apiKey && editingProviderId) {
     try {
       const stored = await getProviderApiKey(editingProviderId);
-      api_key = stored ?? '';
+      draft.apiKey = stored ?? '';
     } catch {}
   }
 
   if (isDev) {
     const idx = state.providers.findIndex(p => p.id === editingProviderId);
     if (idx >= 0) {
-      state.providers[idx] = { ...state.providers[idx], name, base_url, updated_at: Math.floor(Date.now() / 1000) };
+      state.providers[idx] = {
+        ...state.providers[idx],
+        name: draft.name,
+        base_url: draft.baseUrl,
+        extra_headers_json: draft.extraHeadersJson,
+        updated_at: Math.floor(Date.now() / 1000),
+      };
     }
   } else {
     try {
-      const provider = await updateProviderInCatalog(editingProviderId, {
-        name,
-        baseUrl: base_url,
-        apiKey: api_key,
-        extraHeadersJson: extra_headers || null,
-      });
+      const provider = await updateProviderInCatalog(editingProviderId, draft);
       const idx = state.providers.findIndex(p => p.id === editingProviderId);
       if (idx >= 0) {
         state.providers[idx] = provider;
@@ -992,32 +1011,12 @@ async function addDiscoveredModels(): Promise<void> {
   if (selected.length === 0) return;
 
   for (const m of selected) {
+    const draft = discoveredModelDraft(selectedProviderId, m.id, getDisplayCurrency());
     if (isDev) {
-      const newModel: Model = {
-        id: crypto.randomUUID(),
-        provider_id: selectedProviderId,
-        model_name: m.id,
-        display_name: m.id,
-        context_window: 128000,
-        temperature: 1.0,
-        uncached_input_nanos_per_million: 0,
-        cache_read_nanos_per_million: 0,
-        output_nanos_per_million: 0,
-        currency: getDisplayCurrency(),
-      };
-      mockModels.push(newModel);
+      mockModels.push(modelFromDraft(crypto.randomUUID(), draft));
     } else {
       try {
-        await createModelInCatalog({
-          providerId: selectedProviderId,
-          modelName: m.id,
-          displayName: m.id,
-          contextWindow: 128000,
-          uncachedInputNanosPerMillion: 0,
-          cacheReadNanosPerMillion: 0,
-          outputNanosPerMillion: 0,
-          currency: getDisplayCurrency(),
-        });
+        await createModelInCatalog(draft);
       } catch (e) {
         console.error(`Failed to add model ${m.id}:`, e);
       }
@@ -1050,40 +1049,32 @@ async function saveEditModel(): Promise<void> {
   const systemPromptInput = document.getElementById('editModelSystemPrompt') as HTMLTextAreaElement | null;
   const tempInput = document.getElementById('editModelTemperature') as HTMLInputElement | null;
 
-  const model_name = nameInput?.value.trim() ?? '';
-  const display_name = displayNameInput?.value.trim() ?? '';
-  const context_window = parseInt(ctxInput?.value ?? '0', 10) || 0;
-  const uncached_input = (parseFloat(inputPriceInput?.value ?? '0') || 0) * 1e9;
-  const cache_read = (parseFloat(cachePriceInput?.value ?? '0') || 0) * 1e9;
-  const output = (parseFloat(outputPriceInput?.value ?? '0') || 0) * 1e9;
-  const currency = normalizeCurrency(currencyInput?.value || getDisplayCurrency());
-  const system_prompt = systemPromptInput?.value.trim() || null;
-  const temperature = parseFloat(tempInput?.value ?? '0.7') || 0.7;
-
-  if (!model_name || !display_name) return;
+  const draft = modelDraftFromForm({
+    providerId: model.provider_id,
+    modelName: nameInput?.value ?? '',
+    displayName: displayNameInput?.value ?? '',
+    contextWindow: ctxInput?.value ?? '',
+    inputPrice: inputPriceInput?.value ?? '',
+    cachePrice: cachePriceInput?.value ?? '',
+    outputPrice: outputPriceInput?.value ?? '',
+    currency: currencyInput?.value || getDisplayCurrency(),
+    systemPrompt: systemPromptInput?.value ?? '',
+    temperature: tempInput?.value ?? '',
+  });
+  if (!draft) return;
+  const patch = modelStatePatchFromDraft(draft);
 
   if (isDev) {
     const idx = state.models.findIndex(m => m.id === editingModelId);
     if (idx >= 0) {
-      state.models[idx] = { ...state.models[idx], model_name, display_name, context_window, uncached_input_nanos_per_million: uncached_input, cache_read_nanos_per_million: cache_read, output_nanos_per_million: output, currency, system_prompt, temperature };
+      state.models[idx] = { ...state.models[idx], ...patch };
     }
   } else {
     try {
-      await updateModelInCatalog(editingModelId, {
-        providerId: model.provider_id,
-        modelName: model_name,
-        displayName: display_name,
-        contextWindow: context_window,
-        uncachedInputNanosPerMillion: uncached_input,
-        cacheReadNanosPerMillion: cache_read,
-        outputNanosPerMillion: output,
-        currency,
-        systemPrompt: system_prompt,
-        temperature,
-      });
+      await updateModelInCatalog(editingModelId, draft);
       const idx = state.models.findIndex(m => m.id === editingModelId);
       if (idx >= 0) {
-        state.models[idx] = { ...state.models[idx], model_name, display_name, context_window, uncached_input_nanos_per_million: uncached_input, cache_read_nanos_per_million: cache_read, output_nanos_per_million: output, currency, system_prompt, temperature };
+        state.models[idx] = { ...state.models[idx], ...patch };
       }
     } catch (e) {
       console.error('Failed to update model:', e);
@@ -1125,44 +1116,29 @@ async function saveModel(): Promise<void> {
   const cachePriceInput = document.getElementById('modelCachePrice') as HTMLInputElement | null;
   const outputPriceInput = document.getElementById('modelOutputPrice') as HTMLInputElement | null;
   const currencyInput = document.getElementById('modelCurrency') as HTMLSelectElement | null;
+  const systemPromptInput = document.getElementById('modelSystemPrompt') as HTMLTextAreaElement | null;
+  const tempInput = document.getElementById('modelTemperature') as HTMLInputElement | null;
 
-  const model_name = nameInput?.value.trim() ?? '';
-  const display_name = displayNameInput?.value.trim() ?? '';
-  const context_window = parseInt(ctxInput?.value ?? '0', 10) || 0;
-  const uncached_input = (parseFloat(inputPriceInput?.value ?? '0') || 0) * 1e9;
-  const cache_read = (parseFloat(cachePriceInput?.value ?? '0') || 0) * 1e9;
-  const output = (parseFloat(outputPriceInput?.value ?? '0') || 0) * 1e9;
-  const currency = normalizeCurrency(currencyInput?.value || getDisplayCurrency());
-
-  if (!model_name || !display_name) return;
+  const draft = modelDraftFromForm({
+    providerId: selectedProviderId,
+    modelName: nameInput?.value ?? '',
+    displayName: displayNameInput?.value ?? '',
+    contextWindow: ctxInput?.value ?? '',
+    inputPrice: inputPriceInput?.value ?? '',
+    cachePrice: cachePriceInput?.value ?? '',
+    outputPrice: outputPriceInput?.value ?? '',
+    currency: currencyInput?.value || getDisplayCurrency(),
+    systemPrompt: systemPromptInput?.value ?? '',
+    temperature: tempInput?.value ?? '',
+  });
+  if (!draft) return;
 
   if (isDev) {
-    const newModel: Model = {
-      id: crypto.randomUUID(),
-      provider_id: selectedProviderId,
-      model_name,
-      display_name,
-      context_window,
-      temperature: 1.0,
-      uncached_input_nanos_per_million: uncached_input,
-      cache_read_nanos_per_million: cache_read,
-      output_nanos_per_million: output,
-      currency,
-    };
-    mockModels.push(newModel);
+    mockModels.push(modelFromDraft(crypto.randomUUID(), draft));
     state.models = mockModels.filter(m => m.provider_id === selectedProviderId);
   } else {
     try {
-      const model = await createModelInCatalog({
-        providerId: selectedProviderId,
-        modelName: model_name,
-        displayName: display_name,
-        contextWindow: context_window,
-        uncachedInputNanosPerMillion: uncached_input,
-        cacheReadNanosPerMillion: cache_read,
-        outputNanosPerMillion: output,
-        currency,
-      });
+      const model = await createModelInCatalog(draft);
       state.models.push(model);
     } catch (e) {
       console.error('Failed to create model:', e);

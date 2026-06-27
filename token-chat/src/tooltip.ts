@@ -221,7 +221,7 @@ export function setTooltipDelay(value: string | number): void {
   applyTooltipPreferences();
 }
 
-export function applyTooltipPreferences(): void {
+function applyTooltipPreferences(): void {
   document.documentElement.setAttribute('data-tooltip-style', getTooltipStyle());
   document.documentElement.setAttribute('data-tooltip-glass-level', getTooltipGlassLevel());
   document.documentElement.style.setProperty('--tooltip-delay', `${getTooltipDelay()}ms`);

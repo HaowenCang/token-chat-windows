@@ -132,7 +132,9 @@ function clampNumber(value: unknown, fallback: number, min: number, max: number)
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, Math.round(parsed))) : fallback;
 }
 
-function normalizeConfig(config: Partial<SearchProviderConfig> | null | undefined): SearchProviderConfig {
+export function normalizeSearchProviderConfig(
+  config: Partial<SearchProviderConfig> | null | undefined,
+): SearchProviderConfig {
   const merged = { ...defaultSearchProviderConfig, ...(config ?? {}) };
   return {
     ...merged,
@@ -153,7 +155,7 @@ export async function loadSearchConfig(): Promise<SearchConfigView> {
   if (!isTauriRuntime()) {
     try {
       const saved = JSON.parse(localStorage.getItem(DEV_CONFIG_KEY) || 'null') as Partial<SearchProviderConfig> | null;
-      cachedConfigView = { config: normalizeConfig(saved), hasApiKey: false };
+      cachedConfigView = { config: normalizeSearchProviderConfig(saved), hasApiKey: false };
     } catch {
       cachedConfigView = { config: { ...defaultSearchProviderConfig }, hasApiKey: false };
     }
@@ -162,7 +164,7 @@ export async function loadSearchConfig(): Promise<SearchConfigView> {
 
   try {
     const view = await getSearchConfig();
-    cachedConfigView = { config: normalizeConfig(view.config), hasApiKey: Boolean(view.hasApiKey) };
+    cachedConfigView = { config: normalizeSearchProviderConfig(view.config), hasApiKey: Boolean(view.hasApiKey) };
   } catch (error) {
     console.error('Failed to load Web Search settings:', error);
   }
@@ -174,14 +176,14 @@ export async function saveSearchConfig(
   apiKey?: string,
   clearApiKey = false,
 ): Promise<SearchConfigView> {
-  const normalized = normalizeConfig(config);
+  const normalized = normalizeSearchProviderConfig(config);
   if (!isTauriRuntime()) {
     localStorage.setItem(DEV_CONFIG_KEY, JSON.stringify(normalized));
     cachedConfigView = { config: normalized, hasApiKey: Boolean(apiKey) };
     return getSearchConfigSnapshot();
   }
   const view = await saveSearchConfigInStore({ config: normalized, apiKey, clearApiKey });
-  cachedConfigView = { config: normalizeConfig(view.config), hasApiKey: Boolean(view.hasApiKey) };
+  cachedConfigView = { config: normalizeSearchProviderConfig(view.config), hasApiKey: Boolean(view.hasApiKey) };
   return getSearchConfigSnapshot();
 }
 

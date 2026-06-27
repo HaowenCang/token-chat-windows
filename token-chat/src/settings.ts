@@ -1,7 +1,14 @@
-import { state } from './state';
 import { t, getLang, setLang } from './i18n';
 import { getBuiltinPromptSnapshot } from './prompt';
-import { applyThemePreferences, getCustomAccentColor, resetCustomAccentColor, setCustomAccentColor } from './theme';
+import { getCustomAccentColor, resetCustomAccentColor, setCustomAccentColor } from './theme';
+import {
+  getAppearanceSettingsModel,
+  updateGlobalPromptPreference,
+  updateSendKeyPreference,
+  updateThemePreference,
+} from './appearance-settings-model';
+import { PromptLibraryModel, type LibraryPrompt } from './prompt-library-model';
+import { SearchSettingsModel } from './search-settings-model';
 import {
   getTooltipDelay,
   getTooltipGlassLevel,
@@ -26,21 +33,27 @@ import {
   getSearchConfigSnapshot,
   saveSearchConfig,
   testSearchConnection,
-  type SearchProviderConfig,
 } from './web-search';
 
-let clearSearchApiKeyRequested = false;
+const searchSettingsModel = new SearchSettingsModel({
+  getSnapshot: getSearchConfigSnapshot,
+  save: saveSearchConfig,
+  test: testSearchConnection,
+});
+
+let promptLibraryModel: PromptLibraryModel | null = null;
+
+function getPromptLibraryModel(): PromptLibraryModel {
+  promptLibraryModel ??= new PromptLibraryModel(localStorage);
+  return promptLibraryModel;
+}
 
 export function renderSettingsPage(): string {
-  const sendKey = localStorage.getItem('tc-send-key') || 'enter';
-  const currentTheme = localStorage.getItem('tc-theme') || 'midnight';
-  const storedGlobalPrompt = localStorage.getItem('tc-global-prompt');
-  const globalPrompt = storedGlobalPrompt !== null ? storedGlobalPrompt : getBuiltinPromptSnapshot();
-  const customAccent = getCustomAccentColor();
+  const appearance = getAppearanceSettingsModel(getBuiltinPromptSnapshot());
+  const { sendKey, theme: currentTheme, globalPrompt, accentColor: customAccent, displayCurrency } = appearance;
   const tooltipStyle = getTooltipStyle();
   const tooltipGlassLevel = getTooltipGlassLevel();
   const tooltipDelay = getTooltipDelay();
-  const displayCurrency = getDisplayCurrency();
 
   return `
     <div class="page-screen settings-page">
@@ -187,7 +200,7 @@ export function renderSettingsPage(): string {
 }
 
 function renderPromptList(): string {
-  const prompts = JSON.parse(localStorage.getItem('tc-custom-prompts') || '[]');
+  const prompts = getPromptLibraryModel().list();
   if (prompts.length === 0) {
     return `<div style="color:var(--text-faint);font-size:var(--fs-secondary)">${t('settings.noPrompts')}</div>`;
   }
@@ -207,18 +220,19 @@ function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function renderSwitch(id: string, checked: boolean, label: string): string {
+function renderSwitch(id: string, checked: boolean, label: string, name?: string): string {
   return `
     <button class="glass-switch ${checked ? 'is-on' : ''}" id="${id}" type="button" role="switch" aria-checked="${checked}" aria-label="${escHtml(label)}">
       <span class="glass-switch-track"><span class="glass-switch-thumb"></span></span>
       <span class="glass-switch-label">${escHtml(checked ? t('common.enabled') : t('common.disabled'))}</span>
-    </button>`;
+    </button>
+    ${name ? `<input type="hidden" name="${name}" value="${checked}">` : ''}`;
 }
 
 function renderWebSearchSettings(): string {
   const { config, hasApiKey } = getSearchConfigSnapshot();
   return `
-    <div class="settings-section glass-card web-search-settings">
+    <form class="settings-section glass-card web-search-settings" id="searchSettingsForm">
       <div class="settings-section-heading">
         <div>
           <h3 class="settings-section-title">${t('settings.webSearch')}</h3>
@@ -228,35 +242,35 @@ function renderWebSearchSettings(): string {
       </div>
       <div class="settings-row">
         <label>启用网络搜索</label>
-        ${renderSwitch('searchFeatureEnabled', config.enabled, '启用网络搜索')}
+        ${renderSwitch('searchFeatureEnabled', config.enabled, '启用网络搜索', 'searchFeatureEnabled')}
       </div>
       <div class="settings-row">
         <label for="searchProviderId">默认 Provider</label>
-        <select class="chat-search glass-select" id="searchProviderId" style="width:260px">
+        <select class="chat-search glass-select" id="searchProviderId" name="searchProviderId" style="width:260px">
           <option value="http-json" ${config.providerId === 'http-json' ? 'selected' : ''}>HTTP JSON Search</option>
         </select>
       </div>
       <div class="settings-row">
         <label for="searchBaseUrl">${t('settings.searchBaseUrl')}</label>
-        <input class="chat-search glass-input web-search-wide-input" id="searchBaseUrl" type="url" spellcheck="false" placeholder="https://search.example.com/api/search" value="${escHtml(config.baseUrl)}">
+        <input class="chat-search glass-input web-search-wide-input" id="searchBaseUrl" name="searchBaseUrl" type="url" spellcheck="false" placeholder="https://search.example.com/api/search" value="${escHtml(config.baseUrl)}">
       </div>
       <div class="settings-row">
         <label>${t('settings.searchApiKey')}</label>
         <div class="secret-input-row">
-          <input class="chat-search glass-input" id="searchApiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="${hasApiKey ? t('provider.leaveEmpty') : t('provider.optional')}">
+          <input class="chat-search glass-input" id="searchApiKey" name="searchApiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="${hasApiKey ? t('provider.leaveEmpty') : t('provider.optional')}">
           <button class="tool-btn glass-button glass-button--secondary" id="toggleSearchApiKey" type="button" aria-label="${t('settings.showKey')}">${t('settings.showKey')}</button>
           ${hasApiKey ? `<button class="tool-btn glass-button glass-button--danger" id="clearSearchApiKey" type="button">${t('settings.clearKey')}</button>` : ''}
         </div>
       </div>
       <div class="settings-row">
         <label for="searchMaxResults">默认结果数量</label>
-        <select class="chat-search glass-select" id="searchMaxResults" style="width:180px">
+        <select class="chat-search glass-select" id="searchMaxResults" name="searchMaxResults" style="width:180px">
           ${[3, 5, 8, 10].map(count => `<option value="${count}" ${config.defaultMaxResults === count ? 'selected' : ''}>${count} 条</option>`).join('')}
         </select>
       </div>
       <div class="settings-row">
         <label for="searchLanguage">默认语言</label>
-        <select class="chat-search glass-select" id="searchLanguage" style="width:220px">
+        <select class="chat-search glass-select" id="searchLanguage" name="searchLanguage" style="width:220px">
           <option value="auto" ${config.defaultLanguage === 'auto' ? 'selected' : ''}>跟随应用语言</option>
           <option value="zh" ${config.defaultLanguage === 'zh' ? 'selected' : ''}>中文</option>
           <option value="en" ${config.defaultLanguage === 'en' ? 'selected' : ''}>English</option>
@@ -264,16 +278,16 @@ function renderWebSearchSettings(): string {
       </div>
       <div class="settings-row">
         <label for="searchRegion">默认地区</label>
-        <input class="chat-search glass-input" id="searchRegion" type="text" placeholder="例如 CN、US；可留空" value="${escHtml(config.defaultRegion)}">
+        <input class="chat-search glass-input" id="searchRegion" name="searchRegion" type="text" placeholder="例如 CN、US；可留空" value="${escHtml(config.defaultRegion)}">
       </div>
       <div class="settings-row">
         <label>${t('settings.safeSearch')}</label>
-        ${renderSwitch('searchSafeSearch', config.safeSearch, t('settings.safeSearch'))}
+        ${renderSwitch('searchSafeSearch', config.safeSearch, t('settings.safeSearch'), 'searchSafeSearch')}
       </div>
       <div class="settings-row">
         <label for="searchTimeout">搜索超时</label>
         <div class="glass-input-suffix web-search-timeout">
-          <input class="chat-search glass-input" id="searchTimeout" type="number" min="1000" max="120000" step="500" value="${config.timeoutMs}">
+          <input class="chat-search glass-input" id="searchTimeout" name="searchTimeout" type="number" min="1000" max="120000" step="500" value="${config.timeoutMs}">
           <span class="glass-input-suffix__label">ms</span>
         </div>
       </div>
@@ -299,23 +313,24 @@ function renderWebSearchSettings(): string {
         </div>
         <div class="glass-form-field web-search-headers-field">
           <label for="searchExtraHeaders">额外请求头（JSON，不要在此填写 API Key）</label>
-          <textarea class="chat-search glass-textarea" id="searchExtraHeaders" rows="3" spellcheck="false">${escHtml(config.extraHeadersJson)}</textarea>
+          <textarea class="chat-search glass-textarea" id="searchExtraHeaders" name="searchExtraHeaders" rows="3" spellcheck="false">${escHtml(config.extraHeadersJson)}</textarea>
         </div>
       </details>
       <div class="web-search-actions">
         <button class="test-btn glass-button glass-button--primary" id="saveSearchSettings" type="button">${t('settings.saveSearch')}</button>
+        <button class="tool-btn glass-button glass-button--secondary" id="resetSearchSettings" type="button">${t('settings.reset')}</button>
         <button class="tool-btn glass-button glass-button--secondary" id="testSearchConnection" type="button">${t('settings.testSearch')}</button>
         <span class="settings-form-help">测试会使用 “OpenAI” 作为示例查询，不显示或记录完整 API Key。</span>
       </div>
       <div class="test-result liquid-glass liquid-glass--notice" id="searchTestResult" aria-live="polite"></div>
-    </div>`;
+    </form>`;
 }
 
 function renderSearchTextField(id: string, label: string, value: string, placeholder: string): string {
   return `
     <div class="glass-form-field">
       <label for="${id}">${escHtml(label)}</label>
-      <input class="chat-search glass-input" id="${id}" type="text" spellcheck="false" placeholder="${escHtml(placeholder)}" value="${escHtml(value)}">
+      <input class="chat-search glass-input" id="${id}" name="${id}" type="text" spellcheck="false" placeholder="${escHtml(placeholder)}" value="${escHtml(value)}">
     </div>`;
 }
 
@@ -348,14 +363,6 @@ function bindExchangeRateInputs(): void {
   });
 }
 
-function getInputValue(id: string): string {
-  return (document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null)?.value.trim() ?? '';
-}
-
-function getSwitchValue(id: string): boolean {
-  return document.getElementById(id)?.getAttribute('aria-checked') === 'true';
-}
-
 function bindGlassSwitch(id: string): void {
   const button = document.getElementById(id) as HTMLButtonElement | null;
   if (!button) return;
@@ -365,37 +372,9 @@ function bindGlassSwitch(id: string): void {
     button.classList.toggle('is-on', checked);
     const label = button.querySelector<HTMLElement>('.glass-switch-label');
     if (label) label.textContent = checked ? '已开启' : '已关闭';
+    const input = button.nextElementSibling as HTMLInputElement | null;
+    if (input?.type === 'hidden') input.value = String(checked);
   });
-}
-
-function readSearchConfigForm(): SearchProviderConfig {
-  const previous = getSearchConfigSnapshot().config;
-  return {
-    enabled: getSwitchValue('searchFeatureEnabled'),
-    providerId: getInputValue('searchProviderId') || 'http-json',
-    baseUrl: getInputValue('searchBaseUrl'),
-    apiKeyHeader: getInputValue('searchApiKeyHeader'),
-    apiKeyPrefix: (document.getElementById('searchApiKeyPrefix') as HTMLInputElement | null)?.value ?? '',
-    apiKeyQueryParam: getInputValue('searchApiKeyQueryParam'),
-    queryParam: getInputValue('searchQueryParam') || 'q',
-    resultCountParam: getInputValue('searchCountParam'),
-    languageParam: getInputValue('searchLanguageParam'),
-    regionParam: getInputValue('searchRegionParam'),
-    safeSearchParam: getInputValue('searchSafeParam'),
-    freshnessParam: getInputValue('searchFreshnessParam'),
-    resultsPath: getInputValue('searchResultsPath'),
-    titleField: getInputValue('searchTitleField') || 'title',
-    urlField: getInputValue('searchUrlField') || 'url',
-    snippetField: getInputValue('searchSnippetField') || 'snippet',
-    sourceField: getInputValue('searchSourceField'),
-    publishedAtField: getInputValue('searchPublishedField'),
-    extraHeadersJson: getInputValue('searchExtraHeaders') || '{}',
-    defaultMaxResults: Number(getInputValue('searchMaxResults')) || previous.defaultMaxResults,
-    defaultLanguage: getInputValue('searchLanguage') || 'auto',
-    defaultRegion: getInputValue('searchRegion'),
-    safeSearch: getSwitchValue('searchSafeSearch'),
-    timeoutMs: Number(getInputValue('searchTimeout')) || previous.timeoutMs,
-  };
 }
 
 function setSearchResultNotice(kind: 'idle' | 'loading' | 'ok' | 'fail', html: string): void {
@@ -407,14 +386,15 @@ function setSearchResultNotice(kind: 'idle' | 'loading' | 'ok' | 'fail', html: s
   result.innerHTML = html;
 }
 
+function getSearchSettingsForm(): HTMLFormElement | null {
+  return document.getElementById('searchSettingsForm') as HTMLFormElement | null;
+}
+
 async function persistSearchSettings(): Promise<void> {
+  const form = getSearchSettingsForm();
+  if (!form) return;
   const apiKeyInput = document.getElementById('searchApiKey') as HTMLInputElement | null;
-  const view = await saveSearchConfig(
-    readSearchConfigForm(),
-    apiKeyInput?.value,
-    clearSearchApiKeyRequested,
-  );
-  clearSearchApiKeyRequested = false;
+  const view = await searchSettingsModel.save(new FormData(form));
   if (apiKeyInput) {
     apiKeyInput.value = '';
     apiKeyInput.placeholder = view.hasApiKey ? '已保存；留空则保留' : '可选';
@@ -436,7 +416,7 @@ function bindWebSearchSettings(): void {
   });
 
   document.getElementById('clearSearchApiKey')?.addEventListener('click', event => {
-    clearSearchApiKeyRequested = true;
+    searchSettingsModel.requestApiKeyClear();
     if (apiKeyInput) {
       apiKeyInput.value = '';
       apiKeyInput.placeholder = '保存后清除';
@@ -460,13 +440,32 @@ function bindWebSearchSettings(): void {
     }
   });
 
+  const resetButton = document.getElementById('resetSearchSettings') as HTMLButtonElement | null;
+  resetButton?.addEventListener('click', async () => {
+    resetButton.disabled = true;
+    setSearchResultNotice('loading', t('settings.saving'));
+    try {
+      await searchSettingsModel.reset();
+      const form = getSearchSettingsForm();
+      if (form) {
+        form.outerHTML = renderWebSearchSettings();
+        bindWebSearchSettings();
+        setSearchResultNotice('ok', t('settings.saved'));
+      }
+    } catch (error) {
+      setSearchResultNotice('fail', `${t('settings.saveFail')}${escHtml(String(error))}`);
+      resetButton.disabled = false;
+    }
+  });
+
   const testButton = document.getElementById('testSearchConnection') as HTMLButtonElement | null;
   testButton?.addEventListener('click', async () => {
     testButton.disabled = true;
     setSearchResultNotice('loading', `<span class="spinner"></span> ${t('settings.testing')}`);
     try {
-      await persistSearchSettings();
-      const result = await testSearchConnection();
+      const form = getSearchSettingsForm();
+      if (!form) return;
+      const result = await searchSettingsModel.testConnection(new FormData(form));
       if (result.success) {
         const examples = result.results.slice(0, 3)
           .map(item => `<li><strong>${escHtml(item.title)}</strong><span>${escHtml(item.source || '')}</span></li>`)
@@ -480,6 +479,73 @@ function bindWebSearchSettings(): void {
     } finally {
       testButton.disabled = false;
     }
+  });
+}
+
+function refreshPromptList(): void {
+  const promptList = document.getElementById('promptList');
+  if (!promptList) return;
+  promptList.innerHTML = renderPromptList();
+  bindPromptListEvents();
+}
+
+function renderPromptEditor(prompt: LibraryPrompt): string {
+  return `
+    <div class="glass-card glass-form-card" style="padding:16px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:4px">${t('common.name')}</label>
+          <input class="chat-search glass-input" type="text" id="editPromptName" value="${escHtml(prompt.name)}" style="width:100%">
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:4px">Scope</label>
+          <select class="chat-search glass-select" id="editPromptScope" style="width:100%">
+            <option value="global" ${prompt.scope === 'global' ? 'selected' : ''}>Global</option>
+            <option value="conversation" ${prompt.scope === 'conversation' ? 'selected' : ''}>Per Conversation</option>
+            <option value="model" ${prompt.scope === 'model' ? 'selected' : ''}>Per Model</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:4px">${t('common.systemPrompt')}</label>
+          <textarea class="chat-search glass-textarea" id="editPromptContent" style="width:100%;min-height:100px;resize:vertical;font-family:var(--font-mono);font-size:var(--fs-code)">${escHtml(prompt.prompt)}</textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelEditPrompt">${t('common.cancel')}</button>
+          <button class="test-btn glass-button glass-button--primary" id="saveEditPrompt">${t('common.save')}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function bindPromptListEvents(): void {
+  document.querySelectorAll<HTMLElement>('[data-delete-prompt]').forEach(element => {
+    element.addEventListener('click', () => {
+      getPromptLibraryModel().remove(Number(element.dataset.deletePrompt));
+      refreshPromptList();
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>('[data-edit-prompt]').forEach(element => {
+    element.addEventListener('click', () => {
+      const index = Number(element.dataset.editPrompt);
+      const prompt = getPromptLibraryModel().list()[index];
+      const promptList = document.getElementById('promptList');
+      if (!prompt || !promptList) return;
+      promptList.innerHTML = renderPromptEditor(prompt);
+
+      document.getElementById('cancelEditPrompt')?.addEventListener('click', refreshPromptList);
+      document.getElementById('saveEditPrompt')?.addEventListener('click', () => {
+        const name = (document.getElementById('editPromptName') as HTMLInputElement | null)?.value ?? '';
+        const scope = (document.getElementById('editPromptScope') as HTMLSelectElement | null)?.value;
+        const content = (document.getElementById('editPromptContent') as HTMLTextAreaElement | null)?.value ?? '';
+        getPromptLibraryModel().update(index, {
+          name,
+          scope: scope as LibraryPrompt['scope'],
+          prompt: content,
+        });
+        refreshPromptList();
+      });
+    });
   });
 }
 
@@ -502,9 +568,7 @@ export function bindSettingsEvents(): void {
   const themeSelect = document.getElementById('settingsTheme') as HTMLSelectElement | null;
   if (themeSelect) {
     themeSelect.addEventListener('change', () => {
-      const theme = themeSelect.value;
-      localStorage.setItem('tc-theme', theme);
-      applyThemePreferences();
+      updateThemePreference(themeSelect.value);
     });
   }
 
@@ -575,97 +639,23 @@ export function bindSettingsEvents(): void {
   const sendKeySelect = document.getElementById('settingsSendKey') as HTMLSelectElement | null;
   if (sendKeySelect) {
     sendKeySelect.addEventListener('change', () => {
-      localStorage.setItem('tc-send-key', sendKeySelect.value);
+      updateSendKeyPreference(sendKeySelect.value);
     });
   }
 
   const globalPrompt = document.getElementById('settingsGlobalPrompt') as HTMLTextAreaElement | null;
   if (globalPrompt) {
     globalPrompt.addEventListener('change', () => {
-      localStorage.setItem('tc-global-prompt', globalPrompt.value);
+      updateGlobalPromptPreference(globalPrompt.value);
     });
   }
 
   const addPromptBtn = document.getElementById('addPromptBtn');
   if (addPromptBtn) {
     addPromptBtn.addEventListener('click', () => {
-      const prompts = JSON.parse(localStorage.getItem('tc-custom-prompts') || '[]');
-      prompts.push({ name: t('settings.newPrompt'), prompt: '', scope: 'global' });
-      localStorage.setItem('tc-custom-prompts', JSON.stringify(prompts));
-      const promptList = document.getElementById('promptList');
-      if (promptList) promptList.innerHTML = renderPromptList();
+      getPromptLibraryModel().add({ name: t('settings.newPrompt'), prompt: '', scope: 'global' });
+      refreshPromptList();
     });
   }
-
-  document.querySelectorAll<HTMLElement>('[data-delete-prompt]').forEach(el => {
-    el.addEventListener('click', () => {
-      const idx = parseInt(el.dataset.deletePrompt ?? '0', 10);
-      const prompts = JSON.parse(localStorage.getItem('tc-custom-prompts') || '[]');
-      prompts.splice(idx, 1);
-      localStorage.setItem('tc-custom-prompts', JSON.stringify(prompts));
-      const promptList = document.getElementById('promptList');
-      if (promptList) promptList.innerHTML = renderPromptList();
-      bindSettingsEvents();
-    });
-  });
-
-  document.querySelectorAll<HTMLElement>('[data-edit-prompt]').forEach(el => {
-    el.addEventListener('click', () => {
-      const idx = parseInt(el.dataset.editPrompt ?? '0', 10);
-      const prompts = JSON.parse(localStorage.getItem('tc-custom-prompts') || '[]');
-      const prompt = prompts[idx];
-      if (!prompt) return;
-      const promptList = document.getElementById('promptList');
-      if (!promptList) return;
-      promptList.innerHTML = `
-        <div class="glass-card glass-form-card" style="padding:16px">
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:4px">${t('common.name')}</label>
-              <input class="chat-search glass-input" type="text" id="editPromptName" value="${escHtml(prompt.name)}" style="width:100%">
-            </div>
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:4px">Scope</label>
-              <select class="chat-search glass-select" id="editPromptScope" style="width:100%">
-                <option value="global" ${prompt.scope === 'global' ? 'selected' : ''}>Global</option>
-                <option value="conversation" ${prompt.scope === 'conversation' ? 'selected' : ''}>Per Conversation</option>
-                <option value="model" ${prompt.scope === 'model' ? 'selected' : ''}>Per Model</option>
-              </select>
-            </div>
-            <div>
-              <label style="display:block;font-size:var(--fs-secondary);color:var(--text-muted);margin-bottom:4px">${t('common.systemPrompt')}</label>
-              <textarea class="chat-search glass-textarea" id="editPromptContent" style="width:100%;min-height:100px;resize:vertical;font-family:var(--font-mono);font-size:var(--fs-code)">${escHtml(prompt.prompt)}</textarea>
-            </div>
-            <div style="display:flex;gap:8px;justify-content:flex-end">
-              <button class="modal-footer-btn glass-button glass-button--secondary" id="cancelEditPrompt">${t('common.cancel')}</button>
-              <button class="test-btn glass-button glass-button--primary" id="saveEditPrompt">${t('common.save')}</button>
-            </div>
-          </div>
-        </div>
-      `;
-      const cancelBtn = document.getElementById('cancelEditPrompt');
-      if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-          promptList.innerHTML = renderPromptList();
-          bindSettingsEvents();
-        });
-      }
-      const saveBtn = document.getElementById('saveEditPrompt');
-      if (saveBtn) {
-        saveBtn.addEventListener('click', () => {
-          const nameInput = document.getElementById('editPromptName') as HTMLInputElement | null;
-          const scopeInput = document.getElementById('editPromptScope') as HTMLSelectElement | null;
-          const contentInput = document.getElementById('editPromptContent') as HTMLTextAreaElement | null;
-          prompts[idx] = {
-            name: nameInput?.value || 'Untitled',
-            scope: scopeInput?.value || 'global',
-            prompt: contentInput?.value || '',
-          };
-          localStorage.setItem('tc-custom-prompts', JSON.stringify(prompts));
-          promptList.innerHTML = renderPromptList();
-          bindSettingsEvents();
-        });
-      }
-    });
-  });
+  bindPromptListEvents();
 }

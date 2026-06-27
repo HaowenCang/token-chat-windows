@@ -1,5 +1,6 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { isTauriRuntime } from './platform/runtime';
+import { getThemePreference } from './settings-state';
 
 const CUSTOM_ACCENT_KEY = 'tc-custom-accent';
 
@@ -37,7 +38,7 @@ export function resetCustomAccentColor(): void {
 }
 
 export function applyThemePreferences(): void {
-  const theme = localStorage.getItem('tc-theme') || 'midnight';
+  const theme = getThemePreference();
   document.documentElement.setAttribute('data-theme', theme);
   syncWindowTheme(theme);
 

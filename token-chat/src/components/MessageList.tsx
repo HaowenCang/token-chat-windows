@@ -1,13 +1,13 @@
 /** @jsxImportSource preact */
 import { render } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
-import { messages, currentConversationId, isStreaming, syncMessages, getCachedMarkdown, getCachedReasoningMarkdown } from './chat-signals';
+import { messages, currentConversationId, syncMessages, getCachedMarkdown, getCachedReasoningMarkdown } from './chat-signals';
 import { state, parseContent, type Message } from '../state';
 import { t } from '../i18n';
-import { parseAttachments, renderMessageAttachments, escHtml, formatFileSize } from '../chat-attachment';
+import { parseAttachments, renderMessageAttachments, formatFileSize } from '../chat-attachment';
 import { isSafeSourceUrl } from '../web-search';
 import { copyText } from '../chat-render';
-import { renderMarkdown } from '../chat-markdown';
+import { renderMarkdown } from '../rendering/markdown-renderer';
 import { getMessageSearchView } from '../chat-view-model';
 
 // ── Source URL click handler ──
@@ -178,14 +178,6 @@ function MessageList() {
 export function mountMessageList(container: HTMLElement): void {
   syncMessages();
   render(<MessageList />, container);
-}
-
-export function updateMessageList(): void {
-  syncMessages();
-  const container = document.getElementById('chatMessages');
-  if (container) {
-    render(<MessageList />, container);
-  }
 }
 
 // ponytail: updateStreamingMessage replacement — direct DOM patch during streaming

@@ -1,12 +1,11 @@
 /** @jsxImportSource preact */
 import { signal } from '@preact/signals';
 import { state, parseContent, type Message } from '../state';
-import { renderMarkdown } from '../chat-markdown';
+import { renderMarkdown } from '../rendering/markdown-renderer';
 
 // ── Signals synced from the mutable state singleton ──
 
 export const messages = signal<Message[]>([]);
-export const isStreaming = signal(false);
 export const currentConversationId = signal<string | null>(null);
 
 // ── Markdown cache: content_json → rendered HTML ──
@@ -31,11 +30,6 @@ export function getCachedReasoningMarkdown(reasoning: string): string {
   return html;
 }
 
-export function invalidateMarkdownCache(): void {
-  markdownCache.clear();
-  REASONING_CACHE.clear();
-}
-
 // ── Sync with dirty check to avoid unnecessary re-renders ──
 
 let lastSyncKey = '';
@@ -50,6 +44,5 @@ export function syncMessages(): void {
     lastSyncKey = syncKey;
     messages.value = [...msgs];
   }
-  isStreaming.value = state.isStreaming;
   currentConversationId.value = state.currentConversationId;
 }

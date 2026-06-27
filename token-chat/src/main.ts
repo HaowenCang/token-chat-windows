@@ -5,13 +5,9 @@ import './liquid-glass.css';
 import { injectGlassRefractionFilters } from './glass-caustics';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { state, type Page } from './state';
-import { t, getLang } from './i18n';
+import { t } from './i18n';
 import {
   loadConversations,
-  renderConversationList,
-  renderChatMessages,
-  renderChatInput,
-  renderRightPanelContent,
   mountChatSurfaceInDom,
   bindChatEvents,
   selectConversation,
@@ -24,7 +20,7 @@ import { loadBuiltinPrompt } from './prompt';
 import { applyThemePreferences } from './theme';
 import { bindDataTooltips } from './tooltip';
 import { applyFontSizePreferences } from './font-size';
-import { formatCurrencyAmount, fetchExchangeRates } from './currency';
+import { fetchExchangeRates } from './currency';
 import { initCustomSelects } from './custom-select';
 import { initCustomDatePickers } from './custom-date-picker';
 import { clearDeclaredGlassPortals, mountDeclaredGlassPortals } from './liquid-glass';
@@ -153,16 +149,13 @@ function renderSidebar() {
         <input class="chat-search glass-input glass-search-input" type="text" placeholder="${t('chat.search')}">
         <button class="chat-new-btn glass-button glass-button--primary">+ ${t('chat.new')}</button>
       </div>
-      <div class="chat-list" id="chatList">
-        ${renderConversationList()}
-      </div>
+      <div class="chat-list" id="chatList"></div>
     </aside>
   `;
 }
 
 function renderChatCenter() {
   const conv = state.conversations.find(c => c.id === state.currentConversationId);
-  const model = conv ? state.models.find(m => m.id === conv.model_id) : null;
   return `
     <main class="chat-center">
       <div class="chat-center-header">
@@ -184,12 +177,8 @@ function renderChatCenter() {
         </div>
         <button class="toggle-btn" data-toggle="right" title="${t('chat.toggleMonitor')}" aria-label="${t('chat.toggleMonitor')}" style="margin-left:4px">${iconSvg('panel')}</button>
       </div>
-      <div class="chat-messages" id="chatMessages">
-        ${renderChatMessages()}
-      </div>
-      <div id="chatInputMount" class="chat-input-mount">
-        ${renderChatInput()}
-      </div>
+      <div class="chat-messages" id="chatMessages"></div>
+      <div id="chatInputMount" class="chat-input-mount"></div>
     </main>
   `;
 }
@@ -202,9 +191,7 @@ function renderRightPanel() {
         <h3>${t('chat.tokenMonitor')}</h3>
         <button class="toggle-btn" data-toggle="right" aria-label="${t('chat.closeMonitor')}" style="width:28px;height:28px">${iconSvg('close')}</button>
       </div>
-      <div class="panel-body">
-        ${renderRightPanelContent()}
-      </div>
+      <div class="panel-body"></div>
     </aside>
   `;
 }
@@ -213,7 +200,7 @@ function renderRightPanel() {
 let rendering = false;
 let renderDirty = false;
 
-export async function render() {
+async function render() {
   if (rendering) { renderDirty = true; return; }
   rendering = true;
   renderDirty = true;
@@ -247,39 +234,12 @@ async function renderOnce() {
   if (state.page === 'settings') {
     await loadSearchConfig();
   }
-  const currentTheme = localStorage.getItem('tc-theme') || 'midnight';
   applyThemePreferences();
   applyFontSizePreferences();
   bindDataTooltips();
   clearDeclaredGlassPortals();
   app.innerHTML = `
     ${renderWindowTitlebar()}
-    ${false ? `
-    <nav class="topnav">
-      <div class="topnav-brand"><span class="brand-mark">${iconSvg('sparkles')}</span><span>${t('app.title')}</span></div>
-      <div class="topnav-tabs">
-        <button class="topnav-tab" data-page="chat">${t('nav.chat')}</button>
-        <button class="topnav-tab ${state.page === 'provider' ? 'active' : ''}" data-page="provider">${t('nav.providers')}</button>
-        <button class="topnav-tab ${state.page === 'stats' ? 'active' : ''}" data-page="stats">${t('nav.stats')}</button>
-        <button class="topnav-tab ${state.page === 'settings' ? 'active' : ''}" data-page="settings">${t('nav.settings')}</button>
-      </div>
-      <div class="topnav-right">
-        <select class="topnav-select" id="langSelect">
-          <option value="zh" ${getLang() === 'zh' ? 'selected' : ''}>中文</option>
-          <option value="en" ${getLang() === 'en' ? 'selected' : ''}>English</option>
-        </select>
-        <select class="topnav-select" id="themeSelect">
-          <option value="midnight" ${currentTheme === 'midnight' ? 'selected' : ''}>${t('theme.midnight')}</option>
-          <option value="ocean" ${currentTheme === 'ocean' ? 'selected' : ''}>${t('theme.ocean')}</option>
-          <option value="forest" ${currentTheme === 'forest' ? 'selected' : ''}>${t('theme.forest')}</option>
-          <option value="sunset" ${currentTheme === 'sunset' ? 'selected' : ''}>${t('theme.sunset')}</option>
-          <option value="rose" ${currentTheme === 'rose' ? 'selected' : ''}>${t('theme.rose')}</option>
-          <option value="light" ${currentTheme === 'light' ? 'selected' : ''}>${t('theme.light')}</option>
-        </select>
-        <div class="topnav-stat">${t('chat.today')}: <span>${formatCurrencyAmount(0, 2)}</span></div>
-        <div class="topnav-stat">${t('chat.tokens')}: <span>0</span></div>
-      </div>
-    </nav>` : ''}
     <div class="page-body ${state.page === 'chat' ? 'chat-page-body' : ''}" data-page-body="${state.page}">
       ${renderSidebar()}
       ${state.page === 'chat' ? renderChatCenter() + renderRightPanel() : ''}

@@ -1,7 +1,6 @@
 // Entry point — DOM updates, event binding, orchestrates sub-modules
 import { state } from './state';
 import { t } from './i18n';
-import { renderRightPanelContent } from './chat-token';
 import { copyText } from './chat-render';
 import {
   handleSend,
@@ -24,7 +23,7 @@ import { mountRightPanel } from './components/RightPanel';
 
 // ── DOM updaters ──
 
-export function renderChatArea(): void {
+function renderChatArea(): void {
   const messagesEl = document.getElementById('chatMessages');
   if (messagesEl) {
     mountMessageList(messagesEl);
@@ -42,21 +41,21 @@ export function renderChatArea(): void {
   }
 }
 
-export function renderConversationListInDom(): void {
+function renderConversationListInDom(): void {
   const listEl = document.getElementById('chatList');
   if (listEl) {
-    mountConversationList(listEl, selectConversation, deleteConversation, createConversation);
+    mountConversationList(listEl, selectConversation, deleteConversation);
   }
 }
 
-export function renderChatInputInDom(): void {
+function renderChatInputInDom(): void {
   const mountEl = document.getElementById('chatInputMount');
   if (mountEl) {
     mountChatInput(mountEl, handleSend);
   }
 }
 
-export function renderRightPanelInDom(): void {
+function renderRightPanelInDom(): void {
   const panelBody = document.querySelector('.chat-right .panel-body');
   if (panelBody) {
     mountRightPanel(panelBody as HTMLElement);
@@ -101,13 +100,8 @@ export function mountChatSurfaceInDom(): void {
 export {
   loadConversations,
   selectConversation,
-  createConversation,
-  renameCurrentConversation,
-  deleteConversation,
   setCurrentConversationModel,
 };
-export { renderConversationList, renderChatMessages, renderChatInput } from './chat-render';
-export { renderRightPanelContent } from './chat-token';
 
 // ── Wire up callbacks for sub-modules ──
 

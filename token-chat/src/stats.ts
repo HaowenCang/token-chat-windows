@@ -2,37 +2,42 @@ import { getLang, t } from './i18n';
 import { tooltipAttrs } from './tooltip';
 import { convertCurrencyNanos, formatCurrencyAmount, formatCurrencyNanos, getDisplayCurrency } from './currency';
 import { clearDeclaredGlassPortals, mountDeclaredGlassPortals, placeLiquidGlassLayer } from './liquid-glass';
+import { buildStatsCsv, buildStatsJson } from './stats-export-model';
+import {
+  emptyStats,
+  getConversationStatsSortValue,
+  getModelStatsSortValue,
+  getModelStatsTotalTokens,
+  getStatsRangeParams,
+  normalizeStatsCurrency,
+  sortTable,
+  toggleSortState,
+  type SortDir,
+  type StatsData,
+  type TimeRange,
+} from './stats-view-model';
+import {
+  defaultTrendSeriesVisibility,
+  mergeDailyCosts,
+  normalizeTrendDays,
+  resolveTrendSelection,
+  sumDailyTokens,
+  totalDailyTokens,
+  visibleDailyTokens,
+  type TrendModelOption,
+  type TrendScope,
+  type TrendSeries,
+  type TrendSeriesVisibility,
+} from './token-trend-model';
 import {
   loadStatsSnapshot,
   type ConversationStats,
-  type CurrencyCost,
   type DailyCost,
   type ModelStats,
-  type StatsRangeParams,
-  type StatsSummary,
 } from './ipc/stats-snapshot';
 import { isWebRuntime } from './platform/runtime';
 
 const isDev = isWebRuntime();
-
-interface StatsData {
-  summary: StatsSummary;
-  daily_costs: DailyCost[];
-  token_breakdown: { cached: number; input: number; output: number };
-  by_model: ModelStats[];
-  by_conversation: ConversationStats[];
-}
-
-type TimeRange = 'all' | 'today' | 'month' | 'custom';
-type SortDir = 'asc' | 'desc';
-type TrendScope = 'all' | 'model';
-type TrendSeries = 'total' | 'cached' | 'input' | 'output';
-
-interface TrendModelOption {
-  key: string;
-  modelName: string;
-  providerName: string;
-}
 
 let statsData: StatsData | null = null;
 let timeRange: TimeRange = 'all';
@@ -45,12 +50,7 @@ let convSortDir: SortDir = 'desc';
 let trendScope: TrendScope = 'all';
 let selectedTrendModelKey = '';
 let trendAnimationSequence = 0;
-const trendSeriesVisibility: Record<TrendSeries, boolean> = {
-  total: true,
-  cached: true,
-  input: true,
-  output: true,
-};
+const trendSeriesVisibility: TrendSeriesVisibility = { ...defaultTrendSeriesVisibility };
 let rerender: (() => void | Promise<void>) | null = null;
 let trendPickerOutsideBound = false;
 
@@ -139,116 +139,10 @@ function getChartText() {
   };
 }
 
-function totalDailyTokens(day: DailyCost): number {
-  return day.cached_tokens + day.input_tokens + day.output_tokens;
-}
-
-function sumDailyTokens(days: DailyCost[]): number {
-  return days.reduce((sum, day) => sum + totalDailyTokens(day), 0);
-}
-
 function formatAxisTokens(value: number): string {
   if (value <= 0) return '0';
   if (value >= 1000) return `${Math.round(value / 1000).toLocaleString().replace(/,/g, '')}k`;
   return String(Math.round(value));
-}
-
-function parseDateKey(value: string): Date | null {
-  const [year, month, day] = value.split('-').map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
-}
-
-function formatDateKey(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
-function addDays(date: Date, amount: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + amount);
-  return next;
-}
-
-function mergeDailyCosts(days: DailyCost[]): DailyCost[] {
-  const map = new Map<string, DailyCost>();
-  for (const day of days) {
-    const current = map.get(day.date) ?? {
-      date: day.date,
-      cost_nanos: 0,
-      cached_tokens: 0,
-      input_tokens: 0,
-      output_tokens: 0,
-    };
-    current.cost_nanos += day.cost_nanos;
-    current.cached_tokens += day.cached_tokens;
-    current.input_tokens += day.input_tokens;
-    current.output_tokens += day.output_tokens;
-    map.set(day.date, current);
-  }
-  return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
-}
-
-function getTrendModelOptions(days: DailyCost[]): TrendModelOption[] {
-  const options = new Map<string, TrendModelOption>();
-  for (const day of days) {
-    if (!day.model_key) continue;
-    options.set(day.model_key, {
-      key: day.model_key,
-      modelName: day.model_name || getChartText().unknownModel,
-      providerName: day.provider_name || '',
-    });
-  }
-  return [...options.values()].sort((a, b) =>
-    `${a.providerName} ${a.modelName}`.localeCompare(`${b.providerName} ${b.modelName}`),
-  );
-}
-
-function getTrendRows(days: DailyCost[], options: TrendModelOption[]): DailyCost[] {
-  if (trendScope === 'all') return days;
-  if (!options.some(option => option.key === selectedTrendModelKey)) {
-    selectedTrendModelKey = options[0]?.key ?? '';
-  }
-  return selectedTrendModelKey
-    ? days.filter(day => day.model_key === selectedTrendModelKey)
-    : [];
-}
-
-function normalizeTrendDays(days: DailyCost[]): DailyCost[] {
-  const sorted = mergeDailyCosts(days);
-  if (sorted.length === 0) return [];
-
-  let start = parseDateKey(sorted[0].date);
-  let end = parseDateKey(sorted[sorted.length - 1].date);
-  const now = new Date();
-
-  if (timeRange === 'today') {
-    start = toStartOfDay(now);
-    end = toStartOfDay(now);
-  } else if (timeRange === 'month') {
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
-    end = toStartOfDay(now);
-  } else if (timeRange === 'custom') {
-    start = dateInputToDate(customStartDate, false) ?? start;
-    end = dateInputToDate(customEndDate, false) ?? end;
-  }
-
-  if (!start || !end) return sorted;
-  const span = Math.round((toStartOfDay(end).getTime() - toStartOfDay(start).getTime()) / 86_400_000);
-  if (span < 0 || span > 60) return sorted;
-
-  const map = new Map(sorted.map(day => [day.date, day]));
-  return Array.from({ length: span + 1 }, (_, idx) => {
-    const date = formatDateKey(addDays(start!, idx));
-    return map.get(date) ?? {
-      date,
-      cost_nanos: 0,
-      cached_tokens: 0,
-      input_tokens: 0,
-      output_tokens: 0,
-    };
-  });
 }
 
 function niceStep(value: number): number {
@@ -282,165 +176,32 @@ function smoothPath(points: { x: number; y: number }[]): string {
   return path;
 }
 
-function normalizeStatsCurrency(
-  summary: StatsSummary,
-  dailyCosts: DailyCost[],
-  byModel: ModelStats[],
-  byConversation: ConversationStats[],
-): StatsData {
-  const displayCurrency = getDisplayCurrency();
-  const convertedDaily = dailyCosts.map(day => ({
-    ...day,
-    currency: displayCurrency,
-    cost_nanos: convertCurrencyNanos(day.cost_nanos, day.currency ?? 'CNY', displayCurrency),
-  }));
-
-  const modelMap = new Map<string, ModelStats>();
-  for (const row of byModel) {
-    const key = `${row.provider_name}\u0000${row.model_name}`;
-    const current = modelMap.get(key);
-    const convertedCost = convertCurrencyNanos(row.total_cost_nanos, row.currency ?? 'CNY', displayCurrency);
-    if (current) {
-      current.request_count += row.request_count;
-      current.cached_tokens += row.cached_tokens;
-      current.uncached_tokens += row.uncached_tokens;
-      current.output_tokens += row.output_tokens;
-      current.total_cost_nanos += convertedCost;
-    } else {
-      modelMap.set(key, { ...row, currency: displayCurrency, total_cost_nanos: convertedCost });
-    }
-  }
-  const convertedModels = [...modelMap.values()];
-
-  const conversationMap = new Map<string, ConversationStats>();
-  for (const row of byConversation) {
-    const current = conversationMap.get(row.conversation_id);
-    const convertedCost = convertCurrencyNanos(row.total_cost_nanos, row.currency ?? 'CNY', displayCurrency);
-    if (current) {
-      current.requests += row.requests;
-      current.tokens += row.tokens;
-      current.total_cost_nanos += convertedCost;
-      current.updated_at = Math.max(current.updated_at, row.updated_at);
-    } else {
-      conversationMap.set(row.conversation_id, { ...row, currency: displayCurrency, total_cost_nanos: convertedCost });
-    }
-  }
-
-  const costRows = summary.cost_by_currency?.length
-    ? summary.cost_by_currency
-    : byModel.map(row => ({ currency: row.currency ?? 'CNY', cost_nanos: row.total_cost_nanos }));
-  const totalCost = costRows.reduce(
-    (sum, item) => sum + convertCurrencyNanos(item.cost_nanos, item.currency, displayCurrency),
-    0,
-  );
-
-  return {
-    summary: {
-      ...summary,
-      total_cost_nanos: totalCost,
-      cost_by_currency: [{ currency: displayCurrency, cost_nanos: totalCost }],
-    },
-    daily_costs: convertedDaily,
-    token_breakdown: {
-      cached: convertedModels.reduce((sum, row) => sum + row.cached_tokens, 0),
-      input: convertedModels.reduce((sum, row) => sum + row.uncached_tokens, 0),
-      output: convertedModels.reduce((sum, row) => sum + row.output_tokens, 0),
-    },
-    by_model: convertedModels,
-    by_conversation: [...conversationMap.values()],
-  };
-}
-
 export async function loadStats(): Promise<void> {
+  const normalizer = {
+    displayCurrency: getDisplayCurrency(),
+    convertCurrencyNanos,
+  };
   if (isDev) {
-    statsData = normalizeStatsCurrency(
-      mockStats.summary,
-      mockStats.daily_costs,
-      mockStats.by_model,
-      mockStats.by_conversation,
-    );
+    statsData = normalizeStatsCurrency({
+      summary: mockStats.summary,
+      dailyCosts: mockStats.daily_costs,
+      byModel: mockStats.by_model,
+      byConversation: mockStats.by_conversation,
+    }, normalizer);
     return;
   }
   try {
-    const range = getStatsRangeParams();
+    const range = getStatsRangeParams({ timeRange, customStartDate, customEndDate });
     const snapshot = await loadStatsSnapshot(range);
-    statsData = normalizeStatsCurrency(
-      snapshot.summary,
-      snapshot.dailyCosts,
-      snapshot.byModel,
-      snapshot.byConversation,
-    );
+    statsData = normalizeStatsCurrency({
+      summary: snapshot.summary,
+      dailyCosts: snapshot.dailyCosts,
+      byModel: snapshot.byModel,
+      byConversation: snapshot.byConversation,
+    }, normalizer);
   } catch {
     statsData = emptyStats();
   }
-}
-
-function emptyStats(): StatsData {
-  return {
-    summary: {
-      total_cost_nanos: 0,
-      cost_by_currency: [],
-      total_requests: 0,
-      cache_hit_rate: 0,
-      avg_latency_ms: 0,
-    },
-    daily_costs: [],
-    token_breakdown: { cached: 0, input: 0, output: 0 },
-    by_model: [],
-    by_conversation: [],
-  };
-}
-
-function toStartOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
-}
-
-function toEndOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
-}
-
-function dateInputToDate(value: string, endOfDay: boolean): Date | null {
-  if (!value) return null;
-  const [year, month, day] = value.split('-').map(Number);
-  if (!year || !month || !day) return null;
-  const date = new Date(year, month - 1, day);
-  return endOfDay ? toEndOfDay(date) : toStartOfDay(date);
-}
-
-function getStatsRangeParams(): StatsRangeParams | null {
-  const now = new Date();
-  if (timeRange === 'all') return null;
-  if (timeRange === 'today') {
-    return {
-      start_ts: Math.floor(toStartOfDay(now).getTime() / 1000),
-      end_ts: Math.floor(toEndOfDay(now).getTime() / 1000),
-    };
-  }
-  if (timeRange === 'month') {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    return {
-      start_ts: Math.floor(start.getTime() / 1000),
-      end_ts: Math.floor(toEndOfDay(now).getTime() / 1000),
-    };
-  }
-
-  const start = dateInputToDate(customStartDate, false);
-  const end = dateInputToDate(customEndDate, true);
-  return {
-    start_ts: start ? Math.floor(start.getTime() / 1000) : null,
-    end_ts: end ? Math.floor(end.getTime() / 1000) : null,
-  };
-}
-
-function sortTable<T extends Record<string, any>>(data: T[], key: string, dir: SortDir): T[] {
-  return [...data].sort((a, b) => {
-    const av = a[key];
-    const bv = b[key];
-    if (typeof av === 'number' && typeof bv === 'number') {
-      return dir === 'asc' ? av - bv : bv - av;
-    }
-    return dir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
-  });
 }
 
 function renderSparkline(dailyCosts: DailyCost[]): string {
@@ -502,7 +263,7 @@ function renderSparkline(dailyCosts: DailyCost[]): string {
 }
 
 function renderTokenTrend(dailyCosts: DailyCost[]): string {
-  const days = normalizeTrendDays(dailyCosts);
+  const days = normalizeTrendDays(dailyCosts, { timeRange, customStartDate, customEndDate });
   const text = getChartText();
   const W = 1120, H = 300;
   const LEFT = 58, RIGHT = 28, TOP = 24, BOTTOM = 42;
@@ -517,11 +278,7 @@ function renderTokenTrend(dailyCosts: DailyCost[]): string {
   }
 
   const totals = days.map(totalDailyTokens);
-  const visibleBarTotals = days.map(day =>
-    (trendSeriesVisibility.cached ? day.cached_tokens : 0) +
-    (trendSeriesVisibility.input ? day.input_tokens : 0) +
-    (trendSeriesVisibility.output ? day.output_tokens : 0),
-  );
+  const visibleBarTotals = days.map(day => visibleDailyTokens(day, trendSeriesVisibility));
   const maxToken = niceTokenMax(Math.max(
     trendSeriesVisibility.total ? Math.max(...totals, 0) : 0,
     Math.max(...visibleBarTotals, 0),
@@ -669,10 +426,13 @@ function renderTrendModelPicker(
 
 function renderTokenTrendPanel(dailyCosts: DailyCost[]): string {
   const text = getChartText();
-  const options = getTrendModelOptions(dailyCosts);
-  const selectedRows = getTrendRows(dailyCosts, options);
-  const trendDays = mergeDailyCosts(selectedRows);
-  const selectedModel = options.find(option => option.key === selectedTrendModelKey);
+  const trend = resolveTrendSelection(
+    dailyCosts,
+    { scope: trendScope, selectedModelKey: selectedTrendModelKey },
+    text.unknownModel,
+  );
+  selectedTrendModelKey = trend.selectedModelKey;
+  const trendDays = mergeDailyCosts(trend.selectedRows);
   const title = trendScope === 'model' ? text.singleModel : text.tokenTotal;
   const total = sumDailyTokens(trendDays);
 
@@ -688,7 +448,7 @@ function renderTokenTrendPanel(dailyCosts: DailyCost[]): string {
             <button type="button" class="${trendScope === 'all' ? 'active' : ''}" data-trend-scope="all">${text.tokenTotal}</button>
             <button type="button" class="${trendScope === 'model' ? 'active' : ''}" data-trend-scope="model">${text.singleModel}</button>
           </div>
-          ${trendScope === 'model' ? renderTrendModelPicker(options, selectedModel, text) : ''}
+          ${trendScope === 'model' ? renderTrendModelPicker(trend.options, trend.selectedModel, text) : ''}
         </div>
       </div>
       <div class="token-trend-legend" aria-label="${escHtml(title)}">
@@ -697,7 +457,7 @@ function renderTokenTrendPanel(dailyCosts: DailyCost[]): string {
         ${renderTrendLegendButton('input', text.uncached)}
         ${renderTrendLegendButton('output', text.output)}
       </div>
-      <div class="token-trend-canvas" data-model="${escHtml(selectedModel?.modelName ?? '')}">
+      <div class="token-trend-canvas" data-model="${escHtml(trend.selectedModel?.modelName ?? '')}">
         ${renderTokenTrend(trendDays)}
       </div>
     </div>
@@ -716,7 +476,6 @@ function renderDonut(breakdown: { cached: number; input: number; output: number 
 
   const cachedPct = (breakdown.cached / total) * 360;
   const inputPct = (breakdown.input / total) * 360;
-  const outputPct = (breakdown.output / total) * 360;
 
   const gradient = `conic-gradient(
     var(--chart-cache) 0deg ${cachedPct}deg,
@@ -750,7 +509,7 @@ function sortIndicator(key: string, activeKey: string, dir: SortDir): string {
 }
 
 function renderModelTable(models: ModelStats[]): string {
-  const sorted = sortTable(models, modelSortKey, modelSortDir);
+  const sorted = sortTable(models, modelSortKey, modelSortDir, getModelStatsSortValue);
   const cols: { key: string; label: string }[] = [
     { key: 'model_name', label: '模型名' },
     { key: 'provider_name', label: 'Provider' },
@@ -768,7 +527,7 @@ function renderModelTable(models: ModelStats[]): string {
   ).join('');
 
   const rows = sorted.map(m => {
-    const totalTokens = m.cached_tokens + m.uncached_tokens + m.output_tokens;
+    const totalTokens = getModelStatsTotalTokens(m);
     const rate = m.avg_token_rate > 0 ? `${Math.round(m.avg_token_rate)} t/s` : '-';
     return `<tr>
       <td>${escHtml(m.model_name)}</td>
@@ -787,7 +546,7 @@ function renderModelTable(models: ModelStats[]): string {
 }
 
 function renderConvTable(convs: ConversationStats[]): string {
-  const sorted = sortTable(convs, convSortKey, convSortDir);
+  const sorted = sortTable(convs, convSortKey, convSortDir, getConversationStatsSortValue);
   const cols: { key: string; label: string }[] = [
     { key: 'title', label: '对话标题' },
     { key: 'model', label: '模型' },
@@ -1075,12 +834,9 @@ export function bindStatsEvents(renderFn: () => void | Promise<void>): void {
   document.querySelectorAll<HTMLElement>('[data-sort-model]').forEach(el => {
     el.addEventListener('click', async () => {
       const key = el.dataset.sortModel!;
-      if (modelSortKey === key) {
-        modelSortDir = modelSortDir === 'asc' ? 'desc' : 'asc';
-      } else {
-        modelSortKey = key;
-        modelSortDir = 'desc';
-      }
+      const nextSort = toggleSortState({ key: modelSortKey, dir: modelSortDir }, key);
+      modelSortKey = nextSort.key;
+      modelSortDir = nextSort.dir;
       await rerenderStatsPreservingScroll();
     });
   });
@@ -1088,19 +844,16 @@ export function bindStatsEvents(renderFn: () => void | Promise<void>): void {
   document.querySelectorAll<HTMLElement>('[data-sort-conv]').forEach(el => {
     el.addEventListener('click', async () => {
       const key = el.dataset.sortConv!;
-      if (convSortKey === key) {
-        convSortDir = convSortDir === 'asc' ? 'desc' : 'asc';
-      } else {
-        convSortKey = key;
-        convSortDir = 'desc';
-      }
+      const nextSort = toggleSortState({ key: convSortKey, dir: convSortDir }, key);
+      convSortKey = nextSort.key;
+      convSortDir = nextSort.dir;
       await rerenderStatsPreservingScroll();
     });
   });
 
   document.getElementById('exportJson')?.addEventListener('click', () => {
     if (!statsData) return;
-    const blob = new Blob([JSON.stringify(statsData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([buildStatsJson(statsData)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'token-stats.json';
@@ -1110,12 +863,7 @@ export function bindStatsEvents(renderFn: () => void | Promise<void>): void {
 
   document.getElementById('exportCsv')?.addEventListener('click', () => {
     if (!statsData) return;
-    const rows = [`Model,Provider,Requests,Cached Input,Uncached Input,Output,Total Tokens,Cost (${getDisplayCurrency()})`];
-    for (const m of statsData.by_model) {
-      const total = m.cached_tokens + m.uncached_tokens + m.output_tokens;
-      rows.push([m.model_name, m.provider_name, m.request_count, m.cached_tokens, m.uncached_tokens, m.output_tokens, total, (m.total_cost_nanos / 1e9).toFixed(2)].join(','));
-    }
-    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const blob = new Blob([buildStatsCsv(statsData, getDisplayCurrency())], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'token-stats.csv';

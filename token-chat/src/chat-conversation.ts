@@ -1,14 +1,15 @@
-import { state, type Conversation, type Message } from './state';
+import { state, parseContent, type Conversation, type Message } from './state';
 import { t } from './i18n';
 import { showGlassConfirm, showGlassPrompt } from './glass-dialog';
 import { resetLiveTokenUsage, loadTokenUsage } from './chat-token';
-import { updateConversationTitleLocal } from './chat-send';
+import { parseAttachments, titleFromContent, isDefaultConversationTitle } from './chat-attachment';
 import {
   createConversation as createConversationInStore,
   deleteConversation as deleteConversationFromStore,
   listConversations as listConversationsFromStore,
   listMessages,
   updateConversationModel as updateConversationModelInStore,
+  updateConversationTitle as updateConversationTitleInStore,
 } from './ipc/chat-ipc';
 import { isWebRuntime } from './platform/runtime';
 
@@ -176,6 +177,33 @@ export async function renameCurrentConversation(): Promise<void> {
   const title = await showGlassPrompt(t('chat.conversationTitle'), conv.title);
   if (title === null) return;
   await updateConversationTitleLocal(conv.id, title);
+}
+
+export async function renameConversationFromFirstMessage(conversationId: string): Promise<void> {
+  const conv = state.conversations.find(c => c.id === conversationId);
+  if (!conv || !isDefaultConversationTitle(conv.title)) return;
+  const firstUser = state.messages.find(m => m.conversation_id === conversationId && m.role === 'user');
+  if (!firstUser) return;
+  const title = titleFromContent(parseContent(firstUser.content_json), parseAttachments(firstUser.attachments_json));
+  await updateConversationTitleLocal(conversationId, title);
+}
+
+async function updateConversationTitleLocal(conversationId: string, title: string): Promise<void> {
+  const trimmed = title.trim();
+  if (!trimmed) return;
+  const conv = state.conversations.find(c => c.id === conversationId);
+  if (!conv || conv.title === trimmed) return;
+  conv.title = trimmed;
+  conv.updated_at = Math.floor(Date.now() / 1000);
+  if (!isDev) {
+    try {
+      await updateConversationTitleInStore(conversationId, trimmed);
+    } catch (e) {
+      console.error('Failed to update conversation title:', e);
+    }
+  }
+  doRenderChatArea();
+  doRenderConversationListInDom();
 }
 
 export async function setCurrentConversationModel(modelId: string): Promise<void> {

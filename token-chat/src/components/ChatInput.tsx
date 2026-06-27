@@ -1,6 +1,6 @@
 /** @jsxImportSource preact */
 import { render } from 'preact';
-import { useState, useRef, useEffect, useCallback } from 'preact/hooks';
+import { useRef, useEffect, useCallback } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { state } from '../state';
@@ -10,7 +10,6 @@ import {
   clearSelectedAttachments,
   addAttachmentFiles,
   pushSelectedAttachments,
-  escHtml,
   formatFileSize,
   type MessageAttachment,
 } from '../chat-attachment';
@@ -18,17 +17,18 @@ import { getSearchConfigSnapshot } from '../web-search';
 import { isChatWebSearchEnabled, getWebSearchPhase, getWebSearchStatusText } from '../chat-send';
 import { readFileBytes } from '../ipc/chat-ipc';
 import { isTauriRuntime } from '../platform/runtime';
+import { getSendKeyPreference } from '../settings-state';
 
 // ── Signals for reactive UI ──
 
-export const inputDraft = signal('');
-export const attachmentsSignal = signal<MessageAttachment[]>([]);
-export const streamingSignal = signal(false);
-export const searchEnabledSignal = signal(false);
-export const searchPhaseSignal = signal('idle');
-export const searchStatusSignal = signal('');
+const inputDraft = signal('');
+const attachmentsSignal = signal<MessageAttachment[]>([]);
+const streamingSignal = signal(false);
+const searchEnabledSignal = signal(false);
+const searchPhaseSignal = signal('idle');
+const searchStatusSignal = signal('');
 
-export function syncInputSignals(): void {
+function syncInputSignals(): void {
   attachmentsSignal.value = [...getSelectedAttachments()];
   streamingSignal.value = state.isStreaming;
   searchEnabledSignal.value = isChatWebSearchEnabled();
@@ -86,7 +86,7 @@ function ChatInputInner({ onSend }: ChatInputProps) {
   }, []);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const sendKey = localStorage.getItem('tc-send-key') || 'enter';
+    const sendKey = getSendKeyPreference();
     const isSend = sendKey === 'enter' ? (e.key === 'Enter' && !e.shiftKey) : (e.key === 'Enter' && e.shiftKey);
     if (isSend) {
       e.preventDefault();
@@ -258,12 +258,4 @@ function ChatInputInner({ onSend }: ChatInputProps) {
 export function mountChatInput(container: HTMLElement, onSend: () => void): void {
   syncInputSignals();
   render(<ChatInputInner onSend={onSend} />, container);
-}
-
-export function updateChatInput(onSend: () => void): void {
-  syncInputSignals();
-  const mountEl = document.getElementById('chatInputMount');
-  if (mountEl) {
-    render(<ChatInputInner onSend={onSend} />, mountEl);
-  }
 }

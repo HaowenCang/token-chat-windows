@@ -1,5 +1,6 @@
 import { getBuiltinPrompt } from './ipc/prompt-ipc';
 import { isWebRuntime } from './platform/runtime';
+import { getEffectiveGlobalPrompt } from './settings-state';
 
 const isDev = isWebRuntime();
 let builtinPrompt: string | null = null;
@@ -22,7 +23,5 @@ export function getBuiltinPromptSnapshot(): string {
 }
 
 export function getEffectiveSystemPrompt(): string {
-  const custom = localStorage.getItem('tc-global-prompt');
-  if (custom !== null && custom.trim()) return custom;
-  return getBuiltinPromptSnapshot();
+  return getEffectiveGlobalPrompt(getBuiltinPromptSnapshot());
 }

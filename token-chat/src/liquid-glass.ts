@@ -24,7 +24,7 @@ export function liquidGlassLayers(content: string): string {
   `;
 }
 
-export function getLiquidGlassPortalRoot(): HTMLElement {
+function getLiquidGlassPortalRoot(): HTMLElement {
   let root = document.getElementById(PORTAL_ROOT_ID);
   if (!root) {
     root = document.createElement('div');

@@ -537,7 +537,13 @@ const translations: Record<Lang, Record<string, string>> = {
   },
 };
 
-let currentLang: Lang = (localStorage.getItem('tc-lang') as Lang) || 'zh';
+function getStoredLang(): Lang {
+  if (typeof localStorage === 'undefined') return 'zh';
+  const stored = localStorage.getItem('tc-lang') as Lang | null;
+  return stored === 'en' || stored === 'zh' ? stored : 'zh';
+}
+
+let currentLang: Lang = getStoredLang();
 
 export function t(key: string): string {
   return translations[currentLang]?.[key] ?? key;
@@ -549,5 +555,7 @@ export function getLang(): Lang {
 
 export function setLang(lang: Lang): void {
   currentLang = lang;
-  localStorage.setItem('tc-lang', lang);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('tc-lang', lang);
+  }
 }

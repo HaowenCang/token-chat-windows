@@ -22,10 +22,6 @@ export function getSelectedAttachments(): MessageAttachment[] {
   return _selectedAttachments;
 }
 
-export function setSelectedAttachments(items: MessageAttachment[]): void {
-  _selectedAttachments = items;
-}
-
 export function clearSelectedAttachments(): void {
   _selectedAttachments = [];
 }
@@ -39,7 +35,7 @@ export function pushSelectedAttachments(items: MessageAttachment[]): void {
 const MAX_TEXT_ATTACHMENT_BYTES = 180_000;
 const MAX_IMAGE_ATTACHMENT_BYTES = 4_000_000;
 
-export function escHtml(s: string): string {
+function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
@@ -111,21 +107,6 @@ export async function addAttachmentFiles(files: FileList | null): Promise<void> 
 
 // ── Rendering ──
 
-export function renderAttachmentDrafts(): string {
-  if (_selectedAttachments.length === 0) return '';
-  return `
-    <div class="attachment-drafts">
-      ${_selectedAttachments.map(a => `
-        <div class="attachment-chip">
-          <span class="attachment-chip-name">${escHtml(a.name)}</span>
-          <span class="attachment-chip-meta">${escHtml(a.kind)} · ${formatFileSize(a.size)}</span>
-          <button class="attachment-remove" data-remove-attachment="${a.id}" title="Remove attachment">&#10005;</button>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
-
 export function renderMessageAttachments(attachments: MessageAttachment[]): string {
   if (attachments.length === 0) return '';
   return `
@@ -143,7 +124,7 @@ export function renderMessageAttachments(attachments: MessageAttachment[]): stri
 
 // ── API content building ──
 
-export function buildTextWithAttachments(text: string, attachments: MessageAttachment[]): string {
+function buildTextWithAttachments(text: string, attachments: MessageAttachment[]): string {
   const parts: string[] = [];
   if (text.trim()) parts.push(text.trim());
 

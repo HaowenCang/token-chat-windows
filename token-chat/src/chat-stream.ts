@@ -1,5 +1,5 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { state, parseContent, type Message } from './state';
+import { state, parseContent } from './state';
 import { type StreamChunk, type StreamCapture, updateLiveTokenUsage } from './chat-token';
 import { patchStreamingMessage } from './components/MessageList';
 
@@ -44,16 +44,7 @@ export async function setupStreamListeners(
   });
 }
 
-export function cleanupStreamListeners(): void {
+function cleanupStreamListeners(): void {
   if (streamUnlisten) { streamUnlisten(); streamUnlisten = null; }
   if (metricsUnlisten) { metricsUnlisten(); metricsUnlisten = null; }
-}
-
-export function scrollToBottom(): void {
-  const container = document.getElementById('chatMessages');
-  if (container) {
-    requestAnimationFrame(() => {
-      container.scrollTop = container.scrollHeight;
-    });
-  }
 }
